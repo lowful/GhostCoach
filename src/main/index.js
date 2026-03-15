@@ -22,9 +22,8 @@ const { captureScreen } = require('./capture');
 const {
   analyzeScreenshot,
   getRoundSummary,
-  checkIfMatch,
-  checkIfAlive,
-  getMatchSummary
+  getMatchSummary,
+  isDuplicateTip,
 } = require('./api');
 const { registerHotkeys, unregisterHotkeys } = require('./hotkeys');
 
@@ -47,6 +46,11 @@ let playerState  = 'alive';     // alive | dead
 
 // Accumulate tips for end-of-match summary
 let matchTipsForSummary = [];
+
+// ─── In-flight guard + dedup state ─────────────────────────────────────────────
+let requestInFlight = false;   // prevents parallel API calls
+let lastTipTime     = 0;       // enforces 20s min gap between tips
+let lastScreenHash  = '';      // last screenshot hash for duplicate detection
 
 // ─── Fix 1: Death tip hard cap + rate limiter ──────────────────────────────────
 let deathTipSent      = false;
@@ -207,18 +211,29 @@ function getBaseInterval() {
 
 // ─── Capture + Analysis ────────────────────────────────────────────────────────
 async function runCapture(forced = false) {
-  const apiKey = store.get('apiKey');
-  if (!apiKey || isPaused) return;
+  const licenseKey = store.get('licenseKey');
+  if (!licenseKey || isPaused) return;
+
+  // In-flight guard — never queue parallel requests
+  if (requestInFlight && !forced) return;
 
   const now = Date.now();
-  const minGap = Math.max(5000, getBaseInterval() * 0.8);
-  if (!forced && now - lastCapture < minGap) return;
+
+  // Smart scheduling: slow cadence when not in match (30s), 20s min after tip
+  const notInMatch = matchState === 'idle' || matchState === 'waiting_for_match';
+  const minGap = notInMatch
+    ? 30000
+    : Math.max(getBaseInterval() * 0.8, 5000);
+  const tipCooldown = now - lastTipTime < 20000;
+
+  if (!forced && (now - lastCapture < minGap || tipCooldown)) return;
   lastCapture = now;
   captureCount++;
 
   const overlayWin = getOverlayWindow();
 
   try {
+    requestInFlight = true;
     sendToOverlay('coach:status', { status: 'capturing' });
     sendToSettings('settings:status', { status: 'capturing' });
 
@@ -226,92 +241,43 @@ async function runCapture(forced = false) {
     if (overlayWin && !overlayWin.isDestroyed()) {
       overlayWin.setOpacity(0);
     }
-    await new Promise(r => setTimeout(r, 20)); // Fix 2: reduced from 80ms to 20ms
+    await new Promise(r => setTimeout(r, 20));
 
-    const base64 = await captureScreen();
+    const { buffer, hash, sizeKB } = await captureScreen();
 
     // Restore overlay immediately
     if (overlayWin && !overlayWin.isDestroyed()) {
       overlayWin.setOpacity(1);
     }
 
-    // ── Match detection: first capture, or re-check every 5th capture ──────────
-    const shouldCheckMatch = (matchState === 'idle') ||
-                             (matchState === 'waiting_for_match') ||
-                             (matchState === 'in_match' && captureCount % 5 === 0);
-
-    if (shouldCheckMatch) {
-      const statusData = { status: 'detecting' };
-      sendToOverlay('coach:status', statusData);
-      sendToSettings('settings:status', statusData);
-      const inMatch = await checkIfMatch(base64, apiKey);
-
-      if (!inMatch) {
-        matchState = 'waiting_for_match';
-        playerState = 'alive';
-        deathTipSent = false;
-        combatTipGiven = false;
-        sendToOverlay('coach:matchState', { state: 'waiting_for_match' });
-        sendToOverlay('coach:status', { status: 'waiting_for_match' });
-        sendToSettings('settings:status', { status: 'waiting_for_match' });
-        return;
-      } else if (matchState !== 'in_match') {
-        matchState = 'in_match';
-        matchTipsForSummary = []; // reset tips for new match
-        sendToOverlay('coach:matchState', { state: 'in_match' });
-      }
+    // Duplicate frame detection — skip API call if screenshot unchanged
+    if (!forced && hash === lastScreenHash) {
+      console.log('[coach] Duplicate frame — skipping');
+      sendToOverlay('coach:status', { status: notInMatch ? 'waiting_for_match' : 'coaching' });
+      requestInFlight = false;
+      return;
     }
+    lastScreenHash = hash;
 
-    // ── Fix 1: Death handling with hard cap ───────────────────────────────────
+    // Dead player: if tip already sent and not continueWhileDead, only re-check every 10s
     const continueWhileDead = store.get('continueCoachingWhileDead');
-
-    if (playerState === 'dead') {
-      if (deathTipSent && !continueWhileDead) {
-        // Only check alive every 10 seconds
-        if (now - lastAliveCheckTime < 10000) {
-          sendToOverlay('coach:status', { status: 'player_dead' });
-          sendToSettings('settings:status', { status: 'player_dead' });
-          return;
-        }
-        lastAliveCheckTime = now;
-        const alive = await checkIfAlive(base64, apiKey);
-        if (alive) {
-          playerState = 'alive';
-          deathTipSent = false;
-          combatTipGiven = false;
-          sendToOverlay('coach:playerState', { state: 'alive' });
-          sendToOverlay('coach:status', { status: 'coaching' });
-          sendToSettings('settings:status', { status: 'coaching' });
-          // Fall through to normal coaching
-        } else {
-          sendToOverlay('coach:status', { status: 'player_dead' });
-          sendToSettings('settings:status', { status: 'player_dead' });
-          return;
-        }
-      } else if (!continueWhileDead && !deathTipSent) {
-        // Not yet sent death tip — check alive first
-        const alive = await checkIfAlive(base64, apiKey);
-        if (alive) {
-          playerState = 'alive';
-          deathTipSent = false;
-          combatTipGiven = false;
-          sendToOverlay('coach:playerState', { state: 'alive' });
-          sendToOverlay('coach:status', { status: 'coaching' });
-          sendToSettings('settings:status', { status: 'coaching' });
-          // Fall through
-        } else {
-          // Still dead, fall through to let AI provide death tip
-        }
+    if (playerState === 'dead' && deathTipSent && !continueWhileDead) {
+      if (now - lastAliveCheckTime < 10000) {
+        sendToOverlay('coach:status', { status: 'player_dead' });
+        sendToSettings('settings:status', { status: 'player_dead' });
+        requestInFlight = false;
+        return;
       }
+      lastAliveCheckTime = now;
+      // Fall through to analyze — response will indicate if player is alive
     }
 
     const mode = store.get('coachingMode');
-    const analyzeStatusData = { status: 'analyzing' };
-    sendToOverlay('coach:status', analyzeStatusData);
-    sendToSettings('settings:status', analyzeStatusData);
+    sendToOverlay('coach:status', { status: 'analyzing' });
+    sendToSettings('settings:status', { status: 'analyzing' });
 
     const recentTips = matchTipsForSummary.slice(-5);
-    const result = await analyzeScreenshot(base64, apiKey, mode, combatTipGiven, recentTips);
+    const result = await analyzeScreenshot(buffer, licenseKey, mode, combatTipGiven, recentTips, hash);
 
     if (!result) {
       const coachData = { status: 'coaching' };
@@ -322,8 +288,12 @@ async function runCapture(forced = false) {
 
     const upper = result.toUpperCase();
 
-    // WAITING — never display; check if match ended
+    // WAITING — not in a match; slow down polling
     if (upper.startsWith('WAITING')) {
+      if (matchState === 'in_match') {
+        // Match just ended — trigger match summary
+        triggerMatchSummary(licenseKey);
+      }
       matchState = 'waiting_for_match';
       playerState = 'alive';
       deathTipSent = false;
@@ -331,21 +301,30 @@ async function runCapture(forced = false) {
       sendToOverlay('coach:matchState', { state: 'waiting_for_match' });
       sendToOverlay('coach:status', { status: 'waiting_for_match' });
       sendToSettings('settings:status', { status: 'waiting_for_match' });
+      requestInFlight = false;
       return;
     }
 
-    // ACTIVE_COMBAT — backward-compat filter (old prompt responses)
+    // Entered a match — reset tip accumulator
+    if (matchState !== 'in_match') {
+      matchState = 'in_match';
+      matchTipsForSummary = [];
+      sendToOverlay('coach:matchState', { state: 'in_match' });
+    }
+
+    // ACTIVE_COMBAT — backward-compat filter
     if (upper.startsWith('ACTIVE_COMBAT')) {
       sendToOverlay('coach:status', { status: 'active_combat' });
       sendToSettings('settings:status', { status: 'active_combat' });
+      requestInFlight = false;
       return;
     }
 
-    // ACTIVE_WAIT — Fix 5: AI says a combat tip was already given this encounter
+    // ACTIVE_WAIT — combat tip already given this encounter
     if (upper.startsWith('ACTIVE_WAIT')) {
       sendToOverlay('coach:status', { status: 'active_combat' });
       sendToSettings('settings:status', { status: 'active_combat' });
-      // Don't reset combatTipGiven — combat is still ongoing
+      requestInFlight = false;
       return;
     }
 
@@ -355,10 +334,11 @@ async function runCapture(forced = false) {
       deathTipSent = false;
       if (now - lastRoundEnd > 30000) {
         lastRoundEnd = now;
-        triggerRoundSummary(base64, apiKey);
+        triggerRoundSummary(buffer, licenseKey);
       }
       sendToOverlay('coach:status', { status: 'round_end' });
       sendToSettings('settings:status', { status: 'round_end' });
+      requestInFlight = false;
       return;
     }
 
@@ -371,11 +351,14 @@ async function runCapture(forced = false) {
         playerState = 'dead';
         lastAliveCheckTime = now;
         sendToOverlay('coach:playerState', { state: 'dead' });
+      } else {
+        // If player just came back alive (no longer PLAYER_DEAD previously)
+        playerState = 'dead';
       }
 
-      combatTipGiven = false; // reset combat on death
+      combatTipGiven = false;
 
-      if (deathTip && deathTip.length > 2 && !deathTipSent) {
+      if (deathTip && deathTip.length > 2 && !deathTipSent && !isDuplicateTip(deathTip, matchTipsForSummary.slice(-10))) {
         if (canShowTip()) {
           const tipData = {
             text:       deathTip,
@@ -387,6 +370,7 @@ async function runCapture(forced = false) {
           if (tipHistory.length > 20) tipHistory.pop();
           matchTipsForSummary.push(deathTip);
           deathTipSent = true;
+          lastTipTime = now;
           sendToOverlay('coach:tip', tipData);
           sendToOverlay('coach:state', buildState());
           sendToSettings('settings:state', buildState());
@@ -396,15 +380,24 @@ async function runCapture(forced = false) {
 
       sendToOverlay('coach:status', { status: 'player_dead' });
       sendToSettings('settings:status', { status: 'player_dead' });
+      requestInFlight = false;
       return;
     }
 
+    // Player is alive (response was not PLAYER_DEAD) — reset dead state if needed
+    if (playerState === 'dead') {
+      playerState = 'alive';
+      deathTipSent = false;
+      combatTipGiven = false;
+      sendToOverlay('coach:playerState', { state: 'alive' });
+    }
+
     // ── Real coaching tip ──────────────────────────────────────────────────────
-    // Validate: non-empty, not a filter keyword, under 200 chars
     let tipText = result;
     if (!tipText || tipText.length < 3) {
       sendToOverlay('coach:status', { status: 'coaching' });
       sendToSettings('settings:status', { status: 'coaching' });
+      requestInFlight = false;
       return;
     }
     if (tipText.length > 200) {
@@ -412,15 +405,24 @@ async function runCapture(forced = false) {
       tipText = firstSentence ? firstSentence[0].trim() : tipText.substring(0, 150).trim();
     }
 
-    // Fix 1: global rate limiter
-    if (!canShowTip()) {
+    // Duplicate tip check — skip if first 6 words match a recent tip
+    if (isDuplicateTip(tipText, matchTipsForSummary.slice(-10))) {
       sendToOverlay('coach:status', { status: 'coaching' });
       sendToSettings('settings:status', { status: 'coaching' });
+      requestInFlight = false;
       return;
     }
 
-    // Fix 5: mark that a tip was given for this combat encounter
+    // Global rate limiter (max 3 tips per 30s)
+    if (!canShowTip()) {
+      sendToOverlay('coach:status', { status: 'coaching' });
+      sendToSettings('settings:status', { status: 'coaching' });
+      requestInFlight = false;
+      return;
+    }
+
     combatTipGiven = true;
+    lastTipTime = now;
 
     const tipData = { text: tipText, game: 'Valorant', timestamp: Date.now(), isDeathTip: false };
     tipHistory.unshift(tipData);
@@ -432,8 +434,10 @@ async function runCapture(forced = false) {
     sendToOverlay('coach:status', { status: 'coaching' });
     sendToSettings('settings:state', buildState());
     sendToSettings('settings:status', { status: 'coaching' });
+    requestInFlight = false;
 
   } catch (err) {
+    requestInFlight = false;
     // Always restore overlay opacity on error
     if (overlayWin && !overlayWin.isDestroyed()) {
       try { overlayWin.setOpacity(1); } catch (_) {}
@@ -457,12 +461,12 @@ async function runCapture(forced = false) {
 }
 
 // ─── Round summary ─────────────────────────────────────────────────────────────
-async function triggerRoundSummary(base64, apiKey) {
+async function triggerRoundSummary(buffer, licenseKey) {
   try {
     const sumStatus = { status: 'summarizing' };
     sendToOverlay('coach:status', sumStatus);
     sendToSettings('settings:status', sumStatus);
-    const summary = await getRoundSummary(base64, apiKey);
+    const summary = await getRoundSummary(buffer, licenseKey);
     if (summary) {
       const data = { ...summary, game: 'Valorant', timestamp: Date.now() };
       roundSummaries.unshift(data);
@@ -476,13 +480,13 @@ async function triggerRoundSummary(base64, apiKey) {
 }
 
 // ─── Match summary ─────────────────────────────────────────────────────────────
-async function triggerMatchSummary(apiKey) {
+async function triggerMatchSummary(licenseKey) {
   if (matchTipsForSummary.length < 3) return;
   const tips = [...matchTipsForSummary];
   matchTipsForSummary = [];
 
   try {
-    const summary = await getMatchSummary(tips, apiKey);
+    const summary = await getMatchSummary(tips, licenseKey);
     if (summary) {
       const data = { ...summary, game: 'Valorant', timestamp: Date.now(), tipsCount: tips.length };
       saveMatchSummary(data);
@@ -502,13 +506,16 @@ function startCoaching() {
   matchState    = 'idle';
   playerState   = 'alive';
   captureCount  = 0;
-  deathTipSent  = false;
-  combatTipGiven = false;
+  deathTipSent    = false;
+  combatTipGiven  = false;
+  requestInFlight = false;
+  lastTipTime     = 0;
+  lastScreenHash  = '';
 
-  // 3-second warmup so the game can stabilize FPS before we take a screenshot
+  // 10-second warmup so the game can stabilize FPS before first screenshot
   setTimeout(() => {
     if (isCoaching && !isPaused) runCapture(true);
-  }, 3000);
+  }, 10000);
 
   const interval = getBaseInterval();
   captureTimer = setInterval(() => {
@@ -541,12 +548,14 @@ function stopCoaching() {
   // Remove match summary on manual stop per Fix 4
   // (match summary only triggers on in-match end detection now)
 
-  deathTipSent  = false;
-  combatTipGiven = false;
-  matchState   = 'idle';
-  playerState  = 'alive';
+  deathTipSent    = false;
+  combatTipGiven  = false;
+  requestInFlight = false;
+  lastScreenHash  = '';
+  matchState      = 'idle';
+  playerState     = 'alive';
   sessionStartTime = null;
-  captureCount = 0;
+  captureCount    = 0;
 
   saveSession();
   updateTrayMenu(false);
@@ -675,14 +684,14 @@ ipcMain.on('settings:pauseResume',    () => pauseResumeCoaching());
 ipcMain.on('settings:forceCapture',   () => runCapture(true));
 
 ipcMain.on('settings:forceSummary', async () => {
-  const apiKey = store.get('apiKey');
-  if (!apiKey) return;
+  const licenseKey = store.get('licenseKey');
+  if (!licenseKey) return;
   const overlayWin = getOverlayWindow();
   if (overlayWin) overlayWin.setOpacity(0);
   await new Promise(r => setTimeout(r, 20));
-  const base64 = await captureScreen();
+  const { buffer } = await captureScreen();
   if (overlayWin) overlayWin.setOpacity(1);
-  triggerRoundSummary(base64, apiKey);
+  triggerRoundSummary(buffer, licenseKey);
 });
 
 ipcMain.on('settings:updateApiKey', (_, key) => {
@@ -739,7 +748,7 @@ ipcMain.handle('activate:validateKey', async (_, key) => {
       store.set('deviceId',      getDeviceId());
 
       if (activationWindow && !activationWindow.isDestroyed()) activationWindow.close();
-      if (!store.get('apiKey')) { createSetupWindow(); } else { launchMainApp(); }
+      launchMainApp();
     }
 
     // Return friendly message for known invalid states
@@ -763,7 +772,7 @@ ipcMain.handle('activate:validateKey', async (_, key) => {
       if (!expired) {
         console.log('[activate] Server unreachable — using cached license');
         if (activationWindow && !activationWindow.isDestroyed()) activationWindow.close();
-        if (!store.get('apiKey')) { createSetupWindow(); } else { launchMainApp(); }
+        launchMainApp();
         return { valid: true, plan: store.get('licensePlan'), status: 'active', expiresAt: cachedExpiry };
       }
     }
@@ -823,6 +832,7 @@ function launchMainApp() {
 }
 
 // ─── App Events ───────────────────────────────────────────────────────────────
+app.commandLine.appendSwitch('disable-gpu-compositing');
 app.setAppUserModelId('com.ghostcoach.app');
 
 app.whenReady().then(async () => {
@@ -871,11 +881,7 @@ app.whenReady().then(async () => {
     console.warn('[startup] Server unreachable, using cached license:', err.message);
   }
 
-  if (!store.get('apiKey')) {
-    createSetupWindow();
-  } else {
-    launchMainApp();
-  }
+  launchMainApp();
 });
 
 app.on('window-all-closed', () => {

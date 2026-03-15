@@ -9,6 +9,8 @@ const rateLimit = require('express-rate-limit');
 const paymentRoutes = require('./routes/payments');
 const licenseRoutes = require('./routes/license');
 const accountRoutes = require('./routes/account');
+const coachRoutes   = require('./routes/coach');
+const adminRoutes   = require('./routes/admin');
 const webhookHandler = require('./routes/webhook');
 
 const app  = express();
@@ -35,7 +37,7 @@ app.use(cors({
     callback(null, true); // allow all during dev — tighten for full prod launch
   },
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-License-Key'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-License-Key', 'X-Prompt-Mode', 'X-Combat-Tip-Given', 'X-Recent-Tips', 'X-Admin-Password'],
   credentials: true,
 }));
 
@@ -52,8 +54,11 @@ const checkoutLimiter = rateLimit({
   standardHeaders: true, legacyHeaders: false,
 });
 
-// ─── Webhook — raw body BEFORE json parser ────────────────────────────────────
+// ─── Raw body routes — MUST come before JSON parser ──────────────────────────
+// Stripe webhook needs raw JSON; coach/analyze needs raw binary JPEG
 app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), webhookHandler);
+app.post('/api/coach/analyze',      express.raw({ type: 'image/jpeg', limit: '500kb' }), (req, _, next) => { req._rawBody = req.body; next(); });
+app.post('/api/coach/summary/round', express.raw({ type: 'image/jpeg', limit: '500kb' }), (req, _, next) => { req._rawBody = req.body; next(); });
 
 // ─── Global JSON parser ───────────────────────────────────────────────────────
 app.use(express.json());
@@ -66,6 +71,8 @@ app.use('/api/payments/create-checkout', checkoutLimiter);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/license',  licenseRoutes);
 app.use('/api/account',  accountRoutes);
+app.use('/api/coach',    coachRoutes);
+app.use('/api/admin',    adminRoutes);
 
 // ─── Health checks ────────────────────────────────────────────────────────────
 app.get('/health',     (_, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
@@ -82,4 +89,5 @@ app.listen(PORT, () => {
   console.log(`[server] GhostCoach API running on port ${PORT}`);
   console.log(`[server] Stripe mode: ${process.env.STRIPE_SECRET_KEY?.startsWith('sk_live') ? 'LIVE' : 'TEST'}`);
   console.log(`[server] Supabase: ${process.env.SUPABASE_URL || '(not configured)'}`);
+  console.log(`[server] Gemini: ${process.env.GEMINI_API_KEY ? 'configured' : '(GEMINI_API_KEY not set)'}`);
 });
