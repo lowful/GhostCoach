@@ -83,7 +83,7 @@ async function validateKey(k) {
 
 async function geminiCall(imageB64, prompt, maxTokens) {
   const model = getGenAI().getGenerativeModel({
-    model: 'gemini-2.0-flash',
+    model: 'gemini-1.5-flash',
     generationConfig: { maxOutputTokens: maxTokens || 100, temperature: 0.3 },
   });
   const result = await model.generateContent([
@@ -161,7 +161,7 @@ router.post('/summary/match', async (req, res) => {
 
   try {
     const model = getGenAI().getGenerativeModel({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-1.5-flash',
       generationConfig: { maxOutputTokens: 600 },
     });
     const result = await Promise.race([
