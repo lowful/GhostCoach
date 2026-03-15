@@ -123,26 +123,13 @@ async function geminiTextCall(prompt, maxTokens) {
 }
 
 const SMART_PROMPT = [
-  'You are an Immortal/Radiant level Valorant coach analyzing live gameplay screenshots.',
-  '',
-  'Determine the game state and respond with EXACTLY one of these:',
-  '- WAITING: Not a live Valorant match (menu, lobby, loading, queue)',
-  '- ROUND_END: Post-round scoreboard or end-of-round results',
-  '- ACTIVE_WAIT: Mid-combat and a tip was already given this encounter',
-  '- PLAYER_DEAD|<tip>: Player is dead or spectating. Add ONE tip under 12 words after the pipe.',
-  '- A short coaching tip for buy phase, positioning, rotation, or economy',
-  '',
-  'Economy: Full buy at 3900+ credits. Force buy round 2 after winning pistol. Save fully if team broke. Spectre is best force buy. Light shields on pistol round.',
-  'Positioning: Off-angles beat common angles. Reposition after every kill. Never re-peek the same angle twice in a row.',
-  'Common mistakes: Peeking one by one instead of trading. Not using utility first. Ego peeking. Not checking minimap. Rotating too early or too late.',
-  'Tip rules: Under 12 words. No em-dashes or long dashes. Commas and periods only.',
-].join('\n');
+  'You are an Immortal/Radiant Valorant coach. Look at this screenshot and give one specific coaching tip in under 12 words.',
+  'Examples of good tips: "Buy light shields on pistol round.", "You have enough for Vandal, full buy.", "Rotate B through CT, they are stacking A.", "After getting that kill reposition immediately.", "Check minimap, your flank is open.", "Save this round, team cannot full buy next."',
+  'If the screenshot shows a main menu, loading screen, or queue lobby that is not gameplay, respond with just "SKIP".',
+  'Otherwise always give a real coaching tip. Never respond with single words. Never respond with status labels. Always give actionable Valorant advice in a complete short sentence.',
+].join(' ');
 
-const ROUND_SUMMARY_PROMPT = [
-  'You are analyzing a Valorant round that just ended. Return ONLY valid JSON, no markdown:',
-  '{"round_result":"win","things_done_well":["praise under 12 words"],"things_to_improve":["advice under 12 words"],"key_tip_for_next_round":"tip under 12 words","performance_rating":3}',
-  'round_result: win, loss, or unknown. 1-3 items per array. performance_rating 1-5. No em-dashes.',
-].join('\n');
+const ROUND_SUMMARY_PROMPT = 'You are analyzing a Valorant round that just ended. Return ONLY valid JSON, no markdown: {"round_result":"win","things_done_well":["praise under 12 words"],"things_to_improve":["advice under 12 words"],"key_tip_for_next_round":"tip under 12 words","performance_rating":3} round_result: win, loss, or unknown. 1-3 items per array. performance_rating 1-5. No em-dashes.';
 
 const KEY_REGEX = /^GC-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
 
@@ -160,31 +147,20 @@ async function validateKey(k) {
 
 // POST /api/coach/analyze  — raw binary JPEG body
 router.post('/analyze', async (req, res) => {
-  const licenseKey  = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-  const combatGiven = req.headers['x-combat-tip-given'] === 'true';
-  const recentRaw   = req.headers['x-recent-tips'] || '';
-  const recentTips  = recentRaw ? recentRaw.split('||').filter(Boolean) : [];
+  const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
 
   if (!licenseKey) return res.status(400).json({ error: 'X-License-Key header required' });
   if (!await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid or expired license key' });
   if (!req.body || !req.body.length) return res.status(400).json({ error: 'No image data' });
 
   const t0 = Date.now();
-  let prompt = SMART_PROMPT;
-  if (combatGiven) {
-    prompt += '\n\nNOTE: A tip was already given for the current combat engagement. If combat is still ongoing, respond with ACTIVE_WAIT.';
-  }
-  if (recentTips.length) {
-    prompt += '\n\nRecent tips already given (do NOT repeat):\n' + recentTips.map((t, i) => (i + 1) + '. ' + t).join('\n');
-  }
-
   try {
     const tip = await Promise.race([
-      geminiCall(req.body.toString('base64'), prompt, 100),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('Gemini timeout')), 8000)),
+      geminiCall(req.body.toString('base64'), SMART_PROMPT, 60),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('Gemini timeout')), 10000)),
     ]);
     trackCall(licenseKey);
-    console.log('[coach] ' + licenseKey.slice(0, 8) + '... -> "' + (tip || '').slice(0, 50) + '" (' + (Date.now() - t0) + 'ms)');
+    console.log('[coach] ' + licenseKey.slice(0, 8) + '... -> "' + (tip || '').slice(0, 60) + '" (' + (Date.now() - t0) + 'ms)');
     res.json({ tip: tip || '' });
   } catch (err) {
     console.error('[coach] analyze error:', err.message);
