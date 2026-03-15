@@ -1,14 +1,14 @@
 'use strict';
-const express = require('express');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const db = require('../db/database');
 const { generateLicenseKey, getExpiresAt, extendExpiresAt } = require('../utils/license');
 
-const router = express.Router();
+// POST /api/payments/webhook
+// Exported as a plain async handler (not a router) so server.js can mount it
+// with express.raw() at the exact path Stripe sends events to.
+async function webhookHandler(req, res) {
+  console.log('[webhook] Received webhook event');
 
-// POST /api/webhook/stripe
-// Uses raw body (set in index.js) for signature verification
-router.post('/', express.raw({ type: 'application/json' }), async (req, res) => {
   const sig = req.headers['stripe-signature'];
 
   if (!sig) {
@@ -24,7 +24,7 @@ router.post('/', express.raw({ type: 'application/json' }), async (req, res) => 
     return res.status(400).json({ error: `Webhook signature verification failed: ${err.message}` });
   }
 
-  console.log(`[webhook] Received event: ${event.type}`);
+  console.log(`[webhook] Processing event: ${event.type}`);
 
   try {
     switch (event.type) {
@@ -69,8 +69,6 @@ router.post('/', express.raw({ type: 'application/json' }), async (req, res) => 
 
         console.log(`[webhook] License generated: ${key} for user ${user.email} (${plan})`);
         console.log(`[webhook] TODO: Send email to ${user.email} with license key ${key} (${plan}) expiring ${expiresAt || 'never'}`);
-        // TODO: Integrate email service like Resend or SendGrid
-        // sendEmail({ to: user.email, subject: 'Your GhostCoach License Key', body: `Key: ${key}\nPlan: ${plan}\nExpires: ${expiresAt || 'Never (Lifetime)'}` });
 
         break;
       }
@@ -136,6 +134,6 @@ router.post('/', express.raw({ type: 'application/json' }), async (req, res) => 
     console.error('[webhook] Handler error:', err.message, err.stack);
     res.status(500).json({ error: 'Webhook handler failed' });
   }
-});
+}
 
-module.exports = router;
+module.exports = webhookHandler;

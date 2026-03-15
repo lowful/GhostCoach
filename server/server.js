@@ -7,7 +7,7 @@ const cors    = require('cors');
 const authRoutes    = require('./routes/auth');
 const paymentRoutes = require('./routes/payments');
 const licenseRoutes = require('./routes/license');
-const webhookRoutes = require('./routes/webhook');
+const webhookHandler = require('./routes/webhook');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -40,8 +40,8 @@ app.use(cors({
 }));
 
 // ─── Webhook route — MUST come before JSON parser ──────────────────────────────
-// Uses its own express.raw() middleware for Stripe signature verification
-app.use('/api/webhook', webhookRoutes);
+// Stripe posts to /api/payments/webhook — raw body required for signature verification
+app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), webhookHandler);
 
 // ─── Global JSON parser (after webhook route) ──────────────────────────────────
 app.use(express.json());
@@ -51,8 +51,9 @@ app.use('/api/auth',     authRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/license',  licenseRoutes);
 
-// ─── Health check ──────────────────────────────────────────────────────────────
-app.get('/health', (_, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
+// ─── Health checks ─────────────────────────────────────────────────────────────
+app.get('/health',      (_, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
+app.get('/api/health',  (_, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
 // ─── 404 handler ───────────────────────────────────────────────────────────────
 app.use((_, res) => res.status(404).json({ error: 'Not found' }));
