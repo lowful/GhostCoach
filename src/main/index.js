@@ -199,14 +199,9 @@ function handleInvalidLicenseState(result) {
   console.warn(`[license] Invalid state: ${reason} — coaching stopped, license cleared`);
 }
 
-// ─── Performance interval ──────────────────────────────────────────────────────
+// ─── Performance interval — minimum 20s to avoid lag spikes ───────────────────
 function getBaseInterval() {
-  const mode = store.get('performanceMode');
-  switch (mode) {
-    case 'quality':     return 8000;
-    case 'lightweight': return 20000;
-    default:            return store.get('captureInterval') || 15000; // balanced
-  }
+  return 20000; // fixed 20s — do not lower
 }
 
 // ─── Capture + Analysis ────────────────────────────────────────────────────────
@@ -214,16 +209,19 @@ async function runCapture(forced = false) {
   const licenseKey = store.get('licenseKey');
   if (!licenseKey || isPaused) return;
 
-  // In-flight guard — never queue parallel requests
-  if (requestInFlight && !forced) return;
+  // In-flight guard — never send while a request is in progress
+  if (requestInFlight) return;
 
   const now = Date.now();
+  const secondsSinceLast = ((now - lastCapture) / 1000).toFixed(1);
 
-  // Smart scheduling: 20s minimum after a tip, otherwise use base interval
-  const minGap = Math.max(getBaseInterval() * 0.8, 5000);
-  const tipCooldown = now - lastTipTime < 20000;
+  // 20s minimum between captures; 25s after a tip was shown
+  const minGap     = getBaseInterval(); // 20 000ms
+  const tipCooldown = now - lastTipTime < 25000;
 
   if (!forced && (now - lastCapture < minGap || tipCooldown)) return;
+
+  console.log('[capture] Taking screenshot. Last capture was', secondsSinceLast, 'seconds ago');
   lastCapture = now;
   captureCount++;
 
@@ -234,177 +232,52 @@ async function runCapture(forced = false) {
     sendToOverlay('coach:status', { status: 'capturing' });
     sendToSettings('settings:status', { status: 'capturing' });
 
-    // Hide overlay so it doesn't contaminate the screenshot
-    if (overlayWin && !overlayWin.isDestroyed()) {
-      overlayWin.setOpacity(0);
-    }
-    await new Promise(r => setTimeout(r, 20));
+    // Hide overlay before capture to avoid overlay in screenshot
+    if (overlayWin && !overlayWin.isDestroyed()) overlayWin.setOpacity(0);
+    await new Promise(r => setTimeout(r, 50)); // 50ms settle time
 
     const { buffer, hash, sizeKB } = await captureScreen();
 
     // Restore overlay immediately
-    if (overlayWin && !overlayWin.isDestroyed()) {
-      overlayWin.setOpacity(1);
-    }
+    if (overlayWin && !overlayWin.isDestroyed()) overlayWin.setOpacity(1);
 
-    // Duplicate frame detection — skip API call if screenshot unchanged
+    // Skip if frame hasn't changed
     if (!forced && hash === lastScreenHash) {
-      console.log('[coach] Duplicate frame — skipping');
+      console.log('[capture] Duplicate frame skipped');
       sendToOverlay('coach:status', { status: 'coaching' });
       requestInFlight = false;
       return;
     }
     lastScreenHash = hash;
 
-    // Dead player: if tip already sent and not continueWhileDead, only re-check every 10s
-    const continueWhileDead = store.get('continueCoachingWhileDead');
-    if (playerState === 'dead' && deathTipSent && !continueWhileDead) {
-      if (now - lastAliveCheckTime < 10000) {
-        sendToOverlay('coach:status', { status: 'player_dead' });
-        sendToSettings('settings:status', { status: 'player_dead' });
-        requestInFlight = false;
-        return;
-      }
-      lastAliveCheckTime = now;
-      // Fall through to analyze — response will indicate if player is alive
-    }
-
-    const mode = store.get('coachingMode');
     sendToOverlay('coach:status', { status: 'analyzing' });
     sendToSettings('settings:status', { status: 'analyzing' });
 
-    const recentTips = matchTipsForSummary.slice(-5);
-    const result = await analyzeScreenshot(buffer, licenseKey, mode, combatTipGiven, recentTips, hash);
+    const result = await analyzeScreenshot(buffer, licenseKey, 'smart', false, [], hash);
 
-    if (!result) {
-      const coachData = { status: 'coaching' };
-      sendToOverlay('coach:status', coachData);
-      sendToSettings('settings:status', coachData);
-      return;
-    }
-
-    const upper = result.toUpperCase();
-
-    // WAITING — not in a match (menu/lobby). Skip silently, stay in coaching mode.
-    if (upper.startsWith('WAITING')) {
+    // SKIP or empty/garbage — not gameplay
+    if (!result || result.trim().length < 8 || result.trim().toUpperCase() === 'SKIP') {
       sendToOverlay('coach:status', { status: 'coaching' });
       sendToSettings('settings:status', { status: 'coaching' });
       requestInFlight = false;
       return;
     }
 
-    // ACTIVE_COMBAT — backward-compat filter
-    if (upper.startsWith('ACTIVE_COMBAT')) {
-      sendToOverlay('coach:status', { status: 'active_combat' });
-      sendToSettings('settings:status', { status: 'active_combat' });
-      requestInFlight = false;
-      return;
+    // Truncate very long responses to first sentence
+    let tipText = result.trim();
+    if (tipText.length > 120) {
+      const first = tipText.match(/^[^.!?]+[.!?]/);
+      tipText = first ? first[0].trim() : tipText.substring(0, 100).trim();
     }
 
-    // ACTIVE_WAIT — combat tip already given this encounter
-    if (upper.startsWith('ACTIVE_WAIT')) {
-      sendToOverlay('coach:status', { status: 'active_combat' });
-      sendToSettings('settings:status', { status: 'active_combat' });
-      requestInFlight = false;
-      return;
-    }
-
-    // ROUND_END — trigger summary with debounce; reset combat flag
-    if (upper.startsWith('ROUND_END')) {
-      combatTipGiven = false;
-      deathTipSent = false;
-      if (now - lastRoundEnd > 30000) {
-        lastRoundEnd = now;
-        triggerRoundSummary(buffer, licenseKey);
-      }
-      sendToOverlay('coach:status', { status: 'round_end' });
-      sendToSettings('settings:status', { status: 'round_end' });
-      requestInFlight = false;
-      return;
-    }
-
-    // PLAYER_DEAD — show styled death tip, then pause analysis
-    if (upper.startsWith('PLAYER_DEAD')) {
-      const parts = result.split('|');
-      const deathTip = parts[1] ? parts[1].trim() : null;
-
-      if (!continueWhileDead) {
-        playerState = 'dead';
-        lastAliveCheckTime = now;
-        sendToOverlay('coach:playerState', { state: 'dead' });
-      } else {
-        // If player just came back alive (no longer PLAYER_DEAD previously)
-        playerState = 'dead';
-      }
-
-      combatTipGiven = false;
-
-      if (deathTip && deathTip.length > 2 && !deathTipSent && !isDuplicateTip(deathTip, matchTipsForSummary.slice(-10))) {
-        if (canShowTip()) {
-          const tipData = {
-            text:       deathTip,
-            game:       'Valorant',
-            timestamp:  Date.now(),
-            isDeathTip: true
-          };
-          tipHistory.unshift(tipData);
-          if (tipHistory.length > 20) tipHistory.pop();
-          matchTipsForSummary.push(deathTip);
-          deathTipSent = true;
-          lastTipTime = now;
-          sendToOverlay('coach:tip', tipData);
-          sendToOverlay('coach:state', buildState());
-          sendToSettings('settings:state', buildState());
-          sendToSettings('settings:status', { status: 'player_dead' });
-        }
-      }
-
-      sendToOverlay('coach:status', { status: 'player_dead' });
-      sendToSettings('settings:status', { status: 'player_dead' });
-      requestInFlight = false;
-      return;
-    }
-
-    // Player is alive (response was not PLAYER_DEAD) — reset dead state if needed
-    if (playerState === 'dead') {
-      playerState = 'alive';
-      deathTipSent = false;
-      combatTipGiven = false;
-      sendToOverlay('coach:playerState', { state: 'alive' });
-    }
-
-    // ── Real coaching tip ──────────────────────────────────────────────────────
-    let tipText = result;
-    if (!tipText || tipText.length < 3) {
-      sendToOverlay('coach:status', { status: 'coaching' });
-      sendToSettings('settings:status', { status: 'coaching' });
-      requestInFlight = false;
-      return;
-    }
-    if (tipText.length > 200) {
-      const firstSentence = tipText.match(/^[^.!?]+[.!?]/);
-      tipText = firstSentence ? firstSentence[0].trim() : tipText.substring(0, 150).trim();
-    }
-
-    // Duplicate tip check — skip if first 6 words match a recent tip
+    // Skip duplicate tips
     if (isDuplicateTip(tipText, matchTipsForSummary.slice(-10))) {
       sendToOverlay('coach:status', { status: 'coaching' });
-      sendToSettings('settings:status', { status: 'coaching' });
       requestInFlight = false;
       return;
     }
 
-    // Global rate limiter (max 3 tips per 30s)
-    if (!canShowTip()) {
-      sendToOverlay('coach:status', { status: 'coaching' });
-      sendToSettings('settings:status', { status: 'coaching' });
-      requestInFlight = false;
-      return;
-    }
-
-    combatTipGiven = true;
     lastTipTime = now;
-
     const tipData = { text: tipText, game: 'Valorant', timestamp: Date.now(), isDeathTip: false };
     tipHistory.unshift(tipData);
     if (tipHistory.length > 20) tipHistory.pop();
@@ -419,17 +292,13 @@ async function runCapture(forced = false) {
 
   } catch (err) {
     requestInFlight = false;
-    // Always restore overlay opacity on error
     if (overlayWin && !overlayWin.isDestroyed()) {
       try { overlayWin.setOpacity(1); } catch (_) {}
     }
-
     const msg = err.message || '';
     let errStatus;
     if (msg.includes('timeout') || msg.includes('ENOTFOUND') || msg.includes('ETIMEDOUT')) {
       errStatus = { status: 'connection_lost' };
-    } else if (msg.includes('401') || msg.includes('403') || msg.includes('authentication')) {
-      errStatus = { status: 'auth_error' };
     } else if (msg.includes('429') || msg.includes('rate')) {
       errStatus = { status: 'rate_limited' };
     } else {

@@ -6,8 +6,8 @@
 
 const { desktopCapturer } = require('electron');
 
-const TARGET_W = 768;
-const TARGET_H = 432;
+const TARGET_W = 640;
+const TARGET_H = 360;
 
 // Sample ~100 bytes evenly from JPEG payload (skip header) to produce a fast hash
 function sampleHash(buffer) {
@@ -38,7 +38,7 @@ async function captureScreen() {
 
   if (!primarySource) throw new Error('No screen source found');
 
-  const buffer  = primarySource.thumbnail.toJPEG(40);
+  const buffer  = primarySource.thumbnail.toJPEG(35);
   const hash    = sampleHash(buffer);
   const sizeKB  = (buffer.length / 1024).toFixed(1);
 

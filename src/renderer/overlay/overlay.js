@@ -141,13 +141,10 @@
     return { label: 'TIP', cls: '' };
   }
 
-  // ─── Filter keywords — never display these ────────────────────────────────────
+  // ─── Filter — skip non-gameplay responses ────────────────────────────────────
   function shouldSkipResponse(text) {
-    if (!text || text.trim().length < 3) return true;
-    const u = text.toUpperCase().trim();
-    if (u.startsWith('ACTIVE_COMBAT')) return true;
-    if (u.startsWith('ACTIVE_WAIT'))   return true;
-    if (u.startsWith('WAITING'))       return true;
+    if (!text || text.trim().length < 8) return true;
+    if (text.trim().toUpperCase() === 'SKIP') return true;
     return false;
   }
 
@@ -464,9 +461,11 @@
       const vis = data.visible;
       overlayHidden = !vis;
 
-      panel.style.visibility    = vis ? 'visible' : 'hidden';
-      hudTips.style.visibility  = vis ? 'visible' : 'hidden';
+      // When fully hidden (Ctrl+Shift+G toggle), hide everything
+      panel.style.visibility        = vis ? 'visible' : 'hidden';
+      hudTips.style.visibility      = vis ? 'visible' : 'hidden';
       roundSummary.style.visibility = vis ? 'visible' : 'hidden';
+      // hudTips is NOT affected by panel minimize — tips show even when panel is minimized
 
       if (overlayHiddenIndicator) {
         overlayHiddenIndicator.classList.toggle('hidden', vis);
