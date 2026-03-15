@@ -1,16 +1,34 @@
 'use strict';
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-const db = require('../db/database');
-const { generateLicenseKey, getExpiresAt, extendExpiresAt } = require('../utils/license');
+const stripe   = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const supabase = require('../db/supabase');
+
+function generateLicenseKey() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const seg = () => Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  return `GC-${seg()}-${seg()}-${seg()}-${seg()}`;
+}
+
+function getExpiresAt(plan) {
+  if (plan === 'lifetime') return null;
+  const d = new Date();
+  if (plan === 'weekly')  d.setDate(d.getDate() + 7);
+  if (plan === 'monthly') d.setDate(d.getDate() + 30);
+  return d.toISOString();
+}
+
+function extendExpiresAt(currentExpires, plan) {
+  const base = currentExpires ? new Date(currentExpires) : new Date();
+  const from = base < new Date() ? new Date() : base;
+  if (plan === 'weekly')  from.setDate(from.getDate() + 7);
+  if (plan === 'monthly') from.setDate(from.getDate() + 30);
+  return from.toISOString();
+}
 
 // POST /api/payments/webhook
-// Exported as a plain async handler (not a router) so server.js can mount it
-// with express.raw() at the exact path Stripe sends events to.
 async function webhookHandler(req, res) {
   console.log('[webhook] Received webhook event');
 
   const sig = req.headers['stripe-signature'];
-
   if (!sig) {
     console.warn('[webhook] Missing stripe-signature header');
     return res.status(400).json({ error: 'Missing Stripe signature' });
@@ -29,99 +47,95 @@ async function webhookHandler(req, res) {
   try {
     switch (event.type) {
 
-      // ── Payment completed (first payment) ───────────────────────────────────
       case 'checkout.session.completed': {
         const session = event.data.object;
-        const userId = parseInt(session.client_reference_id, 10);
-        const plan = session.metadata?.plan;
+        const userId  = session.client_reference_id;
+        const plan    = session.metadata?.plan;
 
         if (!userId || !plan) {
           console.error('[webhook] Missing userId or plan in session metadata', session.id);
           break;
         }
 
-        // Check if license already generated (idempotency)
-        const existing = db.prepare('SELECT id FROM licenses WHERE stripe_session_id = ?').get(session.id);
+        // Idempotency — skip if license already exists for this session
+        const { data: existing } = await supabase
+          .from('licenses')
+          .select('id')
+          .eq('stripe_session_id', session.id)
+          .single();
+
         if (existing) {
           console.log(`[webhook] License already exists for session ${session.id}, skipping`);
           break;
         }
 
-        const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
-        if (!user) {
-          console.error(`[webhook] User ${userId} not found`);
+        const licenseKey = generateLicenseKey();
+        const expiresAt  = getExpiresAt(plan);
+
+        const { error } = await supabase.from('licenses').insert({
+          user_id:                userId,
+          license_key:            licenseKey,
+          plan,
+          status:                 'active',
+          expires_at:             expiresAt,
+          stripe_customer_id:     session.customer || null,
+          stripe_subscription_id: session.subscription || null,
+          stripe_session_id:      session.id,
+        });
+
+        if (error) {
+          console.error('[webhook] Supabase insert error:', error.message);
           break;
         }
 
-        // Update stripe_customer_id on user if not set
-        if (!user.stripe_customer_id && session.customer) {
-          db.prepare('UPDATE users SET stripe_customer_id = ? WHERE id = ?').run(session.customer, userId);
-        }
-
-        const key = generateLicenseKey();
-        const expiresAt = getExpiresAt(plan);
-        const subscriptionId = session.subscription || null;
-
-        db.prepare(`
-          INSERT INTO licenses (user_id, key, plan, status, expires_at, stripe_session_id, stripe_subscription_id)
-          VALUES (?, ?, ?, 'active', ?, ?, ?)
-        `).run(userId, key, plan, expiresAt, session.id, subscriptionId);
-
-        console.log(`[webhook] License generated: ${key} for user ${user.email} (${plan})`);
-        console.log(`[webhook] TODO: Send email to ${user.email} with license key ${key} (${plan}) expiring ${expiresAt || 'never'}`);
-
+        console.log(`[webhook] License ${licenseKey} created for user ${userId} (${plan})`);
         break;
       }
 
-      // ── Recurring invoice paid — extend subscription ──────────────────────────
       case 'invoice.paid': {
-        const invoice = event.data.object;
+        const invoice        = event.data.object;
         const subscriptionId = invoice.subscription;
+        if (!subscriptionId) break;
 
-        if (!subscriptionId) break; // one-time payment, not a subscription invoice
+        const { data: license } = await supabase
+          .from('licenses')
+          .select('expires_at, plan')
+          .eq('stripe_subscription_id', subscriptionId)
+          .single();
 
-        const license = db.prepare('SELECT * FROM licenses WHERE stripe_subscription_id = ?').get(subscriptionId);
         if (!license) {
           console.warn(`[webhook] No license found for subscription ${subscriptionId}`);
           break;
         }
 
         const newExpiry = extendExpiresAt(license.expires_at, license.plan);
-        db.prepare('UPDATE licenses SET status = ?, expires_at = ? WHERE stripe_subscription_id = ?')
-          .run('active', newExpiry, subscriptionId);
+        await supabase
+          .from('licenses')
+          .update({ expires_at: newExpiry, status: 'active' })
+          .eq('stripe_subscription_id', subscriptionId);
 
         console.log(`[webhook] Subscription ${subscriptionId} renewed. New expiry: ${newExpiry}`);
         break;
       }
 
-      // ── Recurring invoice payment failed ────────────────────────────────────
       case 'invoice.payment_failed': {
-        const invoice = event.data.object;
-        const subscriptionId = invoice.subscription;
-
+        const subscriptionId = event.data.object.subscription;
         if (!subscriptionId) break;
-
-        const license = db.prepare('SELECT * FROM licenses WHERE stripe_subscription_id = ?').get(subscriptionId);
-        if (!license) break;
-
-        db.prepare('UPDATE licenses SET status = ? WHERE stripe_subscription_id = ?')
-          .run('payment_failed', subscriptionId);
-
+        await supabase
+          .from('licenses')
+          .update({ status: 'payment_failed' })
+          .eq('stripe_subscription_id', subscriptionId);
         console.log(`[webhook] Payment failed for subscription ${subscriptionId}`);
         break;
       }
 
-      // ── Subscription cancelled ────────────────────────────────────────────────
       case 'customer.subscription.deleted': {
-        const subscription = event.data.object;
-
-        const license = db.prepare('SELECT * FROM licenses WHERE stripe_subscription_id = ?').get(subscription.id);
-        if (!license) break;
-
-        db.prepare('UPDATE licenses SET status = ? WHERE stripe_subscription_id = ?')
-          .run('cancelled', subscription.id);
-
-        console.log(`[webhook] Subscription ${subscription.id} cancelled`);
+        const subscriptionId = event.data.object.id;
+        await supabase
+          .from('licenses')
+          .update({ status: 'cancelled' })
+          .eq('stripe_subscription_id', subscriptionId);
+        console.log(`[webhook] Subscription ${subscriptionId} cancelled`);
         break;
       }
 
