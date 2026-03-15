@@ -20,7 +20,8 @@ const schema = {
   licensePlan:               { type: 'string',  default: '' },
   licenseExpiry:             { type: 'string',  default: '' },
   serverUrl:                 { type: 'string',  default: 'https://ghostcoach-production.up.railway.app/api' },
-  panelMinimized:            { type: 'boolean', default: false }
+  panelMinimized:            { type: 'boolean', default: false },
+  deviceId:                  { type: 'string',  default: '' }
 };
 
 const store = new Store({ schema });

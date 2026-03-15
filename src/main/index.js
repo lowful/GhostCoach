@@ -1,10 +1,12 @@
 require('dotenv').config();
 
 const { app, ipcMain, BrowserWindow, shell } = require('electron');
-const path = require('path');
-const fs   = require('fs');
-const https = require('https');
-const http  = require('http');
+const path   = require('path');
+const fs     = require('fs');
+const https  = require('https');
+const http   = require('http');
+const os     = require('os');
+const crypto = require('crypto');
 const store = require('./store');
 const {
   createOverlayWindow,
@@ -104,12 +106,22 @@ function createActivationWindow() {
   activationWindow.on('closed', () => { activationWindow = null; });
 }
 
-// ─── License validation helper ────────────────────────────────────────────────
-function validateLicenseWithServer(key) {
+// ─── Device ID ───────────────────────────────────────────────────────────────
+function getDeviceId() {
+  const raw = `${os.hostname()}::${os.userInfo().username}::${process.platform}`;
+  return crypto.createHash('sha256').update(raw).digest('hex');
+}
+
+function getDeviceName() {
+  return os.hostname() || 'Unknown Device';
+}
+
+// ─── HTTP helper ─────────────────────────────────────────────────────────────
+function serverPost(endpoint, body) {
   return new Promise((resolve, reject) => {
     const serverUrl = store.get('serverUrl') || 'https://ghostcoach-production.up.railway.app/api';
-    const body = JSON.stringify({ key });
-    const url = new URL(`${serverUrl}/license/validate`);
+    const payload = JSON.stringify(body);
+    const url = new URL(`${serverUrl}${endpoint}`);
     const transport = url.protocol === 'https:' ? https : http;
 
     const options = {
@@ -117,33 +129,70 @@ function validateLicenseWithServer(key) {
       port: url.port || (url.protocol === 'https:' ? 443 : 80),
       path: url.pathname,
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(body)
-      }
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) }
     };
 
     const req = transport.request(options, (res) => {
       let data = '';
       res.on('data', chunk => { data += chunk; });
       res.on('end', () => {
-        try {
-          resolve(JSON.parse(data));
-        } catch (err) {
-          reject(new Error('Invalid JSON response from server'));
-        }
+        try { resolve(JSON.parse(data)); }
+        catch { reject(new Error('Invalid JSON response from server')); }
       });
     });
 
     req.on('error', reject);
-    req.setTimeout(10000, () => {
-      req.destroy();
-      reject(new Error('Request timed out'));
-    });
-
-    req.write(body);
+    req.setTimeout(10000, () => { req.destroy(); reject(new Error('Request timed out')); });
+    req.write(payload);
     req.end();
   });
+}
+
+// ─── License helpers ─────────────────────────────────────────────────────────
+function activateLicenseWithServer(key) {
+  return serverPost('/license/activate', {
+    key,
+    device_id:   getDeviceId(),
+    device_name: getDeviceName(),
+  });
+}
+
+function validateLicenseWithServer(key) {
+  return serverPost('/license/validate', {
+    key,
+    device_id: getDeviceId(),
+  });
+}
+
+// Maps non-active license states to user-facing overlay messages
+const LICENSE_STATE_MESSAGES = {
+  expired:        'Your license has expired. Visit ghostcoachai.com to renew.',
+  cancelled:      'Your subscription was cancelled. Visit ghostcoachai.com to resubscribe.',
+  payment_failed: 'Payment failed. Please update your payment method at ghostcoachai.com.',
+  device_mismatch:'This key is activated on another device. Log in at ghostcoachai.com to deactivate it first.',
+};
+
+function handleInvalidLicenseState(result) {
+  const reason  = result.reason || result.status || 'unknown';
+  const message = LICENSE_STATE_MESSAGES[reason] || 'Your license is no longer valid. Visit ghostcoachai.com.';
+
+  // Stop coaching immediately
+  if (isCoaching) stopCoaching();
+
+  // Show overlay notification
+  sendToOverlay('coach:tip', {
+    text:     message,
+    type:     'warning',
+    priority: 'high',
+  });
+
+  // Clear stored license so activation screen shows on next launch
+  store.set('licenseKey',    '');
+  store.set('licenseStatus', '');
+  store.set('licensePlan',   '');
+  store.set('licenseExpiry', '');
+
+  console.warn(`[license] Invalid state: ${reason} — coaching stopped, license cleared`);
 }
 
 // ─── Performance interval ──────────────────────────────────────────────────────
@@ -679,57 +728,42 @@ ipcMain.on('setup:openExternal', (_, url) => {
 
 ipcMain.handle('activate:validateKey', async (_, key) => {
   try {
-    const result = await validateLicenseWithServer(key);
+    // Use /activate endpoint — handles device locking on first activation
+    const result = await activateLicenseWithServer(key);
 
     if (result.valid) {
-      // Persist license data locally
       store.set('licenseKey',    key.trim().toUpperCase());
-      store.set('licenseStatus', result.status  || 'active');
-      store.set('licensePlan',   result.plan    || '');
+      store.set('licenseStatus', result.status   || 'active');
+      store.set('licensePlan',   result.plan     || '');
       store.set('licenseExpiry', result.expiresAt || '');
+      store.set('deviceId',      getDeviceId());
 
-      // Close activation window and proceed to app
-      if (activationWindow && !activationWindow.isDestroyed()) {
-        activationWindow.close();
-      }
+      if (activationWindow && !activationWindow.isDestroyed()) activationWindow.close();
+      if (!store.get('apiKey')) { createSetupWindow(); } else { launchMainApp(); }
+    }
 
-      // Show setup or main app depending on whether API key is saved
-      if (!store.get('apiKey')) {
-        createSetupWindow();
-      } else {
-        launchMainApp();
-      }
+    // Return friendly message for known invalid states
+    if (!result.valid && result.reason) {
+      result.error = LICENSE_STATE_MESSAGES[result.reason] || result.error;
     }
 
     return result;
   } catch (err) {
     console.error('[activate] Validation error:', err.message);
 
-    // Offline grace: if a previously validated key is stored, allow entry
+    // Offline grace: allow entry if cached key matches and hasn't expired
     const cachedKey    = store.get('licenseKey');
     const cachedStatus = store.get('licenseStatus');
     const cachedExpiry = store.get('licenseExpiry');
+    const cachedDevice = store.get('deviceId');
 
-    if (
-      cachedKey &&
-      cachedKey.toUpperCase() === key.trim().toUpperCase() &&
-      cachedStatus === 'active'
-    ) {
-      // Check cached expiry
+    if (cachedKey && cachedKey.toUpperCase() === key.trim().toUpperCase() &&
+        cachedStatus === 'active' && cachedDevice === getDeviceId()) {
       const expired = cachedExpiry ? new Date(cachedExpiry) < new Date() : false;
       if (!expired) {
         console.log('[activate] Server unreachable — using cached license');
-
-        if (activationWindow && !activationWindow.isDestroyed()) {
-          activationWindow.close();
-        }
-
-        if (!store.get('apiKey')) {
-          createSetupWindow();
-        } else {
-          launchMainApp();
-        }
-
+        if (activationWindow && !activationWindow.isDestroyed()) activationWindow.close();
+        if (!store.get('apiKey')) { createSetupWindow(); } else { launchMainApp(); }
         return { valid: true, plan: store.get('licensePlan'), status: 'active', expiresAt: cachedExpiry };
       }
     }
@@ -791,23 +825,52 @@ function launchMainApp() {
 // ─── App Events ───────────────────────────────────────────────────────────────
 app.setAppUserModelId('com.ghostcoach.app');
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   const licenseKey    = store.get('licenseKey');
   const licenseStatus = store.get('licenseStatus');
   const licenseExpiry = store.get('licenseExpiry');
 
-  // Determine whether the stored license is still valid (or lifetime)
-  const licenseValid = licenseKey &&
+  // Local validity check (fast path — no network)
+  const locallyValid = licenseKey &&
     licenseStatus === 'active' &&
     (!licenseExpiry || new Date(licenseExpiry) > new Date());
 
-  if (!licenseValid) {
-    // No valid license — show activation screen first
+  if (!locallyValid) {
     createActivationWindow();
     return;
   }
 
-  // License is valid — proceed to app or setup
+  // Server-side re-validation on every launch (device check + expiry)
+  try {
+    const result = await validateLicenseWithServer(licenseKey);
+    if (!result.valid) {
+      // Handle expired/cancelled/device_mismatch — clear license and show activation
+      const reason  = result.reason || result.status || 'unknown';
+      const message = LICENSE_STATE_MESSAGES[reason];
+      console.warn(`[startup] License invalid on server: ${reason}`);
+      store.set('licenseKey',    '');
+      store.set('licenseStatus', '');
+      store.set('licensePlan',   '');
+      store.set('licenseExpiry', '');
+      createActivationWindow();
+      // Show error message in activation window once it loads
+      if (message) {
+        const win = activationWindow;
+        if (win) win.webContents.once('did-finish-load', () => {
+          if (!win.isDestroyed()) win.webContents.send('activate:serverMessage', message);
+        });
+      }
+      return;
+    }
+    // Update cached values from server response
+    store.set('licenseStatus', result.status   || 'active');
+    store.set('licensePlan',   result.plan     || store.get('licensePlan'));
+    store.set('licenseExpiry', result.expiresAt || licenseExpiry);
+  } catch (err) {
+    // Network error — allow offline grace, proceed with cached license
+    console.warn('[startup] Server unreachable, using cached license:', err.message);
+  }
+
   if (!store.get('apiKey')) {
     createSetupWindow();
   } else {
