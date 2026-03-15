@@ -15,20 +15,27 @@ const PORT = process.env.PORT || 3000;
 // ─── CORS ──────────────────────────────────────────────────────────────────────
 const allowedOrigins = [
   'https://ghostcoachai.com',
+  'https://www.ghostcoachai.com',
   'https://ghostcoach-production.up.railway.app',
   'http://localhost:3000',
   'http://localhost:3001',
+  'http://localhost:5173',
+  'http://localhost:5174',
 ];
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (Electron app, curl, etc.)
+    // Allow requests with no origin (Electron app, curl, Stripe webhooks, etc.)
     if (!origin) return callback(null, true);
+    // Allow explicit list
     if (allowedOrigins.includes(origin)) return callback(null, true);
-    callback(new Error(`CORS: origin ${origin} not allowed`));
+    // Allow Lovable preview domains
+    if (origin.endsWith('.lovable.app') || origin.endsWith('.lovable.dev')) return callback(null, true);
+    // Allow all during development — tighten before full production launch
+    callback(null, true);
   },
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-License-Key'],
   methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-License-Key'],
   credentials: true,
 }));
 
