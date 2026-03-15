@@ -16,6 +16,9 @@ const webhookHandler = require('./routes/webhook');
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
+// Trust Railway's proxy so rate-limiter can read real client IPs
+app.set('trust proxy', 1);
+
 // ─── Security headers ─────────────────────────────────────────────────────────
 app.use(helmet());
 
