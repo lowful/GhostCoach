@@ -1,0 +1,79 @@
+{
+  "name": "ghostcoach",
+  "version": "1.0.0",
+  "description": "Real-time AI gaming coach overlay powered by Claude",
+  "main": "src/main/index.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "generate-icon": "node scripts/generate-icon.js",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist": "electron-builder --win --mac"
+  },
+  "build": {
+    "appId": "com.ghostcoach.app",
+    "productName": "GhostCoach",
+    "copyright": "Copyright © 2025 GhostCoach",
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.games"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "GhostCoach"
+    },
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "asar": true
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.36.3",
+    "dotenv": "^16.4.5",
+    "electron-store": "^8.2.0"
+  },
+  "devDependencies": {
+    "electron": "^29.4.6",
+    "electron-builder": "^24.13.3"
+  },
+  "keywords": [
+    "electron",
+    "gaming",
+    "ai",
+    "overlay",
+    "coach"
+  ],
+  "author": "GhostCoach",
+  "license": "MIT"
+}

@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'" />
+  <title>GhostCoach Overlay</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="overlay.css" />
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════
+       CONTROL PANEL  (display only — pointer-events: none)
+       ═══════════════════════════════════════════════ -->
+  <div id="panel">
+
+    <div id="titlebar">
+      <div id="logo">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+          <path d="M12 2C7.03 2 3 6.03 3 11v11l3-3 3 3 3-3 3 3 3-3V11C18 6.03 13.97 2 12 2zm-2.5 10.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm5 0a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/>
+        </svg>
+        <span class="logo-text">GHOSTCOACH</span>
+      </div>
+      <div class="game-badge">VALORANT</div>
+    </div>
+
+    <div id="panel-body">
+
+      <div id="status-row">
+        <span id="status-dot" class="sdot"></span>
+        <span id="status-text">Ready</span>
+      </div>
+
+      <div id="session-stats" class="hidden">
+        <span id="stat-tips">Tips: 0</span>
+        <span class="stat-sep">·</span>
+        <span id="stat-time">0m</span>
+        <span id="stat-perf" class="perf-dot perf-balanced" title="Performance mode"></span>
+      </div>
+
+      <div id="tip-preview" class="hidden">
+        <span class="preview-label">LAST TIP</span>
+        <p id="tip-preview-text"></p>
+      </div>
+
+      <div id="hotkey-hints">
+        <div class="hk-label">HOTKEYS</div>
+        <div class="hk-grid">
+          <div class="hk-cell"><span class="hk-combo">Ctrl+Shift+G</span><span class="hk-action">Toggle</span></div>
+          <div class="hk-cell"><span class="hk-combo">Ctrl+Shift+P</span><span class="hk-action">Pause</span></div>
+          <div class="hk-cell"><span class="hk-combo">Ctrl+Shift+S</span><span class="hk-action">Scan</span></div>
+          <div class="hk-cell"><span class="hk-combo">Ctrl+Shift+Q</span><span class="hk-action">Settings</span></div>
+          <div class="hk-cell"><span class="hk-combo">Ctrl+Shift+M</span><span class="hk-action">Minimize</span></div>
+          <div class="hk-cell"><span class="hk-combo">Ctrl+Shift+X</span><span class="hk-action">Quit</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════
+       HUD TIP CARDS  (pointer-events: none)
+       ═══════════════════════════════════════════════ -->
+  <div id="hud-tips" class="pos-top-right"></div>
+
+
+  <!-- ═══════════════════════════════════════════════
+       SESSION OVER CARD  (pointer-events: none)
+       ═══════════════════════════════════════════════ -->
+  <div id="session-over-card" class="hidden">
+    <div class="so-header">COACHING SESSION OVER</div>
+    <div class="so-stats">
+      <span id="so-tips"></span>
+      <span class="so-sep">·</span>
+      <span id="so-time"></span>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════
+       ROUND SUMMARY CARD  (pointer-events: none)
+       ═══════════════════════════════════════════════ -->
+  <div id="round-summary" class="hidden">
+    <div class="rs-head">
+      <span class="rs-title">ROUND RECAP</span>
+      <span id="rs-result" class="rs-badge"></span>
+    </div>
+    <div class="rs-block">
+      <div class="rs-block-title good">&#10003; What you did well</div>
+      <ul id="rs-good"></ul>
+    </div>
+    <div class="rs-block">
+      <div class="rs-block-title warn">&#9650; Focus on</div>
+      <ul id="rs-improve"></ul>
+    </div>
+    <div class="rs-nexttip">
+      <span class="rs-nexttip-label">&#9889; NEXT ROUND</span>
+      <p id="rs-nexttip-text"></p>
+    </div>
+    <div class="rs-footer">
+      <div id="rs-stars"></div>
+      <div class="rs-timer"><div id="rs-timer-fill"></div></div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════
+       MATCH SUMMARY PANEL  (auto-dismiss, no close btn)
+       ═══════════════════════════════════════════════ -->
+  <div id="match-summary" class="hidden">
+    <div id="ms-card">
+      <div class="ms-head">
+        <span class="ms-title">MATCH SUMMARY</span>
+        <span id="ms-result" class="ms-result-badge"></span>
+      </div>
+
+      <div class="ms-rating-row">
+        <div id="ms-rating-circle" class="ms-rating-circle">
+          <span id="ms-rating-num">5</span>
+        </div>
+        <div class="ms-rating-label">
+          <div class="ms-rating-title">PERFORMANCE</div>
+          <div id="ms-tips-count" class="ms-rating-sub"></div>
+        </div>
+      </div>
+
+      <div class="ms-section">
+        <div class="ms-section-title good">STRENGTHS</div>
+        <ul id="ms-strengths"></ul>
+      </div>
+
+      <div class="ms-section">
+        <div class="ms-section-title warn">AREAS TO IMPROVE</div>
+        <ul id="ms-weaknesses"></ul>
+      </div>
+
+      <div class="ms-focus-box">
+        <div class="ms-focus-label">FOCUS NEXT MATCH</div>
+        <p id="ms-focus-tip"></p>
+      </div>
+
+      <div class="ms-auto-close-bar">
+        <div id="ms-auto-bar-fill"></div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════
+       MINIMIZED PANEL  (Ctrl+Shift+M — just icon + status dot)
+       ═══════════════════════════════════════════════ -->
+  <div id="panel-mini" class="hidden">
+    <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" style="color:var(--accent)">
+      <path d="M12 2C7.03 2 3 6.03 3 11v11l3-3 3 3 3-3 3 3 3-3V11C18 6.03 13.97 2 12 2zm-2.5 10.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm5 0a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/>
+    </svg>
+    <div id="mini-status-dot" class="mini-dot"></div>
+  </div>
+
+  <!-- Mini toast — brief text confirmation shown in minimized mode -->
+  <div id="mini-toast" class="hidden"></div>
+
+  <!-- Hidden indicator — shown when overlay is toggled off (Ctrl+Shift+G) -->
+  <div id="overlay-hidden-indicator" class="hidden">
+    <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10" style="color:var(--accent);flex-shrink:0">
+      <path d="M12 2C7.03 2 3 6.03 3 11v11l3-3 3 3 3-3 3 3 3-3V11C18 6.03 13.97 2 12 2zm-2.5 10.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm5 0a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/>
+    </svg>
+    <span>GHOSTCOACH HIDDEN</span>
+    <span class="ohi-hint">Ctrl+Shift+G</span>
+  </div>
+
+  <script src="overlay.js"></script>
+</body>
+</html>

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'" />
+  <title>GhostCoach Activation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="activate.css" />
+</head>
+<body>
+  <div id="activate-container">
+
+    <!-- Quit button (frameless window) -->
+    <button id="btn-quit" title="Quit GhostCoach">&#x2715;</button>
+
+    <!-- Header -->
+    <div id="activate-header">
+      <div id="logo-wrap">
+        <!-- Ghost icon -->
+        <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
+          <path d="M12 2C7.03 2 3 6.03 3 11v11l3-3 3 3 3-3 3 3 3-3V11C18 6.03 13.97 2 12 2zm-2.5 10.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm5 0a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/>
+        </svg>
+        <span class="logo-name">GHOSTCOACH</span>
+      </div>
+      <p class="logo-tagline">Real-time AI gaming coach</p>
+      <div class="game-badge">
+        <span class="game-badge-dot"></span>
+        VALORANT
+      </div>
+    </div>
+
+    <!-- Activation card -->
+    <div id="activate-card">
+      <h2 class="card-title">Activate License</h2>
+      <p class="card-desc">
+        Enter your GhostCoach license key to unlock the app.<br>
+        Keys are in the format <strong>GC-XXXX-XXXX-XXXX-XXXX</strong>.
+      </p>
+
+      <div class="input-group">
+        <label class="input-label" for="license-key-input">License Key</label>
+        <input
+          type="text"
+          id="license-key-input"
+          placeholder="GC-XXXX-XXXX-XXXX-XXXX"
+          autocomplete="off"
+          spellcheck="false"
+          maxlength="22"
+        />
+      </div>
+
+      <div id="error-msg" class="hidden"></div>
+
+      <button id="btn-activate" class="btn-activate" disabled>
+        <span class="btn-dot"></span>
+        <span class="btn-text">ACTIVATE</span>
+      </button>
+
+      <a class="purchase-link" href="#" id="link-purchase">
+        Don't have a key? Purchase a license at ghostcoachai.com &#x2192;
+      </a>
+    </div>
+
+    <!-- Features -->
+    <div id="feature-row">
+      <div class="feature">
+        <span class="feature-icon">&#x26A1;</span>
+        <span>Real-time tips</span>
+      </div>
+      <div class="feature">
+        <span class="feature-icon">&#x1F3AE;</span>
+        <span>Valorant &amp; LoL</span>
+      </div>
+      <div class="feature">
+        <span class="feature-icon">&#x1F512;</span>
+        <span>Local storage</span>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="activate.js"></script>
+</body>
+</html>

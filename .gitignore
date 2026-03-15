@@ -1,0 +1,19 @@
+node_modules/
+server/node_modules/
+.env
+server/.env
+dist/
+out/
+*.log
+
+# Database
+*.sqlite
+
+# Electron build artifacts
+release/
+build/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini

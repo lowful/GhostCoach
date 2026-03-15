@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'" />
+  <title>GhostCoach Panel</title>
+  <link rel="stylesheet" href="panel.css" />
+</head>
+<body>
+  <div id="panel" class="expanded">
+
+    <!-- Drag handle / title bar -->
+    <div id="titlebar" class="drag-handle">
+      <div id="logo">
+        <span class="logo-icon">◈</span>
+        <span class="logo-text">GHOSTCOACH</span>
+      </div>
+      <div id="titlebar-actions">
+        <button id="btn-collapse" title="Collapse/Expand">▲</button>
+        <button id="btn-settings" title="Settings">⚙</button>
+      </div>
+    </div>
+
+    <!-- Main controls (collapsible) -->
+    <div id="panel-body">
+
+      <!-- Game selector -->
+      <div class="control-row">
+        <label class="control-label">GAME</label>
+        <select id="game-select">
+          <option value="Valorant">Valorant</option>
+          <option value="League of Legends">League of Legends</option>
+        </select>
+      </div>
+
+      <!-- Start/Stop button -->
+      <div class="control-row center">
+        <button id="btn-coach" class="btn-primary" data-state="idle">
+          <span class="btn-dot"></span>
+          <span id="btn-coach-label">START COACHING</span>
+        </button>
+      </div>
+
+      <!-- Status indicator -->
+      <div id="status-row">
+        <span id="status-dot" class="dot-idle"></span>
+        <span id="status-text">Ready</span>
+        <button id="btn-force" title="Force capture now (Ctrl+Shift+X)">⚡</button>
+      </div>
+
+      <!-- Latest tip preview -->
+      <div id="tip-preview" class="hidden">
+        <div id="tip-preview-text"></div>
+      </div>
+
+    </div>
+
+    <!-- Settings panel (hidden by default) -->
+    <div id="settings-panel" class="hidden">
+      <div class="settings-title">SETTINGS</div>
+
+      <div class="control-row">
+        <label class="control-label">INTERVAL</label>
+        <div class="interval-control">
+          <button id="btn-interval-dec">−</button>
+          <span id="interval-display">8s</span>
+          <button id="btn-interval-inc">+</button>
+        </div>
+      </div>
+
+      <div class="control-row">
+        <label class="control-label">HOTKEYS</label>
+        <div class="hotkey-list">
+          <div class="hotkey-item"><kbd>Ctrl+Shift+C</kbd> Toggle</div>
+          <div class="hotkey-item"><kbd>Ctrl+Shift+X</kbd> Capture</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- History panel (hidden by default) -->
+    <div id="history-panel" class="hidden">
+      <div class="settings-title">TIP HISTORY</div>
+      <div id="history-list"></div>
+    </div>
+
+  </div>
+
+  <script src="panel.js"></script>
+</body>
+</html>

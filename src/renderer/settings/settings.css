@@ -1,0 +1,408 @@
+/* ═══════════════════════════════════════════════════════════════
+   GhostCoach Settings Window — Valorant-inspired dark theme
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  --bg:      #0F1923;
+  --surface: #1A2634;
+  --surface2:#243040;
+  --accent:  #FF4655;
+  --accent2: #00F0FF;
+  --text:    #ECE8E1;
+  --text2:   rgba(236,232,225,0.52);
+  --border:  rgba(255,255,255,0.07);
+  --success: #00C48C;
+  --warning: #FFB800;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  background: var(--bg);
+  width: 480px;
+  min-height: 600px;
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  color: var(--text);
+  user-select: none;
+  overflow-x: hidden;
+}
+
+#settings-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* ─── Header ──────────────────────────────────────────────────── */
+#settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: rgba(255,255,255,0.025);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+#logo-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent);
+}
+
+.logo-name {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2.5px;
+  color: var(--text);
+}
+
+.logo-sub {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text2);
+  letter-spacing: 0.5px;
+}
+
+.game-badge-header {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--accent);
+  background: rgba(255,70,85,0.1);
+  border: 1px solid rgba(255,70,85,0.3);
+  border-radius: 4px;
+  padding: 3px 8px;
+}
+
+/* ─── Body ────────────────────────────────────────────────────── */
+#settings-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 0;
+}
+
+#settings-body::-webkit-scrollbar { width: 4px; }
+#settings-body::-webkit-scrollbar-track { background: transparent; }
+#settings-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ─── Sections ────────────────────────────────────────────────── */
+.settings-section {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.section-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--text2);
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+/* ─── Status row ──────────────────────────────────────────────── */
+#status-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.sdot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.2);
+  flex-shrink: 0;
+  transition: background 0.2s, box-shadow 0.2s;
+}
+.sdot.coaching   { background: var(--success); box-shadow: 0 0 5px var(--success); animation: pulse-dot 1.4s ease-in-out infinite; }
+.sdot.capturing  { background: var(--warning); box-shadow: 0 0 5px var(--warning); animation: pulse-dot 0.7s ease-in-out infinite; }
+.sdot.analyzing  { background: var(--accent2); box-shadow: 0 0 5px var(--accent2); animation: pulse-dot 0.7s ease-in-out infinite; }
+.sdot.waiting    { background: #5B8DB8; box-shadow: 0 0 5px #5B8DB8; animation: pulse-dot 2s ease-in-out infinite; }
+.sdot.paused     { background: var(--warning); }
+.sdot.combat     { background: var(--accent); }
+.sdot.dead       { background: rgba(255,70,85,0.5); }
+.sdot.connection { background: var(--accent); box-shadow: 0 0 5px var(--accent); animation: pulse-dot 1s ease-in-out infinite; }
+.sdot.rate       { background: var(--warning); }
+.sdot.error      { background: var(--accent); box-shadow: 0 0 5px var(--accent); }
+
+@keyframes pulse-dot {
+  0%,100% { opacity:1; transform:scale(1); }
+  50%      { opacity:0.5; transform:scale(0.8); }
+}
+
+#status-text { font-size: 12px; font-weight: 500; color: var(--text2); }
+
+/* ─── Session stats ───────────────────────────────────────────── */
+#session-stats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text2);
+}
+#stat-tips, #stat-time { font-weight: 600; }
+.stat-sep { opacity: 0.4; }
+
+/* ─── Coaching buttons ────────────────────────────────────────── */
+.coaching-btns {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.coach-btn {
+  flex: 1;
+  padding: 10px;
+  background: rgba(255,70,85,0.08);
+  border: 1px solid rgba(255,70,85,0.35);
+  border-radius: 6px;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.coach-btn:hover {
+  background: rgba(255,70,85,0.16);
+  box-shadow: 0 0 18px rgba(255,70,85,0.2);
+}
+.coach-btn.active {
+  background: rgba(0,196,140,0.08);
+  border-color: rgba(0,196,140,0.4);
+  color: var(--success);
+}
+.coach-btn.active:hover {
+  background: rgba(0,196,140,0.16);
+  box-shadow: 0 0 18px rgba(0,196,140,0.2);
+}
+
+.icon-action-btn {
+  width: 36px;
+  height: 36px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text2);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.icon-action-btn:hover {
+  background: var(--surface2);
+  color: var(--text);
+  border-color: rgba(255,255,255,0.14);
+}
+
+/* ─── Rows ────────────────────────────────────────────────────── */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--text2);
+  min-width: 52px;
+  text-transform: uppercase;
+}
+
+/* ─── Select ──────────────────────────────────────────────────── */
+.select-wrap { flex: 1; position: relative; }
+
+.select-wrap select {
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 7px 24px 7px 10px;
+  border-radius: 6px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.select-wrap select:hover,
+.select-wrap select:focus { border-color: rgba(255,255,255,0.16); }
+.select-wrap select option { background: var(--bg); color: var(--text); }
+
+.select-wrap::after {
+  content: '▾';
+  position: absolute;
+  right: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  color: var(--text2);
+  pointer-events: none;
+}
+
+/* ─── Position grid ───────────────────────────────────────────── */
+.pos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+
+.pos-btn {
+  width: 34px; height: 28px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  border-radius: 5px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex; align-items: center; justify-content: center;
+}
+.pos-btn:hover { background: var(--surface2); color: var(--text); }
+.pos-btn.active {
+  background: rgba(255,70,85,0.15);
+  border-color: rgba(255,70,85,0.5);
+  color: var(--accent);
+}
+
+/* ─── Toggle ──────────────────────────────────────────────────── */
+.toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+
+.toggle-track {
+  width: 36px; height: 20px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  position: relative;
+  transition: background 0.2s, border-color 0.2s;
+}
+.toggle[data-on="true"] .toggle-track {
+  background: rgba(0,196,140,0.25);
+  border-color: rgba(0,196,140,0.5);
+}
+
+.toggle-thumb {
+  position: absolute; top: 3px; left: 3px;
+  width: 12px; height: 12px;
+  background: var(--text2);
+  border-radius: 50%;
+  transition: left 0.2s, background 0.2s;
+}
+.toggle[data-on="true"] .toggle-thumb { left: 19px; background: var(--success); }
+
+#dead-label { font-size: 11px; font-weight: 600; color: var(--text2); }
+
+/* ─── API Key ─────────────────────────────────────────────────── */
+.api-key-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+#api-key-input {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: monospace;
+  font-size: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+#api-key-input:focus { border-color: rgba(255,255,255,0.2); }
+#api-key-input::placeholder { color: var(--text2); font-family: inherit; }
+
+.save-key-btn {
+  width: 100%;
+  padding: 9px;
+  background: rgba(255,70,85,0.08);
+  border: 1px solid rgba(255,70,85,0.3);
+  border-radius: 6px;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.save-key-btn:not(:disabled):hover {
+  background: rgba(255,70,85,0.16);
+}
+.save-key-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.key-hint {
+  font-size: 10px;
+  color: var(--text2);
+  line-height: 1.5;
+}
+
+/* ─── Hotkeys ─────────────────────────────────────────────────── */
+.hotkeys-grid { display: flex; flex-direction: column; gap: 6px; }
+
+.hk-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.hk-keys { display: flex; gap: 3px; align-items: center; }
+
+kbd {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 2px 5px;
+  font-size: 9px;
+  font-family: monospace;
+  color: var(--text);
+}
+
+.hk-desc { font-size: 11px; color: var(--text2); flex: 1; text-align: right; }
+
+/* ─── Safety section ──────────────────────────────────────────── */
+.safety-section {
+  border-radius: 0;
+  background: rgba(0,196,140,0.04);
+}
+
+/* ─── Quit button ─────────────────────────────────────────────── */
+.quit-btn {
+  display: block;
+  width: calc(100% - 40px);
+  margin: 16px 20px 20px;
+  padding: 11px;
+  background: rgba(255,70,85,0.07);
+  border: 1px solid rgba(255,70,85,0.25);
+  border-radius: 7px;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.quit-btn:hover {
+  background: rgba(255,70,85,0.15);
+  border-color: rgba(255,70,85,0.5);
+}
+
+/* ─── Utility ─────────────────────────────────────────────────── */
+.hidden { display: none !important; }

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'" />
+  <title>GhostCoach Setup</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="setup.css" />
+</head>
+<body>
+  <div id="setup-container">
+
+    <!-- Close button (frameless window needs its own) -->
+    <button id="btn-close" title="Quit GhostCoach">✕</button>
+
+    <!-- Header -->
+    <div id="setup-header">
+      <div id="logo-wrap">
+        <!-- Ghost icon — same as overlay -->
+        <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
+          <path d="M12 2C7.03 2 3 6.03 3 11v11l3-3 3 3 3-3 3 3 3-3V11C18 6.03 13.97 2 12 2zm-2.5 10.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm5 0a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/>
+        </svg>
+        <span class="logo-name">GHOSTCOACH</span>
+      </div>
+      <p class="logo-tagline">Real-time AI gaming coach</p>
+    </div>
+
+    <!-- Main card -->
+    <div id="setup-card">
+      <h2 class="card-title">API Key Setup</h2>
+      <p class="card-desc">
+        GhostCoach uses the Anthropic Claude API to analyze your gameplay.<br>
+        Enter your API key below to get started.
+      </p>
+
+      <div class="input-group">
+        <label class="input-label" for="api-key-input">Anthropic API Key</label>
+        <div class="input-wrap">
+          <input
+            type="password"
+            id="api-key-input"
+            placeholder="sk-ant-..."
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button id="btn-toggle-visibility" title="Show/hide key">👁</button>
+        </div>
+        <p class="input-hint">
+          Your key is stored locally and never sent anywhere except Anthropic's API.
+        </p>
+      </div>
+
+      <div id="error-msg" class="hidden"></div>
+
+      <button id="btn-save" class="btn-save" disabled>
+        <span class="btn-save-dot"></span>
+        <span>LAUNCH GHOSTCOACH</span>
+      </button>
+
+      <a class="get-key-link" href="#" id="link-anthropic">
+        Get a free API key at console.anthropic.com →
+      </a>
+    </div>
+
+    <!-- Features -->
+    <div id="feature-row">
+      <div class="feature">
+        <span class="feature-icon">⚡</span>
+        <span>Real-time tips</span>
+      </div>
+      <div class="feature">
+        <span class="feature-icon">🎮</span>
+        <span>Valorant &amp; LoL</span>
+      </div>
+      <div class="feature">
+        <span class="feature-icon">🔒</span>
+        <span>Local storage</span>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="setup.js"></script>
+</body>
+</html>
