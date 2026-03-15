@@ -107,7 +107,7 @@ function createActivationWindow() {
 // ─── License validation helper ────────────────────────────────────────────────
 function validateLicenseWithServer(key) {
   return new Promise((resolve, reject) => {
-    const serverUrl = store.get('serverUrl') || 'https://ghostcoachai.com/api';
+    const serverUrl = store.get('serverUrl') || 'https://ghostcoach-production.up.railway.app/api';
     const body = JSON.stringify({ key });
     const url = new URL(`${serverUrl}/license/validate`);
     const transport = url.protocol === 'https:' ? https : http;

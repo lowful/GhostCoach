@@ -15,6 +15,7 @@ const PORT = process.env.PORT || 3000;
 // ─── CORS ──────────────────────────────────────────────────────────────────────
 const allowedOrigins = [
   'https://ghostcoachai.com',
+  'https://ghostcoach-production.up.railway.app',
   'http://localhost:3000',
   'http://localhost:3001',
 ];
