@@ -153,7 +153,11 @@
 
   // ─── Tip cards ────────────────────────────────────────────────────────────────
   function showTip(data) {
-    if (shouldSkipResponse(data.text)) return;
+    console.log('[tip] Received:', data.text);
+    if (shouldSkipResponse(data.text)) {
+      console.log('[tip] FILTERED OUT by shouldSkipResponse');
+      return;
+    }
 
     const isDeathTip = !!data.isDeathTip;
     const cat = isDeathTip ? { label: 'DEATH TIP', cls: '' } : detectCategory(data.text);
@@ -174,6 +178,7 @@
 
     card.className = 'tip-card ' + cat.cls + (isDeathTip ? ' death-tip' : '');
     card.classList.add(isRight ? 'enter-right' : 'enter-left');
+    console.log('[tip] Card created, className:', card.className);
 
     card.innerHTML = `
       <div class="tip-cat">${escHtml(cat.label)}</div>
@@ -183,6 +188,11 @@
 
     hudTips.appendChild(card);
     activeTips.push(card);
+    console.log('[tip] Added to DOM. hudTips children:', hudTips.children.length);
+    const cs = window.getComputedStyle(card);
+    console.log('[tip] Card CSS — display:', cs.display, 'opacity:', cs.opacity, 'visibility:', cs.visibility, 'zIndex:', cs.zIndex, 'position:', cs.position, 'top:', cs.top, 'right:', cs.right);
+    const hr = hudTips.getBoundingClientRect();
+    console.log('[tip] #hud-tips rect — top:', hr.top, 'right:', hr.right, 'bottom:', hr.bottom, 'left:', hr.left);
 
     const fill = card.querySelector('.tip-bar-fill');
     requestAnimationFrame(() => {
@@ -411,11 +421,11 @@
 
     // New coaching tip
     window.overlayAPI.onTip((data) => {
+      console.log('[tip] IPC received, overlayHidden:', overlayHidden, 'text:', data.text);
       // Fix 3: buffer tips when overlay is hidden
       if (overlayHidden) {
         hiddenTipBuffer.push(data);
         if (hiddenTipBuffer.length > 5) hiddenTipBuffer.shift();
-        // Still update preview text so it's ready when shown
         if (tipPreviewText && !shouldSkipResponse(data.text)) {
           tipPreviewText.textContent = data.text;
           tipPreview.classList.remove('hidden');

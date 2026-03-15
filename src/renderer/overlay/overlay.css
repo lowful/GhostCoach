@@ -213,7 +213,7 @@ html, body {
   flex-direction: column;
   gap: 8px;
   pointer-events: none;
-  z-index: 50;
+  z-index: 9999;
   max-width: 340px;
 }
 
@@ -291,8 +291,9 @@ html, body {
 @keyframes tipInLeft  { from { opacity:0; transform:translateX(-28px); } to { opacity:1; transform:translateX(0); } }
 @keyframes tipOut     { from { opacity:1; transform:translateY(0); }    to { opacity:0; transform:translateY(8px); } }
 
-.tip-card.enter-right { animation: tipInRight 0.3s cubic-bezier(0.16,1,0.3,1) forwards; }
-.tip-card.enter-left  { animation: tipInLeft  0.3s cubic-bezier(0.16,1,0.3,1) forwards; }
+/* opacity:1 ensures card is visible even if animation fails to run */
+.tip-card.enter-right { opacity:1; animation: tipInRight 0.3s cubic-bezier(0.16,1,0.3,1) forwards; }
+.tip-card.enter-left  { opacity:1; animation: tipInLeft  0.3s cubic-bezier(0.16,1,0.3,1) forwards; }
 .tip-card.exiting     { animation: tipOut 0.28s ease forwards; pointer-events:none; }
 
 

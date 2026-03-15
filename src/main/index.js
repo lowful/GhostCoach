@@ -219,11 +219,8 @@ async function runCapture(forced = false) {
 
   const now = Date.now();
 
-  // Smart scheduling: slow cadence when not in match (30s), 20s min after tip
-  const notInMatch = matchState === 'idle' || matchState === 'waiting_for_match';
-  const minGap = notInMatch
-    ? 30000
-    : Math.max(getBaseInterval() * 0.8, 5000);
+  // Smart scheduling: 20s minimum after a tip, otherwise use base interval
+  const minGap = Math.max(getBaseInterval() * 0.8, 5000);
   const tipCooldown = now - lastTipTime < 20000;
 
   if (!forced && (now - lastCapture < minGap || tipCooldown)) return;
@@ -253,7 +250,7 @@ async function runCapture(forced = false) {
     // Duplicate frame detection — skip API call if screenshot unchanged
     if (!forced && hash === lastScreenHash) {
       console.log('[coach] Duplicate frame — skipping');
-      sendToOverlay('coach:status', { status: notInMatch ? 'waiting_for_match' : 'coaching' });
+      sendToOverlay('coach:status', { status: 'coaching' });
       requestInFlight = false;
       return;
     }
@@ -288,28 +285,12 @@ async function runCapture(forced = false) {
 
     const upper = result.toUpperCase();
 
-    // WAITING — not in a match; slow down polling
+    // WAITING — not in a match (menu/lobby). Skip silently, stay in coaching mode.
     if (upper.startsWith('WAITING')) {
-      if (matchState === 'in_match') {
-        // Match just ended — trigger match summary
-        triggerMatchSummary(licenseKey);
-      }
-      matchState = 'waiting_for_match';
-      playerState = 'alive';
-      deathTipSent = false;
-      combatTipGiven = false;
-      sendToOverlay('coach:matchState', { state: 'waiting_for_match' });
-      sendToOverlay('coach:status', { status: 'waiting_for_match' });
-      sendToSettings('settings:status', { status: 'waiting_for_match' });
+      sendToOverlay('coach:status', { status: 'coaching' });
+      sendToSettings('settings:status', { status: 'coaching' });
       requestInFlight = false;
       return;
-    }
-
-    // Entered a match — reset tip accumulator
-    if (matchState !== 'in_match') {
-      matchState = 'in_match';
-      matchTipsForSummary = [];
-      sendToOverlay('coach:matchState', { state: 'in_match' });
     }
 
     // ACTIVE_COMBAT — backward-compat filter
@@ -511,6 +492,10 @@ function startCoaching() {
   requestInFlight = false;
   lastTipTime     = 0;
   lastScreenHash  = '';
+
+  // Start in_match immediately — no separate match detection step
+  matchState = 'in_match';
+  sendToOverlay('coach:matchState', { state: 'in_match' });
 
   // 10-second warmup so the game can stabilize FPS before first screenshot
   setTimeout(() => {
@@ -832,7 +817,6 @@ function launchMainApp() {
 }
 
 // ─── App Events ───────────────────────────────────────────────────────────────
-app.commandLine.appendSwitch('disable-gpu-compositing');
 app.setAppUserModelId('com.ghostcoach.app');
 
 app.whenReady().then(async () => {
