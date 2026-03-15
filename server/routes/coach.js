@@ -82,10 +82,10 @@ async function validateKey(k) {
 }
 
 async function geminiCall(imageB64, prompt, maxTokens) {
-  const model = getGenAI().getGenerativeModel({
-    model: 'models/gemini-1.5-flash',
-    generationConfig: { maxOutputTokens: maxTokens || 100, temperature: 0.3 },
-  });
+  const model = getGenAI().getGenerativeModel(
+    { model: 'gemini-1.5-flash', generationConfig: { maxOutputTokens: maxTokens || 100, temperature: 0.3 } },
+    { apiVersion: 'v1' }
+  );
   const result = await model.generateContent([
     { text: prompt },
     { inlineData: { mimeType: 'image/jpeg', data: imageB64 } },
@@ -160,10 +160,10 @@ router.post('/summary/match', async (req, res) => {
   ].join('\n');
 
   try {
-    const model = getGenAI().getGenerativeModel({
-      model: 'models/gemini-1.5-flash',
-      generationConfig: { maxOutputTokens: 600 },
-    });
+    const model = getGenAI().getGenerativeModel(
+      { model: 'gemini-1.5-flash', generationConfig: { maxOutputTokens: 600 } },
+      { apiVersion: 'v1' }
+    );
     const result = await Promise.race([
       model.generateContent([{ text: sysPrompt }, { text: 'Generate JSON.' }]),
       new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 12000)),
