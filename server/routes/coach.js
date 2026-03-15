@@ -3,20 +3,9 @@ const express  = require('express');
 const supabase = require('../db/supabase');
 const router = express.Router();
 
-let genAI = null;
-function getGenAI() {
-  if (!genAI) {
-    const { GoogleGenerativeAI } = require('@google/generative-ai');
-    genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-  }
-  return genAI;
-}
-
 // ─── Cost tracking (in-memory, resets on server restart) ──────────────────────
 const costStore   = new Map();
 const globalStats = { callsToday: 0, callsMonth: 0, costToday: 0, costMonth: 0, date: '' };
-// Gemini Flash: ~$0.50/M input tokens, ~$3.00/M output tokens
-// Est. 1200 input + 50 output tokens per call
 const COST_PER_CALL = (1200 * 0.0000005) + (50 * 0.000003); // ~$0.00075
 
 function trackCall(key) {
@@ -43,6 +32,94 @@ function trackCall(key) {
 function sanitize(t) {
   if (!t) return '';
   return t.replace(/\u2014/g, ', ').replace(/\u2013/g, ', ').replace(/ - /g, ', ').replace(/\s+/g, ' ').trim();
+}
+
+// ─── Direct Gemini REST call — tries primary model, falls back if 404 ─────────
+const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash-001', 'gemini-1.5-flash-latest'];
+
+async function geminiCall(imageB64, prompt, maxTokens) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  const body = JSON.stringify({
+    contents: [{
+      parts: [
+        { text: prompt },
+        { inlineData: { mimeType: 'image/jpeg', data: imageB64 } },
+      ],
+    }],
+    generationConfig: { maxOutputTokens: maxTokens || 100, temperature: 0.3 },
+  });
+
+  let lastError;
+  for (const model of MODELS) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    console.log('[coach] Calling Gemini model:', model, 'URL:', url.replace(apiKey, '***'));
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      });
+
+      if (response.status === 404) {
+        console.warn(`[coach] Model ${model} returned 404, trying next...`);
+        lastError = new Error(`404 for model ${model}`);
+        continue;
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[coach] Gemini API error (${response.status}):`, errorText.slice(0, 200));
+        throw new Error(`Gemini ${response.status}`);
+      }
+
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      return sanitize(text);
+    } catch (err) {
+      if (err.message.startsWith('404 for model')) { lastError = err; continue; }
+      throw err;
+    }
+  }
+  throw lastError || new Error('All Gemini models failed');
+}
+
+// ─── Text-only Gemini call (for match summary) ────────────────────────────────
+async function geminiTextCall(prompt, maxTokens) {
+  const apiKey = process.env.GEMINI_API_KEY;
+
+  let lastError;
+  for (const model of MODELS) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    console.log('[coach] Calling Gemini model (text):', model);
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { maxOutputTokens: maxTokens || 600, temperature: 0.3 },
+        }),
+      });
+
+      if (response.status === 404) {
+        lastError = new Error(`404 for model ${model}`);
+        continue;
+      }
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[coach] Gemini text error (${response.status}):`, errorText.slice(0, 200));
+        throw new Error(`Gemini ${response.status}`);
+      }
+
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      return sanitize(text);
+    } catch (err) {
+      if (err.message.startsWith('404 for model')) { lastError = err; continue; }
+      throw err;
+    }
+  }
+  throw lastError || new Error('All Gemini models failed');
 }
 
 const SMART_PROMPT = [
@@ -81,18 +158,6 @@ async function validateKey(k) {
   return true;
 }
 
-async function geminiCall(imageB64, prompt, maxTokens) {
-  const model = getGenAI().getGenerativeModel(
-    { model: 'gemini-1.5-flash', generationConfig: { maxOutputTokens: maxTokens || 100, temperature: 0.3 } },
-    { apiVersion: 'v1' }
-  );
-  const result = await model.generateContent([
-    { text: prompt },
-    { inlineData: { mimeType: 'image/jpeg', data: imageB64 } },
-  ]);
-  return sanitize(result.response.text() || '');
-}
-
 // POST /api/coach/analyze  — raw binary JPEG body
 router.post('/analyze', async (req, res) => {
   const licenseKey  = String(req.headers['x-license-key'] || '').trim().toUpperCase();
@@ -123,7 +188,7 @@ router.post('/analyze', async (req, res) => {
     res.json({ tip: tip || '' });
   } catch (err) {
     console.error('[coach] analyze error:', err.message);
-    res.json({ tip: '' }); // silent skip
+    res.json({ tip: '' });
   }
 });
 
@@ -160,16 +225,11 @@ router.post('/summary/match', async (req, res) => {
   ].join('\n');
 
   try {
-    const model = getGenAI().getGenerativeModel(
-      { model: 'gemini-1.5-flash', generationConfig: { maxOutputTokens: 600 } },
-      { apiVersion: 'v1' }
-    );
-    const result = await Promise.race([
-      model.generateContent([{ text: sysPrompt }, { text: 'Generate JSON.' }]),
+    const text = await Promise.race([
+      geminiTextCall(sysPrompt, 600),
       new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 12000)),
     ]);
     trackCall(licenseKey);
-    const text = sanitize(result.response.text() || '');
     res.json(JSON.parse(text.replace(/```json|```/g, '').trim()));
   } catch (err) {
     console.error('[coach] match summary error:', err.message);
