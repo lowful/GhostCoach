@@ -7,7 +7,7 @@ let genAI = null;
 function getGenAI() {
   if (!genAI) {
     const { GoogleGenerativeAI } = require('@google/generative-ai');
-    genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY, { apiVersion: 'v1' });
   }
   return genAI;
 }
