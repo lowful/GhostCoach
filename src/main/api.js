@@ -191,10 +191,25 @@ async function checkIfAlive() {
   return true;
 }
 
+// ─── Round recap (text-only, sent after round ends) ───────────────────────────
+async function getRoundRecap(tips, licenseKey) {
+  if (!licenseKey || !tips || tips.length === 0) return null;
+  const headers = { 'X-License-Key': licenseKey };
+  try {
+    const result = await serverPostJSON('/coach/recap', { tips }, headers, 12000);
+    if (result && result.recap) return sanitizeText(result.recap);
+    return null;
+  } catch (err) {
+    console.error('[api] Round recap error:', err.message);
+    return null;
+  }
+}
+
 module.exports = {
   analyzeScreenshot,
   getRoundSummary,
   getMatchSummary,
+  getRoundRecap,
   checkIfMatch,
   checkIfAlive,
   sanitizeText,

@@ -52,6 +52,7 @@
           <div class="hk-cell"><span class="hk-combo">Ctrl+Shift+S</span><span class="hk-action">Scan</span></div>
           <div class="hk-cell"><span class="hk-combo">Ctrl+Shift+Q</span><span class="hk-action">Settings</span></div>
           <div class="hk-cell"><span class="hk-combo">Ctrl+Shift+M</span><span class="hk-action">Minimize</span></div>
+          <div class="hk-cell"><span class="hk-combo">Ctrl+Shift+H</span><span class="hk-action">History</span></div>
           <div class="hk-cell"><span class="hk-combo">Ctrl+Shift+X</span><span class="hk-action">Quit</span></div>
         </div>
       </div>
@@ -160,6 +161,17 @@
 
   <!-- Mini toast — brief text confirmation shown in minimized mode -->
   <div id="mini-toast" class="hidden"></div>
+
+  <!-- ═══════════════════════════════════════════════
+       TIP HISTORY PANEL  (Ctrl+Shift+H)
+       ═══════════════════════════════════════════════ -->
+  <div id="tip-history" class="hidden">
+    <div class="th-header">
+      <span class="th-title">TIP HISTORY</span>
+      <span class="th-hint">Ctrl+Shift+H</span>
+    </div>
+    <div id="th-list"></div>
+  </div>
 
   <!-- Hidden indicator — shown when overlay is toggled off (Ctrl+Shift+G) -->
   <div id="overlay-hidden-indicator" class="hidden">

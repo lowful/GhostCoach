@@ -23,6 +23,7 @@ const {
   analyzeScreenshot,
   getRoundSummary,
   getMatchSummary,
+  getRoundRecap,
   isDuplicateTip,
 } = require('./api');
 const { registerHotkeys, unregisterHotkeys } = require('./hotkeys');
@@ -47,10 +48,17 @@ let playerState  = 'alive';     // alive | dead
 // Accumulate tips for end-of-match summary
 let matchTipsForSummary = [];
 
-// ─── In-flight guard + dedup state ─────────────────────────────────────────────
-let requestInFlight = false;   // prevents parallel API calls
-let lastTipTime     = 0;       // enforces 20s min gap between tips
-let lastScreenHash  = '';      // last screenshot hash for duplicate detection
+// ─── In-flight guard + scheduling state ────────────────────────────────────────
+let requestInFlight    = false;  // prevents parallel API calls
+let lastTipTime        = 0;      // when last tip was displayed
+let nextAllowedCapture = 0;      // earliest time next capture is allowed
+let lastScreenHash     = '';     // last screenshot hash for duplicate detection
+
+// ─── Round recap state ─────────────────────────────────────────────────────────
+const ECONOMY_KW = /\b(buy|save|credit|eco|force|shield|vandal|phantom|spectre|marshal|operator|ghost|stinger|sheriff|ares|rifle|pistol)\b/i;
+let currentRoundTips = [];  // tips given this round
+let wasInGameplay    = false; // were we in active gameplay last capture?
+let lastRecapTime    = 0;
 
 // ─── Fix 1: Death tip hard cap + rate limiter ──────────────────────────────────
 let deathTipSent      = false;
@@ -199,9 +207,9 @@ function handleInvalidLicenseState(result) {
   console.warn(`[license] Invalid state: ${reason} — coaching stopped, license cleared`);
 }
 
-// ─── Performance interval — minimum 20s to avoid lag spikes ───────────────────
+// ─── Base capture interval ────────────────────────────────────────────────────
 function getBaseInterval() {
-  return 20000; // fixed 20s — do not lower
+  return 12000; // 12s base; overridden per-tip by nextAllowedCapture
 }
 
 // ─── Capture + Analysis ────────────────────────────────────────────────────────
@@ -215,31 +223,21 @@ async function runCapture(forced = false) {
   const now = Date.now();
   const secondsSinceLast = ((now - lastCapture) / 1000).toFixed(1);
 
-  // 20s minimum between captures; 25s after a tip was shown
-  const minGap     = getBaseInterval(); // 20 000ms
-  const tipCooldown = now - lastTipTime < 25000;
+  // nextAllowedCapture is set per-tip; fallback to base interval
+  const earliest = Math.max(nextAllowedCapture, lastCapture + getBaseInterval());
+  if (!forced && now < earliest) return;
 
-  if (!forced && (now - lastCapture < minGap || tipCooldown)) return;
-
-  console.log('[capture] Taking screenshot. Last capture was', secondsSinceLast, 'seconds ago');
   lastCapture = now;
   captureCount++;
-
-  const overlayWin = getOverlayWindow();
 
   try {
     requestInFlight = true;
     sendToOverlay('coach:status', { status: 'capturing' });
     sendToSettings('settings:status', { status: 'capturing' });
 
-    // Hide overlay before capture to avoid overlay in screenshot
-    if (overlayWin && !overlayWin.isDestroyed()) overlayWin.setOpacity(0);
-    await new Promise(r => setTimeout(r, 50)); // 50ms settle time
-
+    // Capture runs in a separate process — no need to hide overlay
     const { buffer, hash, sizeKB } = await captureScreen();
-
-    // Restore overlay immediately
-    if (overlayWin && !overlayWin.isDestroyed()) overlayWin.setOpacity(1);
+    console.log('[capture] Screenshot taken, interval was', secondsSinceLast, 'sec, size:', sizeKB, 'KB');
 
     // Skip if frame hasn't changed
     if (!forced && hash === lastScreenHash) {
@@ -255,8 +253,9 @@ async function runCapture(forced = false) {
 
     const result = await analyzeScreenshot(buffer, licenseKey, 'smart', false, [], hash);
 
-    // SKIP or empty/garbage — not gameplay
+    // SKIP or empty/garbage — not gameplay; slow down to 20s
     if (!result || result.trim().length < 8 || result.trim().toUpperCase() === 'SKIP') {
+      nextAllowedCapture = now + 20000;
       sendToOverlay('coach:status', { status: 'coaching' });
       sendToSettings('settings:status', { status: 'coaching' });
       requestInFlight = false;
@@ -278,6 +277,24 @@ async function runCapture(forced = false) {
     }
 
     lastTipTime = now;
+
+    // Round recap: detect buy-phase → gameplay → buy-phase transition
+    const isBuyPhase = ECONOMY_KW.test(tipText);
+    if (isBuyPhase && wasInGameplay && currentRoundTips.length >= 2 && now - lastRecapTime > 60000) {
+      lastRecapTime = now;
+      const roundTipsSnapshot = [...currentRoundTips];
+      currentRoundTips = [];
+      // Fire recap async — don't block tip display
+      getRoundRecap(roundTipsSnapshot, licenseKey).then(recap => {
+        if (recap) sendToOverlay('coach:recap', { text: recap });
+      }).catch(() => {});
+    }
+    wasInGameplay = !isBuyPhase;
+    if (!isBuyPhase) currentRoundTips.push(tipText);
+
+    // Next capture timing: 10s normally, 6s after economy tip (quick follow-up)
+    nextAllowedCapture = now + (isBuyPhase ? 6000 : 10000);
+
     const tipData = { text: tipText, game: 'Valorant', timestamp: Date.now(), isDeathTip: false };
     tipHistory.unshift(tipData);
     if (tipHistory.length > 20) tipHistory.pop();
@@ -292,9 +309,6 @@ async function runCapture(forced = false) {
 
   } catch (err) {
     requestInFlight = false;
-    if (overlayWin && !overlayWin.isDestroyed()) {
-      try { overlayWin.setOpacity(1); } catch (_) {}
-    }
     const msg = err.message || '';
     let errStatus;
     if (msg.includes('timeout') || msg.includes('ENOTFOUND') || msg.includes('ETIMEDOUT')) {
@@ -356,11 +370,15 @@ function startCoaching() {
   matchState    = 'idle';
   playerState   = 'alive';
   captureCount  = 0;
-  deathTipSent    = false;
-  combatTipGiven  = false;
-  requestInFlight = false;
-  lastTipTime     = 0;
-  lastScreenHash  = '';
+  deathTipSent       = false;
+  combatTipGiven     = false;
+  requestInFlight    = false;
+  lastTipTime        = 0;
+  nextAllowedCapture = 0;
+  lastScreenHash     = '';
+  currentRoundTips   = [];
+  wasInGameplay      = false;
+  lastRecapTime      = 0;
 
   // Start in_match immediately — no separate match detection step
   matchState = 'in_match';
@@ -402,11 +420,14 @@ function stopCoaching() {
   // Remove match summary on manual stop per Fix 4
   // (match summary only triggers on in-match end detection now)
 
-  deathTipSent    = false;
-  combatTipGiven  = false;
-  requestInFlight = false;
-  lastScreenHash  = '';
-  matchState      = 'idle';
+  deathTipSent       = false;
+  combatTipGiven     = false;
+  requestInFlight    = false;
+  nextAllowedCapture = 0;
+  lastScreenHash     = '';
+  currentRoundTips   = [];
+  wasInGameplay      = false;
+  matchState         = 'idle';
   playerState     = 'alive';
   sessionStartTime = null;
   captureCount    = 0;
@@ -460,7 +481,8 @@ function buildState() {
     tipCount:           tipHistory.length,
     matchState,
     playerState,
-    panelMinimized:     store.get('panelMinimized')
+    panelMinimized:     store.get('panelMinimized'),
+    panelCorner:        store.get('panelCorner') || 'top-left'
   };
 }
 
@@ -564,6 +586,7 @@ ipcMain.on('settings:save', (_, settings) => {
   if (typeof settings.audio === 'boolean')             store.set('audioEnabled', settings.audio);
   if (settings.performanceMode)                        store.set('performanceMode', settings.performanceMode);
   if (typeof settings.continueWhileDead === 'boolean') store.set('continueCoachingWhileDead', settings.continueWhileDead);
+  if (settings.panelCorner) store.set('panelCorner', settings.panelCorner);
 
   // Restart the capture timer with the new interval if coaching is active
   if (isCoaching && (settings.interval || settings.performanceMode)) {
@@ -681,6 +704,7 @@ function launchMainApp() {
       store.set('panelMinimized', nowMinimized);
       sendToOverlay('overlay:minimize', { minimized: nowMinimized });
     },
+    toggleHistory:   () => { sendToOverlay('overlay:toggleHistory', {}); },
     quit:            () => { cleanup(); app.quit(); }
   });
 }

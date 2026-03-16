@@ -53,9 +53,16 @@
   let isPanelMinimized = false;
   let miniToastTimer   = null;
 
-  // Active tip cards (max 2)
-  const activeTips  = [];
-  const TIP_DURATION = 6000;
+  // Tip history (last 30 tips + recaps)
+  const displayHistory = [];
+  let historyVisible   = false;
+  const tipHistory     = document.getElementById('tip-history');
+  const thList         = document.getElementById('th-list');
+
+  // Active tip cards — max 1 at a time
+  const activeTips     = [];
+  const TIP_DURATION   = 8000;   // 8s for normal tips
+  const RECAP_DURATION = 12000;  // 12s for round recap cards
 
   // Round summary timer
   let summaryTimer     = null;
@@ -148,27 +155,68 @@
     return false;
   }
 
+  // ─── Clean tip text ───────────────────────────────────────────────────────────
+  function cleanTipText(text) {
+    return text
+      .replace(/[\u2014\u2013\u2012\u2015]/g, ',') // em-dash, en-dash → comma
+      .replace(/ - /g, ', ')
+      .trim()
+      .slice(0, 100);
+  }
+
+  // ─── Tip history helpers ──────────────────────────────────────────────────────
+  function addToHistory(text, isRecap, timestamp) {
+    displayHistory.unshift({ text, isRecap, timestamp: timestamp || Date.now() });
+    if (displayHistory.length > 30) displayHistory.pop();
+    renderHistory();
+  }
+
+  function renderHistory() {
+    if (!thList) return;
+    thList.innerHTML = '';
+    displayHistory.forEach(entry => {
+      const item = document.createElement('div');
+      item.className = 'th-item';
+
+      const t = new Date(entry.timestamp);
+      const timeStr = t.getHours().toString().padStart(2, '0') + ':' +
+                      t.getMinutes().toString().padStart(2, '0');
+
+      item.innerHTML =
+        `<span class="th-time">${escHtml(timeStr)}</span>` +
+        (entry.isRecap ? '<span class="th-badge-recap">RECAP</span>' : '') +
+        `<span class="th-item-text">${escHtml(entry.text)}</span>`;
+
+      thList.appendChild(item);
+    });
+  }
+
   // ─── Tip cards ────────────────────────────────────────────────────────────────
   function showTip(data) {
-    console.log('[tip] Received:', data.text);
-    if (shouldSkipResponse(data.text)) {
+    const raw = (data.text || '').trim();
+    console.log('[tip] Received:', raw);
+    if (shouldSkipResponse(raw)) {
       console.log('[tip] FILTERED OUT by shouldSkipResponse');
       return;
     }
 
+    const text = cleanTipText(raw);
     const isDeathTip = !!data.isDeathTip;
-    const cat = isDeathTip ? { label: 'DEATH TIP', cls: '' } : detectCategory(data.text);
+    const cat = isDeathTip ? { label: 'DEATH TIP', cls: '' } : detectCategory(text);
 
     // Update panel preview
     tipPreview.classList.remove('hidden');
-    tipPreviewText.textContent = data.text;
+    tipPreviewText.textContent = text;
 
     // Increment session tip count
     sessionTipCount++;
     updateSessionStats();
 
-    // Max 2 active cards — dismiss oldest
-    if (activeTips.length >= 2) dismissTip(activeTips[0]);
+    // Track in history
+    addToHistory(text, false);
+
+    // Max 1 active card — dismiss existing with crossfade
+    if (activeTips.length >= 1) dismissTip(activeTips[0]);
 
     const card = document.createElement('div');
     const isRight = tipPosition.includes('right');
@@ -179,7 +227,7 @@
 
     card.innerHTML = `
       <div class="tip-cat">${escHtml(cat.label)}</div>
-      <div class="tip-card-text">${escHtml(data.text)}</div>
+      <div class="tip-card-text">${escHtml(text)}</div>
       <div class="tip-bar"><div class="tip-bar-fill"></div></div>
     `;
 
@@ -198,6 +246,43 @@
     });
 
     card._dismissTimer = setTimeout(() => dismissTip(card), TIP_DURATION);
+  }
+
+  function showRecap(data) {
+    const raw = (data.recap || data.text || '').trim();
+    console.log('[recap] Received:', raw);
+    if (!raw || raw.length < 8) return;
+
+    const text = cleanTipText(raw);
+
+    // Track in history
+    addToHistory(text, true);
+
+    // Max 1 active card — dismiss existing
+    if (activeTips.length >= 1) dismissTip(activeTips[0]);
+
+    const card = document.createElement('div');
+    const isRight = tipPosition.includes('right');
+
+    card.className = 'tip-card recap';
+    card.classList.add(isRight ? 'enter-right' : 'enter-left');
+
+    card.innerHTML = `
+      <div class="tip-cat">ROUND RECAP</div>
+      <div class="tip-card-text">${escHtml(text)}</div>
+      <div class="tip-bar"><div class="tip-bar-fill"></div></div>
+    `;
+
+    hudTips.appendChild(card);
+    activeTips.push(card);
+
+    const fill = card.querySelector('.tip-bar-fill');
+    requestAnimationFrame(() => {
+      fill.style.transition = `transform ${RECAP_DURATION}ms linear`;
+      fill.style.transform  = 'scaleX(0)';
+    });
+
+    card._dismissTimer = setTimeout(() => dismissTip(card), RECAP_DURATION);
   }
 
   function dismissTip(card) {
@@ -341,6 +426,23 @@
       .replace(/"/g,'&quot;');
   }
 
+  // ─── Panel corner positioning ─────────────────────────────────────────────────
+  function applyPanelCorner(corner) {
+    const MAP = {
+      'top-left':     { top: '20px', left: '20px', right: '',    bottom: '' },
+      'top-right':    { top: '20px', left: '',    right: '20px', bottom: '' },
+      'bottom-left':  { top: '',    left: '20px', right: '',    bottom: '20px' },
+      'bottom-right': { top: '',    left: '',    right: '20px', bottom: '20px' },
+    };
+    const pos = MAP[corner] || MAP['top-left'];
+    [panel, panelMini].forEach(el => {
+      el.style.top    = pos.top;
+      el.style.left   = pos.left;
+      el.style.right  = pos.right;
+      el.style.bottom = pos.bottom;
+    });
+  }
+
   // ─── Minimize panel ───────────────────────────────────────────────────────────
   function applyMinimizeState(minimized, animate) {
     isPanelMinimized = minimized;
@@ -390,6 +492,9 @@
       if (state.tipPos) {
         tipPosition = state.tipPos;
         hudTips.className = 'pos-' + tipPosition;
+      }
+      if (state.panelCorner) {
+        applyPanelCorner(state.panelCorner);
       }
       if (state.performanceMode) {
         performanceMode = state.performanceMode;
@@ -516,6 +621,24 @@
     window.overlayAPI.onMiniToast((data) => {
       if (isPanelMinimized && data.text) showMiniToast(data.text);
     });
+
+    // Round recap card
+    if (window.overlayAPI.onRecap) {
+      window.overlayAPI.onRecap((data) => {
+        showRecap(data);
+      });
+    }
+
+    // Toggle tip history panel (Ctrl+Shift+H)
+    if (window.overlayAPI.onToggleHistory) {
+      window.overlayAPI.onToggleHistory(() => {
+        historyVisible = !historyVisible;
+        if (tipHistory) {
+          tipHistory.classList.toggle('hidden', !historyVisible);
+          if (historyVisible) renderHistory();
+        }
+      });
+    }
 
     // Tray coaching toggle — not used since overlay is display-only
     // but we keep the listener for the tray menu compatibility

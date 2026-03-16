@@ -13,6 +13,7 @@
   const modeSelect      = document.getElementById('mode-select');
   const perfSelect      = document.getElementById('perf-select');
   const posBtns         = document.querySelectorAll('.pos-btn');
+  const panelPosBtns    = document.querySelectorAll('.panel-pos-btn');
   const btnContinueDead = document.getElementById('btn-continue-dead');
   const deadLabel       = document.getElementById('dead-label');
   const apiKeyInput     = document.getElementById('api-key-input');
@@ -27,6 +28,7 @@
   let coachingMode     = 'smart';
   let performanceMode  = 'balanced';
   let continueWhileDead = false;
+  let panelCorner       = 'top-left';
   let sessionStartTime = null;
   let sessionTipCount  = 0;
   let sessionTimerInterval = null;
@@ -103,6 +105,10 @@
     posBtns.forEach(b => b.classList.toggle('active', b.dataset.pos === tipPosition));
   }
 
+  function updatePanelPosBtns() {
+    panelPosBtns.forEach(b => b.classList.toggle('active', b.dataset.corner === panelCorner));
+  }
+
   // ─── Save settings ────────────────────────────────────────────────────────────
   function saveSettings() {
     if (!window.settingsAPI) return;
@@ -110,7 +116,8 @@
       mode:             coachingMode,
       tipPos:           tipPosition,
       performanceMode,
-      continueWhileDead
+      continueWhileDead,
+      panelCorner
     });
   }
 
@@ -152,6 +159,14 @@
     btn.addEventListener('click', () => {
       tipPosition = btn.dataset.pos;
       updatePosButtons();
+      saveSettings();
+    });
+  });
+
+  panelPosBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      panelCorner = btn.dataset.corner;
+      updatePanelPosBtns();
       saveSettings();
     });
   });
@@ -214,6 +229,10 @@
       if (state.tipPos) {
         tipPosition = state.tipPos;
         updatePosButtons();
+      }
+      if (state.panelCorner) {
+        panelCorner = state.panelCorner;
+        updatePanelPosBtns();
       }
       if (typeof state.continueWhileDead === 'boolean') {
         continueWhileDead = state.continueWhileDead;

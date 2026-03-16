@@ -18,6 +18,8 @@ contextBridge.exposeInMainWorld('overlayAPI', {
   onPlayerState:  (cb) => ipcRenderer.on('coach:playerState',   (_, d) => cb(d)),
   onPauseState:   (cb) => ipcRenderer.on('coach:pauseState',    (_, d) => cb(d)),
   onTrayToggle:   (cb) => ipcRenderer.on('tray:toggleCoaching', ()     => cb()),
-  onMinimize:     (cb) => ipcRenderer.on('overlay:minimize',    (_, d) => cb(d)),
-  onMiniToast:    (cb) => ipcRenderer.on('overlay:miniToast',   (_, d) => cb(d))
+  onMinimize:       (cb) => ipcRenderer.on('overlay:minimize',       (_, d) => cb(d)),
+  onMiniToast:      (cb) => ipcRenderer.on('overlay:miniToast',      (_, d) => cb(d)),
+  onRecap:          (cb) => ipcRenderer.on('coach:recap',             (_, d) => cb(d)),
+  onToggleHistory:  (cb) => ipcRenderer.on('overlay:toggleHistory',   ()     => cb())
 });
