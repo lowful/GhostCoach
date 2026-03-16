@@ -46,7 +46,7 @@ async function geminiCall(imageB64, prompt, maxTokens) {
         { inlineData: { mimeType: 'image/jpeg', data: imageB64 } },
       ],
     }],
-    generationConfig: { maxOutputTokens: maxTokens || 100, temperature: 0.3 },
+    generationConfig: { maxOutputTokens: maxTokens || 100, temperature: 0.7 },
   });
 
   let lastError;
@@ -97,7 +97,7 @@ async function geminiTextCall(prompt, maxTokens) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: maxTokens || 600, temperature: 0.3 },
+          generationConfig: { maxOutputTokens: maxTokens || 600, temperature: 0.5 },
         }),
       });
 
@@ -217,7 +217,15 @@ CRITICAL RULES FOR ABILITIES:
 - If you see ability charges at 0 or grayed out at the bottom of the screen, the player has USED that ability already. Do not suggest using an ability that is already spent.
 - If the ultimate meter is not full (not glowing or shows a number less than max), do not suggest using ultimate.
 - NEVER suggest an ability that belongs to a different agent.
-- Identify the agent from the ability icons at the bottom of the screen. Each agent has a unique set of 4 ability icons.`;
+- Identify the agent from the ability icons at the bottom of the screen. Each agent has a unique set of 4 ability icons.
+
+AGENT IDENTIFICATION RULE:
+IMPORTANT: To identify the player's agent, look at the bottom-center of the screen where the ability icons are. Each agent has unique ability icons. If you cannot clearly identify the agent, give general tips instead of agent-specific ones. NEVER guess which agent the player is. If you are not 100 percent certain of the agent, do not mention any specific abilities. Just give general positioning or economy advice instead.
+
+MATCH END DETECTION:
+If you see a VICTORY or DEFEAT end-of-match screen, respond with only the word VICTORY or DEFEAT. No other text.
+
+CRITICAL: Always finish your sentence. Every tip must end with a period. Never leave a tip incomplete or trailing off. If you cannot fit your thought in 20 words, shorten it, but always complete the sentence with a period.`;
 
 const ROUND_SUMMARY_PROMPT = 'You are analyzing a Valorant round that just ended. Return ONLY valid JSON, no markdown: {"round_result":"win","things_done_well":["praise under 12 words"],"things_to_improve":["advice under 12 words"],"key_tip_for_next_round":"tip under 12 words","performance_rating":3} round_result: win, loss, or unknown. 1-3 items per array. performance_rating 1-5. No em-dashes.';
 
