@@ -54,6 +54,15 @@ let lastTipTime        = 0;      // when last tip was displayed
 let nextAllowedCapture = 0;      // earliest time next capture is allowed
 let lastScreenHash     = '';     // last screenshot hash for duplicate detection
 
+// ─── Hybrid library tip system ─────────────────────────────────────────────────
+const { tipsLibrary } = require('./tips-library');
+let shownLibraryTips  = new Set();
+let libraryTipTimer   = null;
+
+// Death/low-health keyword detection
+const DEATH_KW  = /\b(died|death|dead|peeked without|crosshair was|should have|next time|instead|mistake)\b/i;
+const LOW_HP_KW = /\b(you are low|low health|low hp|health is low|low on health)\b/i;
+
 // ─── Round recap state ─────────────────────────────────────────────────────────
 const ECONOMY_KW = /\b(buy|save|credit|eco|force|shield|vandal|phantom|spectre|marshal|operator|ghost|stinger|sheriff|ares|rifle|pistol)\b/i;
 let currentRoundTips = [];  // tips given this round
@@ -207,9 +216,38 @@ function handleInvalidLicenseState(result) {
   console.warn(`[license] Invalid state: ${reason} — coaching stopped, license cleared`);
 }
 
+// ─── Library tip system ────────────────────────────────────────────────────────
+function showLibraryTip(category) {
+  const pool     = tipsLibrary[category] || tipsLibrary.general;
+  let   available = pool.filter(t => !shownLibraryTips.has(t));
+  if (available.length === 0) {
+    // Reset shown tips for this category only
+    pool.forEach(t => shownLibraryTips.delete(t));
+    available = [...pool];
+  }
+  const tip = available[Math.floor(Math.random() * available.length)];
+  shownLibraryTips.add(tip);
+
+  const tipData = { text: tip, game: 'Valorant', timestamp: Date.now(), isDeathTip: false, isLibrary: true };
+  tipHistory.unshift(tipData);
+  if (tipHistory.length > 50) tipHistory.pop();
+
+  sendToOverlay('coach:tip', tipData);
+  sendToOverlay('coach:state', buildState());
+}
+
+function scheduleLibraryTip(category) {
+  if (libraryTipTimer) clearTimeout(libraryTipTimer);
+  libraryTipTimer = setTimeout(() => {
+    libraryTipTimer = null;
+    if (!isCoaching || isPaused) return;
+    showLibraryTip(category);
+  }, 9000);
+}
+
 // ─── Base capture interval ────────────────────────────────────────────────────
 function getBaseInterval() {
-  return 12000; // 12s base; overridden per-tip by nextAllowedCapture
+  return 18000; // 18s base; library tip fires at 9s midpoint
 }
 
 // ─── Capture + Analysis ────────────────────────────────────────────────────────
@@ -262,11 +300,31 @@ async function runCapture(forced = false) {
       return;
     }
 
+    // VICTORY / DEFEAT screen — trigger match summary, stop coaching loop
+    const resultUpper = result.trim().toUpperCase();
+    if (resultUpper === 'VICTORY' || resultUpper === 'DEFEAT') {
+      console.log('[coach] Match end detected:', result.trim());
+      nextAllowedCapture = now + 60000;
+      requestInFlight = false;
+      sendToOverlay('coach:status', { status: 'coaching' });
+      triggerMatchSummary(licenseKey);
+      return;
+    }
+
     // Truncate very long responses to first sentence
     let tipText = result.trim();
     if (tipText.length > 120) {
       const first = tipText.match(/^[^.!?]+[.!?]/);
       tipText = first ? first[0].trim() : tipText.substring(0, 100).trim();
+    }
+
+    // Skip incomplete tips (no end punctuation or too short)
+    if (tipText.length < 20 || !/[.!?]$/.test(tipText)) {
+      console.log('[coach] Discarding incomplete tip:', tipText);
+      nextAllowedCapture = now + 12000;
+      sendToOverlay('coach:status', { status: 'coaching' });
+      requestInFlight = false;
+      return;
     }
 
     // Skip duplicate tips
@@ -284,7 +342,6 @@ async function runCapture(forced = false) {
       lastRecapTime = now;
       const roundTipsSnapshot = [...currentRoundTips];
       currentRoundTips = [];
-      // Fire recap async — don't block tip display
       getRoundRecap(roundTipsSnapshot, licenseKey).then(recap => {
         if (recap) sendToOverlay('coach:recap', { text: recap });
       }).catch(() => {});
@@ -295,10 +352,29 @@ async function runCapture(forced = false) {
     // Next capture timing: 10s normally, 6s after economy tip (quick follow-up)
     nextAllowedCapture = now + (isBuyPhase ? 6000 : 10000);
 
-    const tipData = { text: tipText, game: 'Valorant', timestamp: Date.now(), isDeathTip: false };
+    const tipData = { text: tipText, game: 'Valorant', timestamp: Date.now(), isDeathTip: false, isLibrary: false };
     tipHistory.unshift(tipData);
-    if (tipHistory.length > 20) tipHistory.pop();
+    if (tipHistory.length > 50) tipHistory.pop();
     matchTipsForSummary.push(tipText);
+
+    // FIX 6: Death detection — immediate library tip + follow-up death screenshot
+    const isDeathContext = DEATH_KW.test(tipText);
+    const isLowHP       = LOW_HP_KW.test(tipText);
+
+    if (isDeathContext) {
+      // Clear any pending library timer and show death tip immediately
+      if (libraryTipTimer) { clearTimeout(libraryTipTimer); libraryTipTimer = null; }
+      setTimeout(() => showLibraryTip('postDeath'), 500);
+      // Follow-up forced capture in 3s for death-specific AI tip
+      setTimeout(() => { if (isCoaching && !isPaused && !requestInFlight) runCapture(true); }, 3000);
+    } else if (isLowHP) {
+      if (libraryTipTimer) { clearTimeout(libraryTipTimer); libraryTipTimer = null; }
+      setTimeout(() => showLibraryTip('general'), 500);
+    } else {
+      // Normal: schedule library tip 9s after this AI tip
+      const libCat = isBuyPhase ? 'economy' : 'general';
+      scheduleLibraryTip(libCat);
+    }
 
     sendToOverlay('coach:tip', tipData);
     sendToOverlay('coach:state', buildState());
@@ -379,6 +455,8 @@ function startCoaching() {
   currentRoundTips   = [];
   wasInGameplay      = false;
   lastRecapTime      = 0;
+  shownLibraryTips   = new Set();
+  if (libraryTipTimer) { clearTimeout(libraryTipTimer); libraryTipTimer = null; }
 
   // Start in_match immediately — no separate match detection step
   matchState = 'in_match';
@@ -428,6 +506,7 @@ function stopCoaching() {
   currentRoundTips   = [];
   wasInGameplay      = false;
   matchState         = 'idle';
+  if (libraryTipTimer) { clearTimeout(libraryTipTimer); libraryTipTimer = null; }
   playerState     = 'alive';
   sessionStartTime = null;
   captureCount    = 0;

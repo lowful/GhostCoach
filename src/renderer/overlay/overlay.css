@@ -706,7 +706,10 @@ html, body {
   scrollbar-width: none;
 }
 
-#th-list::-webkit-scrollbar { display: none; }
+#th-list::-webkit-scrollbar       { width: 3px; }
+#th-list::-webkit-scrollbar-track { background: transparent; }
+#th-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
+#th-list::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
 
 .th-item {
   padding: 7px 14px;
@@ -736,6 +739,26 @@ html, body {
   letter-spacing: 1px;
   color: var(--accent2);
   background: rgba(0,240,255,0.1);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.th-badge-ai {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--accent);
+  background: rgba(255,70,85,0.1);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.th-badge-lib {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--text2);
+  background: rgba(255,255,255,0.07);
   padding: 1px 5px;
   border-radius: 3px;
 }

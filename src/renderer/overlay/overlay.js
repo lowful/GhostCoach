@@ -151,7 +151,10 @@
   // ─── Filter — skip non-gameplay responses ────────────────────────────────────
   function shouldSkipResponse(text) {
     if (!text || text.trim().length < 8) return true;
-    if (text.trim().toUpperCase() === 'SKIP') return true;
+    const t = text.trim().toUpperCase();
+    if (t === 'SKIP' || t === 'VICTORY' || t === 'DEFEAT') return true;
+    if (text.trim().length < 20) return true;          // too short, likely incomplete
+    if (!/[.!?]$/.test(text.trim())) return true;      // must end with punctuation
     return false;
   }
 
@@ -165,26 +168,36 @@
   }
 
   // ─── Tip history helpers ──────────────────────────────────────────────────────
-  function addToHistory(text, isRecap, timestamp) {
-    displayHistory.unshift({ text, isRecap, timestamp: timestamp || Date.now() });
-    if (displayHistory.length > 30) displayHistory.pop();
+  function addToHistory(text, isRecap, isLibrary, timestamp) {
+    displayHistory.unshift({ text, isRecap, isLibrary: !!isLibrary, timestamp: timestamp || Date.now() });
+    if (displayHistory.length > 50) displayHistory.pop();
     renderHistory();
   }
 
   function renderHistory() {
     if (!thList) return;
+    const now        = Date.now();
+    const THIRTY_MIN = 30 * 60 * 1000;
+    const recent     = displayHistory.filter(e => now - e.timestamp < THIRTY_MIN);
+
     thList.innerHTML = '';
-    displayHistory.forEach(entry => {
+    recent.forEach(entry => {
       const item = document.createElement('div');
       item.className = 'th-item';
 
-      const t = new Date(entry.timestamp);
-      const timeStr = t.getHours().toString().padStart(2, '0') + ':' +
-                      t.getMinutes().toString().padStart(2, '0');
+      const ago     = Math.floor((now - entry.timestamp) / 60000);
+      const timeStr = ago < 1 ? 'now' : ago + 'm ago';
+
+      let badge = '';
+      if (entry.isRecap)        badge = '<span class="th-badge-recap">RECAP</span>';
+      else if (entry.isLibrary) badge = '<span class="th-badge-lib">LIB</span>';
+      else                      badge = '<span class="th-badge-ai">AI</span>';
 
       item.innerHTML =
-        `<span class="th-time">${escHtml(timeStr)}</span>` +
-        (entry.isRecap ? '<span class="th-badge-recap">RECAP</span>' : '') +
+        `<div class="th-item-meta">` +
+          `<span class="th-time">${escHtml(timeStr)}</span>` +
+          badge +
+        `</div>` +
         `<span class="th-item-text">${escHtml(entry.text)}</span>`;
 
       thList.appendChild(item);
@@ -213,7 +226,7 @@
     updateSessionStats();
 
     // Track in history
-    addToHistory(text, false);
+    addToHistory(text, false, data.isLibrary || false);
 
     // Max 1 active card — dismiss existing with crossfade
     if (activeTips.length >= 1) dismissTip(activeTips[0]);
@@ -256,7 +269,7 @@
     const text = cleanTipText(raw);
 
     // Track in history
-    addToHistory(text, true);
+    addToHistory(text, true, false);
 
     // Max 1 active card — dismiss existing
     if (activeTips.length >= 1) dismissTip(activeTips[0]);
@@ -390,6 +403,17 @@
     matchSummaryTimer = setTimeout(() => {
       matchSummary.classList.add('hidden');
     }, MATCH_SUMMARY_DURATION);
+
+    // FIX 5: Save to localStorage for match history
+    try {
+      const key = 'ghostcoach_match_' + Date.now();
+      localStorage.setItem(key, JSON.stringify({ ...data, savedAt: new Date().toISOString() }));
+      // Keep only last 10 match reviews
+      const allKeys = Object.keys(localStorage)
+        .filter(k => k.startsWith('ghostcoach_match_'))
+        .sort();
+      while (allKeys.length > 10) localStorage.removeItem(allKeys.shift());
+    } catch (e) { /* storage unavailable */ }
   }
 
   // ─── Session Over card (Fix 4) ────────────────────────────────────────────────
