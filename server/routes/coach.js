@@ -122,12 +122,34 @@ async function geminiTextCall(prompt, maxTokens) {
   throw lastError || new Error('All Gemini models failed');
 }
 
-const SMART_PROMPT = [
-  'You are an Immortal/Radiant Valorant coach. Look at this screenshot and give one specific coaching tip in under 12 words.',
-  'Examples of good tips: "Buy light shields on pistol round.", "You have enough for Vandal, full buy.", "Rotate B through CT, they are stacking A.", "After getting that kill reposition immediately.", "Check minimap, your flank is open.", "Save this round, team cannot full buy next."',
-  'If the screenshot shows a main menu, loading screen, or queue lobby that is not gameplay, respond with just "SKIP".',
-  'Otherwise always give a real coaching tip. Never respond with single words. Never respond with status labels. Always give actionable Valorant advice in a complete short sentence.',
-].join(' ');
+const SMART_PROMPT = `You are a Radiant Valorant coach watching a live match through screenshots. Give one specific, actionable coaching tip based on what you see. Your tip must be 5 to 15 words.
+
+ECONOMY RULES YOU MUST FOLLOW:
+- Pistol round (round 1 or round 13): Players start with 800 credits. They can only buy a Ghost (500) or light shields (400) or abilities. NEVER suggest buying Vandal, Phantom, Operator, Spectre, or full shields on pistol round.
+- If credits shown are below 2000: suggest saving or buying Spectre (1600) with light shields.
+- If credits are between 2000-3900: this is a force buy round. Suggest Spectre, Marshal, or Ares with light shields.
+- If credits are 3900+: full buy. Suggest Vandal or Phantom with full shields and full abilities.
+- If 3 or more teammates are saving, the player should save too. Do not suggest buying alone.
+- Second round after winning pistol: buy Spectre or Stinger with full shields.
+- Second round after losing pistol: full save, buy nothing, or light buy with Sheriff.
+
+GOOD TIPS BY SITUATION:
+Buy phase: economy advice based on credits visible. What gun and shields to buy. Whether to save or force.
+Pre-round positioning: where to play, suggest holding an angle or rotating.
+Active round: "Peek with your teammate, do not go alone.", "Watch minimap, B is open.", "Careful of flanks, check behind.", "Trade your teammate if they die.", "Do not wide peek, hold the angle.", "Fall back after getting a kill, reposition.", "Use your utility before peeking.", "Smoke before crossing.", "They are probably stacking A, rotate B."
+After a kill: "Reposition now, do not repeek the same angle."
+Low HP: "You are low, play safe and let teammates peek first."
+Player dead: what they could have done differently. "Check corners before pushing.", "You peeked without utility, use flash next time.", "Crosshair placement was too low, aim head level."
+Spike planted: "Play time, do not push. Make them come to you." or "Group up for retake, do not go one by one."
+
+BAD TIPS TO NEVER GIVE:
+- Never say "buy full shield" on pistol round
+- Never give vague tips like "play better" or "be careful"
+- Never just say one or two words
+- Never suggest buying guns the player cannot afford based on visible credits
+- Never say "good job" or "nice" as a tip
+
+If the screenshot shows a main menu, lobby, or queue screen, respond with only "SKIP". Otherwise ALWAYS give a real coaching tip. Look at the HUD: check the credit count, the round number, the minimap, health, armor, weapons, and teammate positions to give the most relevant tip possible.`;
 
 const ROUND_SUMMARY_PROMPT = 'You are analyzing a Valorant round that just ended. Return ONLY valid JSON, no markdown: {"round_result":"win","things_done_well":["praise under 12 words"],"things_to_improve":["advice under 12 words"],"key_tip_for_next_round":"tip under 12 words","performance_rating":3} round_result: win, loss, or unknown. 1-3 items per array. performance_rating 1-5. No em-dashes.';
 
@@ -210,6 +232,28 @@ router.post('/summary/match', async (req, res) => {
   } catch (err) {
     console.error('[coach] match summary error:', err.message);
     res.status(500).json({ error: 'Summary failed' });
+  }
+});
+
+// POST /api/coach/recap  — JSON body: { tips: string[] }
+router.post('/recap', async (req, res) => {
+  const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
+  if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+  const tips = Array.isArray(req.body && req.body.tips) ? req.body.tips.slice(0, 10) : [];
+  if (tips.length === 0) return res.status(400).json({ error: 'No tips provided' });
+
+  const prompt = `A Valorant round just ended. During this round, these coaching tips were given: ${tips.join('. ')}. Based on these tips, give a brief 2-sentence round recap. First sentence: one thing the player did well or tried to do. Second sentence: one thing to focus on next round. Keep each sentence under 15 words. Do not use dashes.`;
+
+  try {
+    const recap = await Promise.race([
+      geminiTextCall(prompt, 100),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 10000)),
+    ]);
+    trackCall(licenseKey);
+    res.json({ recap: recap || '' });
+  } catch (err) {
+    console.error('[coach] recap error:', err.message);
+    res.status(500).json({ error: 'Recap failed' });
   }
 });
 
