@@ -4,11 +4,12 @@ const { globalShortcut } = require('electron');
  * Registers global hotkeys.
  * @param {{ toggleOverlay, forceCapture, pauseResume, openSettings, minimizeOverlay, quit }} handlers
  */
-function registerHotkeys({ toggleOverlay, forceCapture, pauseResume, openSettings, minimizeOverlay, toggleHistory, quit }) {
+function registerHotkeys({ toggleOverlay, forceCapture, requestTip, pauseResume, openSettings, minimizeOverlay, toggleHistory, quit }) {
   const keys = [
     ['CommandOrControl+Shift+G', toggleOverlay,   'Ctrl+Shift+G (toggle overlay)'],
     ['CommandOrControl+Shift+P', pauseResume,      'Ctrl+Shift+P (pause/resume)'],
     ['CommandOrControl+Shift+S', forceCapture,     'Ctrl+Shift+S (force capture)'],
+    ['CommandOrControl+Shift+T', requestTip,       'Ctrl+Shift+T (request tip now)'],
     ['CommandOrControl+Shift+C', toggleOverlay,    'Ctrl+Shift+C (toggle — legacy)'],
     ['CommandOrControl+Shift+Q', openSettings,     'Ctrl+Shift+Q (open settings)'],
     ['CommandOrControl+Shift+M', minimizeOverlay,  'Ctrl+Shift+M (minimize panel)'],

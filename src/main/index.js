@@ -18,72 +18,20 @@ const {
   getOverlayWindow
 } = require('./overlay');
 const { createSettingsWindow, sendToSettings, getSettingsWindow } = require('./settings-window');
-const { captureScreen } = require('./capture');
-const {
-  analyzeScreenshot,
-  getRoundSummary,
-  getMatchSummary,
-  getRoundRecap,
-  isDuplicateTip,
-} = require('./api');
+const { getMatchSummary } = require('./api');
+
 const { registerHotkeys, unregisterHotkeys } = require('./hotkeys');
+const CoachingEngine = require('./coaching-engine');
 
 // ─── Session State ─────────────────────────────────────────────────────────────
 let activationWindow = null;
-let isCoaching     = false;
-let isPaused       = false;
-let captureTimer   = null;
-let setupWindow    = null;
-let tipHistory     = [];        // all tips this session (max 20)
-let roundSummaries = [];        // round summaries this session
-let lastCapture    = 0;
-let lastRoundEnd   = 0;         // debounce duplicate ROUND_END signals
+let isCoaching       = false;
+let isPaused         = false;
+let setupWindow      = null;
+let tipHistory       = [];   // all tips this session
+let roundSummaries   = [];   // round summaries this session
 let sessionStartTime = null;
-let captureCount   = 0;         // count captures to trigger periodic match re-check
-
-// Match + player state machines
-let matchState   = 'idle';      // idle | waiting_for_match | in_match
-let playerState  = 'alive';     // alive | dead
-
-// Accumulate tips for end-of-match summary
-let matchTipsForSummary = [];
-
-// ─── In-flight guard + scheduling state ────────────────────────────────────────
-let requestInFlight    = false;  // prevents parallel API calls
-let lastTipTime        = 0;      // when last tip was displayed
-let nextAllowedCapture = 0;      // earliest time next capture is allowed
-let lastScreenHash     = '';     // last screenshot hash for duplicate detection
-
-// ─── Hybrid library tip system ─────────────────────────────────────────────────
-const { tipsLibrary } = require('./tips-library');
-let shownLibraryTips  = new Set();
-let libraryTipTimer   = null;
-
-// Death/low-health keyword detection
-const DEATH_KW  = /\b(died|death|dead|peeked without|crosshair was|should have|next time|instead|mistake)\b/i;
-const LOW_HP_KW = /\b(you are low|low health|low hp|health is low|low on health)\b/i;
-
-// ─── Round recap state ─────────────────────────────────────────────────────────
-const ECONOMY_KW = /\b(buy|save|credit|eco|force|shield|vandal|phantom|spectre|marshal|operator|ghost|stinger|sheriff|ares|rifle|pistol)\b/i;
-let currentRoundTips = [];  // tips given this round
-let wasInGameplay    = false; // were we in active gameplay last capture?
-let lastRecapTime    = 0;
-
-// ─── Fix 1: Death tip hard cap + rate limiter ──────────────────────────────────
-let deathTipSent      = false;
-let lastAliveCheckTime = 0;
-let tipTimestamps     = [];     // timestamps of tips shown in last 30s
-
-function canShowTip() {
-  const now = Date.now();
-  tipTimestamps = tipTimestamps.filter(t => now - t < 30000);
-  if (tipTimestamps.length >= 3) return false;
-  tipTimestamps.push(now);
-  return true;
-}
-
-// ─── Fix 5: Combat tip tracking ───────────────────────────────────────────────
-let combatTipGiven = false;
+let engine           = null; // CoachingEngine instance
 
 // ─── Setup Window ─────────────────────────────────────────────────────────────
 function createSetupWindow() {
@@ -216,214 +164,11 @@ function handleInvalidLicenseState(result) {
   console.warn(`[license] Invalid state: ${reason} — coaching stopped, license cleared`);
 }
 
-// ─── Library tip system ────────────────────────────────────────────────────────
-function showLibraryTip(category) {
-  const pool     = tipsLibrary[category] || tipsLibrary.general;
-  let   available = pool.filter(t => !shownLibraryTips.has(t));
-  if (available.length === 0) {
-    // Reset shown tips for this category only
-    pool.forEach(t => shownLibraryTips.delete(t));
-    available = [...pool];
-  }
-  const tip = available[Math.floor(Math.random() * available.length)];
-  shownLibraryTips.add(tip);
-
-  const tipData = { text: tip, game: 'Valorant', timestamp: Date.now(), isDeathTip: false, isLibrary: true };
-  tipHistory.unshift(tipData);
-  if (tipHistory.length > 50) tipHistory.pop();
-
-  sendToOverlay('coach:tip', tipData);
-  sendToOverlay('coach:state', buildState());
-}
-
-function scheduleLibraryTip(category) {
-  if (libraryTipTimer) clearTimeout(libraryTipTimer);
-  libraryTipTimer = setTimeout(() => {
-    libraryTipTimer = null;
-    if (!isCoaching || isPaused) return;
-    showLibraryTip(category);
-  }, 9000);
-}
-
-// ─── Base capture interval ────────────────────────────────────────────────────
-function getBaseInterval() {
-  return 18000; // 18s base; library tip fires at 9s midpoint
-}
-
-// ─── Capture + Analysis ────────────────────────────────────────────────────────
-async function runCapture(forced = false) {
-  const licenseKey = store.get('licenseKey');
-  if (!licenseKey || isPaused) return;
-
-  // In-flight guard — never send while a request is in progress
-  if (requestInFlight) return;
-
-  const now = Date.now();
-  const secondsSinceLast = ((now - lastCapture) / 1000).toFixed(1);
-
-  // nextAllowedCapture is set per-tip; fallback to base interval
-  const earliest = Math.max(nextAllowedCapture, lastCapture + getBaseInterval());
-  if (!forced && now < earliest) return;
-
-  lastCapture = now;
-  captureCount++;
-
-  try {
-    requestInFlight = true;
-    sendToOverlay('coach:status', { status: 'capturing' });
-    sendToSettings('settings:status', { status: 'capturing' });
-
-    // Capture runs in a separate process — no need to hide overlay
-    const { buffer, hash, sizeKB } = await captureScreen();
-    console.log('[capture] Screenshot taken, interval was', secondsSinceLast, 'sec, size:', sizeKB, 'KB');
-
-    // Skip if frame hasn't changed
-    if (!forced && hash === lastScreenHash) {
-      console.log('[capture] Duplicate frame skipped');
-      sendToOverlay('coach:status', { status: 'coaching' });
-      requestInFlight = false;
-      return;
-    }
-    lastScreenHash = hash;
-
-    sendToOverlay('coach:status', { status: 'analyzing' });
-    sendToSettings('settings:status', { status: 'analyzing' });
-
-    const result = await analyzeScreenshot(buffer, licenseKey, 'smart', false, [], hash);
-
-    // SKIP or empty/garbage — not gameplay; slow down to 20s
-    if (!result || result.trim().length < 8 || result.trim().toUpperCase() === 'SKIP') {
-      nextAllowedCapture = now + 20000;
-      sendToOverlay('coach:status', { status: 'coaching' });
-      sendToSettings('settings:status', { status: 'coaching' });
-      requestInFlight = false;
-      return;
-    }
-
-    // VICTORY / DEFEAT screen — trigger match summary, stop coaching loop
-    const resultUpper = result.trim().toUpperCase();
-    if (resultUpper === 'VICTORY' || resultUpper === 'DEFEAT') {
-      console.log('[coach] Match end detected:', result.trim());
-      nextAllowedCapture = now + 60000;
-      requestInFlight = false;
-      sendToOverlay('coach:status', { status: 'coaching' });
-      triggerMatchSummary(licenseKey);
-      return;
-    }
-
-    // Truncate very long responses to first sentence
-    let tipText = result.trim();
-    if (tipText.length > 120) {
-      const first = tipText.match(/^[^.!?]+[.!?]/);
-      tipText = first ? first[0].trim() : tipText.substring(0, 100).trim();
-    }
-
-    // Skip incomplete tips (no end punctuation or too short)
-    if (tipText.length < 20 || !/[.!?]$/.test(tipText)) {
-      console.log('[coach] Discarding incomplete tip:', tipText);
-      nextAllowedCapture = now + 12000;
-      sendToOverlay('coach:status', { status: 'coaching' });
-      requestInFlight = false;
-      return;
-    }
-
-    // Skip duplicate tips
-    if (isDuplicateTip(tipText, matchTipsForSummary.slice(-10))) {
-      sendToOverlay('coach:status', { status: 'coaching' });
-      requestInFlight = false;
-      return;
-    }
-
-    lastTipTime = now;
-
-    // Round recap: detect buy-phase → gameplay → buy-phase transition
-    const isBuyPhase = ECONOMY_KW.test(tipText);
-    if (isBuyPhase && wasInGameplay && currentRoundTips.length >= 2 && now - lastRecapTime > 60000) {
-      lastRecapTime = now;
-      const roundTipsSnapshot = [...currentRoundTips];
-      currentRoundTips = [];
-      getRoundRecap(roundTipsSnapshot, licenseKey).then(recap => {
-        if (recap) sendToOverlay('coach:recap', { text: recap });
-      }).catch(() => {});
-    }
-    wasInGameplay = !isBuyPhase;
-    if (!isBuyPhase) currentRoundTips.push(tipText);
-
-    // Next capture timing: 10s normally, 6s after economy tip (quick follow-up)
-    nextAllowedCapture = now + (isBuyPhase ? 6000 : 10000);
-
-    const tipData = { text: tipText, game: 'Valorant', timestamp: Date.now(), isDeathTip: false, isLibrary: false };
-    tipHistory.unshift(tipData);
-    if (tipHistory.length > 50) tipHistory.pop();
-    matchTipsForSummary.push(tipText);
-
-    // FIX 6: Death detection — immediate library tip + follow-up death screenshot
-    const isDeathContext = DEATH_KW.test(tipText);
-    const isLowHP       = LOW_HP_KW.test(tipText);
-
-    if (isDeathContext) {
-      // Clear any pending library timer and show death tip immediately
-      if (libraryTipTimer) { clearTimeout(libraryTipTimer); libraryTipTimer = null; }
-      setTimeout(() => showLibraryTip('postDeath'), 500);
-      // Follow-up forced capture in 3s for death-specific AI tip
-      setTimeout(() => { if (isCoaching && !isPaused && !requestInFlight) runCapture(true); }, 3000);
-    } else if (isLowHP) {
-      if (libraryTipTimer) { clearTimeout(libraryTipTimer); libraryTipTimer = null; }
-      setTimeout(() => showLibraryTip('general'), 500);
-    } else {
-      // Normal: schedule library tip 9s after this AI tip
-      const libCat = isBuyPhase ? 'economy' : 'general';
-      scheduleLibraryTip(libCat);
-    }
-
-    sendToOverlay('coach:tip', tipData);
-    sendToOverlay('coach:state', buildState());
-    sendToOverlay('coach:status', { status: 'coaching' });
-    sendToSettings('settings:state', buildState());
-    sendToSettings('settings:status', { status: 'coaching' });
-    requestInFlight = false;
-
-  } catch (err) {
-    requestInFlight = false;
-    const msg = err.message || '';
-    let errStatus;
-    if (msg.includes('timeout') || msg.includes('ENOTFOUND') || msg.includes('ETIMEDOUT')) {
-      errStatus = { status: 'connection_lost' };
-    } else if (msg.includes('429') || msg.includes('rate')) {
-      errStatus = { status: 'rate_limited' };
-    } else {
-      errStatus = { status: 'error', message: msg };
-    }
-    sendToOverlay('coach:status', errStatus);
-    sendToSettings('settings:status', errStatus);
-    console.error('[capture] Error:', msg);
-  }
-}
-
-// ─── Round summary ─────────────────────────────────────────────────────────────
-async function triggerRoundSummary(buffer, licenseKey) {
-  try {
-    const sumStatus = { status: 'summarizing' };
-    sendToOverlay('coach:status', sumStatus);
-    sendToSettings('settings:status', sumStatus);
-    const summary = await getRoundSummary(buffer, licenseKey);
-    if (summary) {
-      const data = { ...summary, game: 'Valorant', timestamp: Date.now() };
-      roundSummaries.unshift(data);
-      sendToOverlay('coach:roundSummary', data);
-      sendToOverlay('coach:state', buildState());
-      sendToSettings('settings:state', buildState());
-    }
-  } catch (err) {
-    console.error('[round-summary] Error:', err.message);
-  }
-}
-
 // ─── Match summary ─────────────────────────────────────────────────────────────
-async function triggerMatchSummary(licenseKey) {
-  if (matchTipsForSummary.length < 3) return;
-  const tips = [...matchTipsForSummary];
-  matchTipsForSummary = [];
+async function triggerMatchSummary(tips) {
+  if (!tips || tips.length < 5) return;
+  const licenseKey = store.get('licenseKey');
+  if (!licenseKey) return;
 
   try {
     const summary = await getMatchSummary(tips, licenseKey);
@@ -440,43 +185,43 @@ async function triggerMatchSummary(licenseKey) {
 // ─── Coaching Loop ─────────────────────────────────────────────────────────────
 function startCoaching() {
   if (isCoaching) return;
-  isCoaching    = true;
-  isPaused      = false;
+  isCoaching       = true;
+  isPaused         = false;
   sessionStartTime = Date.now();
-  matchState    = 'idle';
-  playerState   = 'alive';
-  captureCount  = 0;
-  deathTipSent       = false;
-  combatTipGiven     = false;
-  requestInFlight    = false;
-  lastTipTime        = 0;
-  nextAllowedCapture = 0;
-  lastScreenHash     = '';
-  currentRoundTips   = [];
-  wasInGameplay      = false;
-  lastRecapTime      = 0;
-  shownLibraryTips   = new Set();
-  if (libraryTipTimer) { clearTimeout(libraryTipTimer); libraryTipTimer = null; }
+  tipHistory       = [];
 
-  // Start in_match immediately — no separate match detection step
-  matchState = 'in_match';
-  sendToOverlay('coach:matchState', { state: 'in_match' });
+  const licenseKey = store.get('licenseKey');
 
-  // 10-second warmup so the game can stabilize FPS before first screenshot
-  setTimeout(() => {
-    if (isCoaching && !isPaused) runCapture(true);
-  }, 10000);
+  engine = new CoachingEngine();
 
-  const interval = getBaseInterval();
-  captureTimer = setInterval(() => {
-    if (isCoaching && !isPaused) runCapture();
-  }, interval);
+  engine.onTip = (tipData) => {
+    tipHistory.unshift(tipData);
+    if (tipHistory.length > 40) tipHistory.pop();
+    sendToOverlay('coach:tip', tipData);
+    sendToOverlay('coach:state', buildState());
+    sendToSettings('settings:state', buildState());
+  };
+
+  engine.onStatus = (statusKey) => {
+    sendToOverlay('coach:status', { status: statusKey });
+    sendToSettings('settings:status', { status: statusKey });
+  };
+
+  engine.onMatchEnd = (tips) => {
+    triggerMatchSummary(tips);
+  };
+
+  engine.onRecap = (recap) => {
+    sendToOverlay('coach:recap', { text: recap });
+  };
+
+  engine.start(licenseKey);
 
   updateTrayMenu(true);
   const state = buildState();
   sendToOverlay('coach:state', state);
   sendToSettings('settings:state', state);
-  console.log(`[coach] Started — ${interval}ms interval, mode: ${store.get('coachingMode')}, perf: ${store.get('performanceMode')}`);
+  console.log('[coach] Started');
 }
 
 function stopCoaching() {
@@ -484,32 +229,20 @@ function stopCoaching() {
   isCoaching = false;
   isPaused   = false;
 
-  if (captureTimer) {
-    clearInterval(captureTimer);
-    captureTimer = null;
+  if (engine) {
+    // Trigger match review if enough tips accumulated
+    const matchTips = engine.matchTips || [];
+    engine.stop();
+    engine = null;
+    if (matchTips.length >= 5) triggerMatchSummary(matchTips);
   }
 
-  // Fix 4: Send session-over card BEFORE resetting sessionStartTime
   sendToOverlay('coach:sessionOver', {
     tipsCount: tipHistory.length,
     sessionStart: sessionStartTime
   });
 
-  // Remove match summary on manual stop per Fix 4
-  // (match summary only triggers on in-match end detection now)
-
-  deathTipSent       = false;
-  combatTipGiven     = false;
-  requestInFlight    = false;
-  nextAllowedCapture = 0;
-  lastScreenHash     = '';
-  currentRoundTips   = [];
-  wasInGameplay      = false;
-  matchState         = 'idle';
-  if (libraryTipTimer) { clearTimeout(libraryTipTimer); libraryTipTimer = null; }
-  playerState     = 'alive';
   sessionStartTime = null;
-  captureCount    = 0;
 
   saveSession();
   updateTrayMenu(false);
@@ -531,7 +264,7 @@ function pauseResumeCoaching() {
   } else {
     sendToOverlay('coach:status', { status: 'coaching' });
     sendToSettings('settings:status', { status: 'coaching' });
-    runCapture(true); // immediate analysis on resume
+    if (engine) engine.requestImmediateCapture();
   }
 
   sendToOverlay('coach:pauseState', { paused: isPaused });
@@ -545,23 +278,16 @@ function buildState() {
   return {
     isCoaching,
     isPaused,
-    game:               'Valorant',
-    interval:           store.get('captureInterval'),
-    mode:               store.get('coachingMode'),
-    tipPos:             store.get('tipPosition'),
-    audio:              store.get('audioEnabled'),
-    panelPos:           store.get('panelPosition'),
-    performanceMode:    store.get('performanceMode'),
-    continueWhileDead:  store.get('continueCoachingWhileDead'),
+    game:                'Valorant',
+    tipPos:              store.get('tipPosition'),
+    overlayPosition:     store.get('overlayPosition'),
+    performanceMode:     store.get('performanceMode'),
     onboardingCompleted: store.get('onboardingCompleted'),
-    history:            tipHistory,
-    summaries:          roundSummaries,
-    sessionStart:       sessionStartTime,
-    tipCount:           tipHistory.length,
-    matchState,
-    playerState,
-    panelMinimized:     store.get('panelMinimized'),
-    panelCorner:        store.get('panelCorner') || 'top-left'
+    history:             tipHistory,
+    summaries:           roundSummaries,
+    sessionStart:        sessionStartTime,
+    tipCount:            tipHistory.length,
+    panelMinimized:      store.get('panelMinimized'),
   };
 }
 
@@ -636,22 +362,7 @@ ipcMain.on('overlay:doClose', () => {
 ipcMain.on('settings:startCoaching',  () => startCoaching());
 ipcMain.on('settings:stopCoaching',   () => stopCoaching());
 ipcMain.on('settings:pauseResume',    () => pauseResumeCoaching());
-ipcMain.on('settings:forceCapture',   () => runCapture(true));
-
-ipcMain.on('settings:forceSummary', async () => {
-  const licenseKey = store.get('licenseKey');
-  if (!licenseKey) return;
-  const overlayWin = getOverlayWindow();
-  if (overlayWin) overlayWin.setOpacity(0);
-  await new Promise(r => setTimeout(r, 20));
-  const { buffer } = await captureScreen();
-  if (overlayWin) overlayWin.setOpacity(1);
-  triggerRoundSummary(buffer, licenseKey);
-});
-
-ipcMain.on('settings:updateApiKey', (_, key) => {
-  store.set('apiKey', key.trim());
-});
+ipcMain.on('settings:forceCapture',   () => { if (engine) engine.requestImmediateCapture(); });
 
 ipcMain.on('settings:quit', () => {
   cleanup();
@@ -659,32 +370,21 @@ ipcMain.on('settings:quit', () => {
 });
 
 ipcMain.on('settings:save', (_, settings) => {
-  if (settings.mode)                                   store.set('coachingMode', settings.mode);
-  if (settings.interval)                               store.set('captureInterval', Math.max(5000, Math.min(60000, settings.interval)));
-  if (settings.tipPos)                                 store.set('tipPosition', settings.tipPos);
-  if (typeof settings.audio === 'boolean')             store.set('audioEnabled', settings.audio);
-  if (settings.performanceMode)                        store.set('performanceMode', settings.performanceMode);
-  if (typeof settings.continueWhileDead === 'boolean') store.set('continueCoachingWhileDead', settings.continueWhileDead);
-  if (settings.panelCorner) store.set('panelCorner', settings.panelCorner);
-
-  // Restart the capture timer with the new interval if coaching is active
-  if (isCoaching && (settings.interval || settings.performanceMode)) {
-    clearInterval(captureTimer);
-    captureTimer = setInterval(() => { if (isCoaching && !isPaused) runCapture(); }, getBaseInterval());
-  }
+  if (settings.tipPos)          store.set('tipPosition',     settings.tipPos);
+  if (settings.overlayPosition) store.set('overlayPosition', settings.overlayPosition);
+  if (settings.performanceMode) store.set('performanceMode', settings.performanceMode);
 
   const state = buildState();
   sendToOverlay('coach:state', state);
   sendToSettings('settings:state', state);
 });
 
-// Setup window
-ipcMain.on('setup:saveKey', (_, key) => {
-  store.set('apiKey', key.trim());
-  launchMainApp();
-  if (setupWindow) setupWindow.close();
+ipcMain.on('overlay:setInteractive', (_, v) => {
+  const overlayWin = getOverlayWindow();
+  if (overlayWin) overlayWin.setIgnoreMouseEvents(!v, { forward: true });
 });
 
+// Setup window
 ipcMain.on('setup:openExternal', (_, url) => {
   shell.openExternal(url);
 });
@@ -770,7 +470,11 @@ function launchMainApp() {
   registerHotkeys({
     toggleOverlay:   () => toggleOverlay(),
     forceCapture:    () => {
-      runCapture(true);
+      if (engine) engine.requestImmediateCapture();
+      sendToOverlay('overlay:miniToast', { text: 'Scanning...' });
+    },
+    requestTip:      () => {
+      if (engine) engine.requestImmediateCapture();
       sendToOverlay('overlay:miniToast', { text: 'Scanning...' });
     },
     pauseResume:     () => {

@@ -120,11 +120,11 @@ function isDuplicateTip(tip, recentTips) {
 // imageHash: simple hash string for dedup
 // combatTipGiven: true if a tip was shown this combat encounter
 // recentTips: last 5 tips shown this match
-async function analyzeScreenshot(imageBuffer, licenseKey, mode, combatTipGiven, recentTips, imageHash) {
+async function analyzeScreenshot(imageBuffer, licenseKey, mode, combatTipGiven, recentTips, imageHash, forced) {
   if (!imageBuffer || !licenseKey) return '';
 
-  // Check cache first — if same hash, return cached tip
-  if (imageHash) {
+  // Check cache first (skip for forced requests — always get fresh tip)
+  if (imageHash && !forced) {
     const cached = getCachedTip(imageHash);
     if (cached) {
       console.log('[api] Cache hit — reusing tip');
@@ -137,6 +137,7 @@ async function analyzeScreenshot(imageBuffer, licenseKey, mode, combatTipGiven, 
     'X-Prompt-Mode':      mode || 'smart',
     'X-Combat-Tip-Given': combatTipGiven ? 'true' : 'false',
     'X-Recent-Tips':      (recentTips || []).slice(0, 5).join('||'),
+    'X-Forced':           forced ? 'true' : 'false',
   };
 
   const result = await serverPostBinary('/coach/analyze', imageBuffer, headers, 8000);

@@ -7,7 +7,6 @@ contextBridge.exposeInMainWorld('settingsAPI', {
   pauseResume:    ()    => ipcRenderer.send('settings:pauseResume'),
   forceCapture:   ()    => ipcRenderer.send('settings:forceCapture'),
   forceSummary:   ()    => ipcRenderer.send('settings:forceSummary'),
-  updateApiKey:   (key) => ipcRenderer.send('settings:updateApiKey', key),
   quit:           ()    => ipcRenderer.send('settings:quit'),
   onState:  (cb) => ipcRenderer.on('settings:state',  (_, d) => cb(d)),
   onStatus: (cb) => ipcRenderer.on('settings:status', (_, d) => cb(d)),

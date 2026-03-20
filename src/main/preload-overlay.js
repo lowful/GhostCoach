@@ -1,10 +1,11 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('overlayAPI', {
-  // ── Lifecycle (minimal — overlay is display-only) ─────────────────────────────
+  // ── Lifecycle ─────────────────────────────────────────────────────────────────
   doClose:            () => ipcRenderer.send('overlay:doClose'),
   completeOnboarding: () => ipcRenderer.send('overlay:completeOnboarding'),
   resetOnboarding:    () => ipcRenderer.send('overlay:resetOnboarding'),
+  setInteractive:     (v) => ipcRenderer.send('overlay:setInteractive', v),
 
   // ── Inbound: main → renderer ──────────────────────────────────────────────────
   onTip:          (cb) => ipcRenderer.on('coach:tip',           (_, d) => cb(d)),

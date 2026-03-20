@@ -50,6 +50,7 @@
           <div class="hk-cell"><span class="hk-combo">Ctrl+Shift+G</span><span class="hk-action">Toggle</span></div>
           <div class="hk-cell"><span class="hk-combo">Ctrl+Shift+P</span><span class="hk-action">Pause</span></div>
           <div class="hk-cell"><span class="hk-combo">Ctrl+Shift+S</span><span class="hk-action">Scan</span></div>
+          <div class="hk-cell"><span class="hk-combo">Ctrl+Shift+T</span><span class="hk-action">Tip Now</span></div>
           <div class="hk-cell"><span class="hk-combo">Ctrl+Shift+Q</span><span class="hk-action">Settings</span></div>
           <div class="hk-cell"><span class="hk-combo">Ctrl+Shift+M</span><span class="hk-action">Minimize</span></div>
           <div class="hk-cell"><span class="hk-combo">Ctrl+Shift+H</span><span class="hk-action">History</span></div>
@@ -60,6 +61,11 @@
     </div>
   </div>
 
+
+  <!-- ═══════════════════════════════════════════════
+       TIP CONTAINER  (simple inline tip display)
+       ═══════════════════════════════════════════════ -->
+  <div id="tip-container" style="position:fixed;bottom:80px;right:20px;z-index:99999;pointer-events:none;"></div>
 
   <!-- ═══════════════════════════════════════════════
        HUD TIP CARDS  (pointer-events: none)
@@ -108,13 +114,14 @@
 
 
   <!-- ═══════════════════════════════════════════════
-       MATCH SUMMARY PANEL  (auto-dismiss, no close btn)
+       MATCH SUMMARY PANEL
        ═══════════════════════════════════════════════ -->
   <div id="match-summary" class="hidden">
     <div id="ms-card">
       <div class="ms-head">
         <span class="ms-title">MATCH SUMMARY</span>
         <span id="ms-result" class="ms-result-badge"></span>
+        <button id="ms-close" style="margin-left:auto;background:none;border:none;color:#aaa;font-size:16px;cursor:pointer;padding:0 4px;line-height:1;" title="Close">&times;</button>
       </div>
 
       <div class="ms-rating-row">

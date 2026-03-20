@@ -225,7 +225,31 @@ IMPORTANT: To identify the player's agent, look at the bottom-center of the scre
 MATCH END DETECTION:
 If you see a VICTORY or DEFEAT end-of-match screen, respond with only the word VICTORY or DEFEAT. No other text.
 
-CRITICAL: Always finish your sentence. Every tip must end with a period. Never leave a tip incomplete or trailing off. If you cannot fit your thought in 20 words, shorten it, but always complete the sentence with a period.`;
+CRITICAL: Always finish your sentence. Every tip must end with a period. Never leave a tip incomplete or trailing off. If you cannot fit your thought in 20 words, shorten it, but always complete the sentence with a period.
+
+WHEN TO GIVE A TIP vs WHEN TO STAY SILENT:
+
+GIVE a tip when you see:
+- Buy phase: give economy advice based on credits visible.
+- The player is holding a bad angle or position: suggest a better spot.
+- The player is alone and should be with team: tell them to group up.
+- Post-plant situation: give post-plant advice.
+- Spike is being planted on defense: give retake advice.
+- The player just died: analyze what went wrong from the death screen.
+- The player is rotating: advise on rotation path.
+- Pre-round positioning: suggest where to play.
+- A teammate died nearby: suggest trading or falling back.
+- Low health visible: tell them to play passive.
+
+Stay SILENT (respond with "SKIP") when:
+- The player is just walking and nothing interesting is happening.
+- The player is in a normal position with nothing to correct.
+- There is no specific advice that would help right now.
+- The round just started and players are still positioning.
+
+It is BETTER to say SKIP and give no tip than to give generic obvious advice. Only speak when you have something specific and useful to say based on what you SEE in the screenshot. Quality over quantity. If you cannot identify a specific mistake or opportunity, say SKIP.`;
+
+const FORCED_PROMPT = SMART_PROMPT + `\n\nOVERRIDE: The player is manually requesting coaching advice right now. Look at the screenshot and give your best tip based on the current situation. Do not respond with SKIP. Always give advice when manually requested.`;
 
 const ROUND_SUMMARY_PROMPT = 'You are analyzing a Valorant round that just ended. Return ONLY valid JSON, no markdown: {"round_result":"win","things_done_well":["praise under 12 words"],"things_to_improve":["advice under 12 words"],"key_tip_for_next_round":"tip under 12 words","performance_rating":3} round_result: win, loss, or unknown. 1-3 items per array. performance_rating 1-5. No em-dashes.';
 
@@ -251,10 +275,13 @@ router.post('/analyze', async (req, res) => {
   if (!await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid or expired license key' });
   if (!req.body || !req.body.length) return res.status(400).json({ error: 'No image data' });
 
+  const isForced = req.headers['x-forced'] === 'true';
+  const prompt   = isForced ? FORCED_PROMPT : SMART_PROMPT;
+
   const t0 = Date.now();
   try {
     const tip = await Promise.race([
-      geminiCall(req.body.toString('base64'), SMART_PROMPT, 150),
+      geminiCall(req.body.toString('base64'), prompt, 150),
       new Promise((_, rej) => setTimeout(() => rej(new Error('Gemini timeout')), 10000)),
     ]);
     trackCall(licenseKey);

@@ -2,33 +2,25 @@
   'use strict';
 
   // ─── DOM refs ─────────────────────────────────────────────────────────────────
-  const statusDot       = document.getElementById('status-dot');
-  const statusText      = document.getElementById('status-text');
-  const sessionStats    = document.getElementById('session-stats');
-  const statTips        = document.getElementById('stat-tips');
-  const statTime        = document.getElementById('stat-time');
-  const btnCoach        = document.getElementById('btn-coach');
-  const btnPause        = document.getElementById('btn-pause');
-  const btnForce        = document.getElementById('btn-force');
-  const modeSelect      = document.getElementById('mode-select');
-  const perfSelect      = document.getElementById('perf-select');
-  const posBtns         = document.querySelectorAll('.pos-btn');
-  const panelPosBtns    = document.querySelectorAll('.panel-pos-btn');
-  const btnContinueDead = document.getElementById('btn-continue-dead');
-  const deadLabel       = document.getElementById('dead-label');
-  const apiKeyInput     = document.getElementById('api-key-input');
-  const btnShowKey      = document.getElementById('btn-show-key');
-  const btnSaveKey      = document.getElementById('btn-save-key');
-  const btnQuit         = document.getElementById('btn-quit');
+  const statusDot        = document.getElementById('status-dot');
+  const statusText       = document.getElementById('status-text');
+  const sessionStats     = document.getElementById('session-stats');
+  const statTips         = document.getElementById('stat-tips');
+  const statTime         = document.getElementById('stat-time');
+  const btnCoach         = document.getElementById('btn-coach');
+  const btnPause         = document.getElementById('btn-pause');
+  const btnForce         = document.getElementById('btn-force');
+  const perfSelect       = document.getElementById('perf-select');
+  const overlayPosBtns   = document.querySelectorAll('.overlay-pos-btn');
+  const tipPosBtns       = document.querySelectorAll('.tip-pos-btn');
+  const btnQuit          = document.getElementById('btn-quit');
 
   // ─── Local state ──────────────────────────────────────────────────────────────
   let isCoaching       = false;
   let isPaused         = false;
-  let tipPosition      = 'top-right';
-  let coachingMode     = 'smart';
+  let tipPosition      = 'bottom-right';
+  let overlayPosition  = 'top-left';
   let performanceMode  = 'balanced';
-  let continueWhileDead = false;
-  let panelCorner       = 'top-left';
   let sessionStartTime = null;
   let sessionTipCount  = 0;
   let sessionTimerInterval = null;
@@ -39,17 +31,11 @@
     coaching:         { cls: 'coaching',   text: 'Coaching' },
     capturing:        { cls: 'capturing',  text: 'Capturing...' },
     analyzing:        { cls: 'analyzing',  text: 'Analyzing...' },
-    detecting:        { cls: 'analyzing',  text: 'Detecting match...' },
     summarizing:      { cls: 'analyzing',  text: 'Generating summary...' },
-    waiting_for_match:{ cls: 'waiting',    text: 'Waiting for match...' },
-    active_combat:    { cls: 'combat',     text: 'In combat' },
-    player_dead:      { cls: 'dead',       text: 'Player dead' },
-    round_end:        { cls: 'coaching',   text: 'Round ended' },
     paused:           { cls: 'paused',     text: 'Paused' },
     stopped:          { cls: '',           text: 'Stopped' },
     connection_lost:  { cls: 'connection', text: 'Connection lost...' },
     rate_limited:     { cls: 'rate',       text: 'Rate limited' },
-    auth_error:       { cls: 'error',      text: 'API key error' },
     error:            { cls: 'error',      text: 'Error' }
   };
 
@@ -100,35 +86,26 @@
     }
   }
 
-  // ─── Position buttons ─────────────────────────────────────────────────────────
-  function updatePosButtons() {
-    posBtns.forEach(b => b.classList.toggle('active', b.dataset.pos === tipPosition));
+  // ─── Position button highlighters ─────────────────────────────────────────────
+  function updateOverlayPosBtns() {
+    overlayPosBtns.forEach(b => b.classList.toggle('active', b.dataset.pos === overlayPosition));
   }
 
-  function updatePanelPosBtns() {
-    panelPosBtns.forEach(b => b.classList.toggle('active', b.dataset.corner === panelCorner));
+  function updateTipPosBtns() {
+    tipPosBtns.forEach(b => b.classList.toggle('active', b.dataset.pos === tipPosition));
   }
 
   // ─── Save settings ────────────────────────────────────────────────────────────
-  function saveSettings() {
+  function saveSettings(patch) {
     if (!window.settingsAPI) return;
-    window.settingsAPI.saveSettings({
-      mode:             coachingMode,
-      tipPos:           tipPosition,
-      performanceMode,
-      continueWhileDead,
-      panelCorner
-    });
+    window.settingsAPI.saveSettings(Object.assign({ tipPos: tipPosition, overlayPosition, performanceMode }, patch));
   }
 
   // ─── Button handlers ──────────────────────────────────────────────────────────
   btnCoach.addEventListener('click', () => {
     if (!window.settingsAPI) return;
-    if (isCoaching) {
-      window.settingsAPI.stopCoaching();
-    } else {
-      window.settingsAPI.startCoaching();
-    }
+    if (isCoaching) window.settingsAPI.stopCoaching();
+    else            window.settingsAPI.startCoaching();
   });
 
   btnPause.addEventListener('click', () => {
@@ -145,61 +122,25 @@
     setStatus('capturing', 'Capturing...');
   });
 
-  modeSelect.addEventListener('change', () => {
-    coachingMode = modeSelect.value;
-    saveSettings();
-  });
-
   perfSelect.addEventListener('change', () => {
     performanceMode = perfSelect.value;
     saveSettings();
   });
 
-  posBtns.forEach(btn => {
+  overlayPosBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      overlayPosition = btn.dataset.pos;
+      updateOverlayPosBtns();
+      saveSettings();
+    });
+  });
+
+  tipPosBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       tipPosition = btn.dataset.pos;
-      updatePosButtons();
+      updateTipPosBtns();
       saveSettings();
     });
-  });
-
-  panelPosBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      panelCorner = btn.dataset.corner;
-      updatePanelPosBtns();
-      saveSettings();
-    });
-  });
-
-  btnContinueDead.addEventListener('click', () => {
-    continueWhileDead = !continueWhileDead;
-    btnContinueDead.dataset.on = continueWhileDead.toString();
-    deadLabel.textContent = continueWhileDead ? 'Coach' : 'Pause';
-    saveSettings();
-  });
-
-  // ─── API Key ──────────────────────────────────────────────────────────────────
-  let keyVisible = false;
-
-  btnShowKey.addEventListener('click', () => {
-    keyVisible = !keyVisible;
-    apiKeyInput.type = keyVisible ? 'text' : 'password';
-    btnShowKey.textContent = keyVisible ? '🙈' : '👁';
-  });
-
-  apiKeyInput.addEventListener('input', () => {
-    const val = apiKeyInput.value.trim();
-    btnSaveKey.disabled = val.length < 20 || !val.startsWith('sk-');
-  });
-
-  btnSaveKey.addEventListener('click', () => {
-    const key = apiKeyInput.value.trim();
-    if (key.length < 20) return;
-    if (!window.settingsAPI) return;
-    window.settingsAPI.updateApiKey(key);
-    btnSaveKey.disabled = true;
-    btnSaveKey.textContent = 'SAVED!';
-    setTimeout(() => { btnSaveKey.textContent = 'UPDATE KEY'; }, 2000);
   });
 
   // ─── Quit ─────────────────────────────────────────────────────────────────────
@@ -218,26 +159,17 @@
         isPaused = state.isPaused;
         btnPause.textContent = isPaused ? '▶' : '⏸';
       }
-      if (state.mode) {
-        coachingMode = state.mode;
-        modeSelect.value = state.mode;
-      }
       if (state.performanceMode) {
         performanceMode = state.performanceMode;
         perfSelect.value = state.performanceMode;
       }
       if (state.tipPos) {
         tipPosition = state.tipPos;
-        updatePosButtons();
+        updateTipPosBtns();
       }
-      if (state.panelCorner) {
-        panelCorner = state.panelCorner;
-        updatePanelPosBtns();
-      }
-      if (typeof state.continueWhileDead === 'boolean') {
-        continueWhileDead = state.continueWhileDead;
-        btnContinueDead.dataset.on = continueWhileDead.toString();
-        deadLabel.textContent = continueWhileDead ? 'Coach' : 'Pause';
+      if (state.overlayPosition) {
+        overlayPosition = state.overlayPosition;
+        updateOverlayPosBtns();
       }
       if (state.tipCount !== undefined) {
         sessionTipCount = state.tipCount;
@@ -254,7 +186,6 @@
     window.settingsAPI.onStatus((data) => {
       setStatus(data.status, data.message);
 
-      // Sync pause button on pause state change
       if (data.status === 'paused') {
         isPaused = true;
         if (btnPause) { btnPause.textContent = '▶'; btnPause.title = 'Resume coaching'; }
@@ -264,5 +195,9 @@
       }
     });
   }
+
+  // ─── Init ─────────────────────────────────────────────────────────────────────
+  updateOverlayPosBtns();
+  updateTipPosBtns();
 
 })();

@@ -39,7 +39,8 @@
   // ─── State ────────────────────────────────────────────────────────────────────
   let isCoaching       = false;
   let isPaused         = false;
-  let tipPosition      = 'top-right';
+  let tipPosition      = 'bottom-right';
+  let overlayPosition  = 'top-left';
   let performanceMode  = 'balanced';
   let sessionStartTime = null;
   let sessionTipCount  = 0;
@@ -170,15 +171,17 @@
   // ─── Tip history helpers ──────────────────────────────────────────────────────
   function addToHistory(text, isRecap, isLibrary, timestamp) {
     displayHistory.unshift({ text, isRecap, isLibrary: !!isLibrary, timestamp: timestamp || Date.now() });
-    if (displayHistory.length > 50) displayHistory.pop();
+    if (displayHistory.length > 40) displayHistory.pop();
     renderHistory();
   }
+
+  setInterval(renderHistory, 60000); // keep relative timestamps live
 
   function renderHistory() {
     if (!thList) return;
     const now        = Date.now();
-    const THIRTY_MIN = 30 * 60 * 1000;
-    const recent     = displayHistory.filter(e => now - e.timestamp < THIRTY_MIN);
+    const TWENTY_MIN = 20 * 60 * 1000;
+    const recent     = displayHistory.filter(e => now - e.timestamp < TWENTY_MIN);
 
     thList.innerHTML = '';
     recent.forEach(entry => {
@@ -204,110 +207,66 @@
     });
   }
 
-  // ─── Tip cards ────────────────────────────────────────────────────────────────
+  // ─── Tip display (#tip-container) ────────────────────────────────────────────
+  let tipDismissTimer = null;
+
   function showTip(data) {
     const raw = (data.text || '').trim();
-    console.log('[tip] Received:', raw);
-    if (shouldSkipResponse(raw)) {
-      console.log('[tip] FILTERED OUT by shouldSkipResponse');
-      return;
-    }
+    if (shouldSkipResponse(raw)) return;
 
     const text = cleanTipText(raw);
-    const isDeathTip = !!data.isDeathTip;
-    const cat = isDeathTip ? { label: 'DEATH TIP', cls: '' } : detectCategory(text);
+    const cat  = detectCategory(text);
 
     // Update panel preview
-    tipPreview.classList.remove('hidden');
-    tipPreviewText.textContent = text;
+    if (tipPreview && tipPreviewText) {
+      tipPreview.classList.remove('hidden');
+      tipPreviewText.textContent = text;
+    }
 
-    // Increment session tip count
     sessionTipCount++;
     updateSessionStats();
-
-    // Track in history
     addToHistory(text, false, data.isLibrary || false);
 
-    // Max 1 active card — dismiss existing with crossfade
-    if (activeTips.length >= 1) dismissTip(activeTips[0]);
+    const container = document.getElementById('tip-container');
+    if (!container) return;
+
+    if (tipDismissTimer) { clearTimeout(tipDismissTimer); tipDismissTimer = null; }
+
+    const isRight      = tipPosition.includes('right');
+    const slideStart   = isRight ? 'translateX(100px)' : 'translateX(-100px)';
+    const borderSide   = isRight ? 'border-right:3px solid #FF4655;border-left:none;' : 'border-left:3px solid #FF4655;';
 
     const card = document.createElement('div');
-    const isRight = tipPosition.includes('right');
+    card.style.cssText = `background:rgba(15,25,35,0.92);${borderSide}border-radius:6px;padding:10px 14px;max-width:320px;box-shadow:0 4px 20px rgba(0,0,0,0.6);transform:${slideStart};transition:transform 0.25s ease,opacity 0.25s ease;opacity:0;`;
+    card.innerHTML =
+      `<div style="font-size:9px;font-weight:700;letter-spacing:1px;color:#FF4655;margin-bottom:4px;">${escHtml(cat.label)}</div>` +
+      `<div style="font-size:13px;color:#ECF0F1;line-height:1.4;">${escHtml(text)}</div>`;
 
-    card.className = 'tip-card ' + cat.cls + (isDeathTip ? ' death-tip' : '');
-    card.classList.add(isRight ? 'enter-right' : 'enter-left');
-    console.log('[tip] Card created, className:', card.className);
+    container.innerHTML = '';
+    container.appendChild(card);
 
-    card.innerHTML = `
-      <div class="tip-cat">${escHtml(cat.label)}</div>
-      <div class="tip-card-text">${escHtml(text)}</div>
-      <div class="tip-bar"><div class="tip-bar-fill"></div></div>
-    `;
-
-    hudTips.appendChild(card);
-    activeTips.push(card);
-    console.log('[tip] Added to DOM. hudTips children:', hudTips.children.length);
-    const cs = window.getComputedStyle(card);
-    console.log('[tip] Card CSS — display:', cs.display, 'opacity:', cs.opacity, 'visibility:', cs.visibility, 'zIndex:', cs.zIndex, 'position:', cs.position, 'top:', cs.top, 'right:', cs.right);
-    const hr = hudTips.getBoundingClientRect();
-    console.log('[tip] #hud-tips rect — top:', hr.top, 'right:', hr.right, 'bottom:', hr.bottom, 'left:', hr.left);
-
-    const fill = card.querySelector('.tip-bar-fill');
     requestAnimationFrame(() => {
-      fill.style.transition = `transform ${TIP_DURATION}ms linear`;
-      fill.style.transform  = 'scaleX(0)';
+      requestAnimationFrame(() => {
+        card.style.transform = 'translateX(0)';
+        card.style.opacity   = '1';
+      });
     });
 
-    card._dismissTimer = setTimeout(() => dismissTip(card), TIP_DURATION);
+    tipDismissTimer = setTimeout(() => {
+      card.style.opacity   = '0';
+      card.style.transform = slideStart;
+      setTimeout(() => { if (container.contains(card)) container.removeChild(card); }, 300);
+      tipDismissTimer = null;
+    }, TIP_DURATION);
   }
 
   function showRecap(data) {
     const raw = (data.recap || data.text || '').trim();
-    console.log('[recap] Received:', raw);
     if (!raw || raw.length < 8) return;
-
     const text = cleanTipText(raw);
-
-    // Track in history
     addToHistory(text, true, false);
-
-    // Max 1 active card — dismiss existing
-    if (activeTips.length >= 1) dismissTip(activeTips[0]);
-
-    const card = document.createElement('div');
-    const isRight = tipPosition.includes('right');
-
-    card.className = 'tip-card recap';
-    card.classList.add(isRight ? 'enter-right' : 'enter-left');
-
-    card.innerHTML = `
-      <div class="tip-cat">ROUND RECAP</div>
-      <div class="tip-card-text">${escHtml(text)}</div>
-      <div class="tip-bar"><div class="tip-bar-fill"></div></div>
-    `;
-
-    hudTips.appendChild(card);
-    activeTips.push(card);
-
-    const fill = card.querySelector('.tip-bar-fill');
-    requestAnimationFrame(() => {
-      fill.style.transition = `transform ${RECAP_DURATION}ms linear`;
-      fill.style.transform  = 'scaleX(0)';
-    });
-
-    card._dismissTimer = setTimeout(() => dismissTip(card), RECAP_DURATION);
-  }
-
-  function dismissTip(card) {
-    if (!card || card._dismissed) return;
-    card._dismissed = true;
-    clearTimeout(card._dismissTimer);
-
-    const idx = activeTips.indexOf(card);
-    if (idx !== -1) activeTips.splice(idx, 1);
-
-    card.classList.add('exiting');
-    setTimeout(() => { if (card.parentNode) card.remove(); }, 350);
+    // Show recap as a tip via the same container
+    showTip({ text, isLibrary: false });
   }
 
   // ─── Round summary ────────────────────────────────────────────────────────────
@@ -390,6 +349,16 @@
 
     matchSummary.classList.remove('hidden');
 
+    // Enable mouse events on the overlay so close button works
+    if (window.overlayAPI && window.overlayAPI.setInteractive) {
+      window.overlayAPI.setInteractive(true);
+    }
+
+    const closeBtn = document.getElementById('ms-close');
+    if (closeBtn) {
+      closeBtn.onclick = () => dismissMatchSummary();
+    }
+
     // Animate auto-close bar
     if (msAutoBarFill) {
       msAutoBarFill.style.transition = 'none';
@@ -400,11 +369,9 @@
       });
     }
 
-    matchSummaryTimer = setTimeout(() => {
-      matchSummary.classList.add('hidden');
-    }, MATCH_SUMMARY_DURATION);
+    matchSummaryTimer = setTimeout(() => dismissMatchSummary(), MATCH_SUMMARY_DURATION);
 
-    // FIX 5: Save to localStorage for match history
+    // Save to localStorage for match history
     try {
       const key = 'ghostcoach_match_' + Date.now();
       localStorage.setItem(key, JSON.stringify({ ...data, savedAt: new Date().toISOString() }));
@@ -416,7 +383,15 @@
     } catch (e) { /* storage unavailable */ }
   }
 
-  // ─── Session Over card (Fix 4) ────────────────────────────────────────────────
+  function dismissMatchSummary() {
+    if (matchSummaryTimer) { clearTimeout(matchSummaryTimer); matchSummaryTimer = null; }
+    matchSummary.classList.add('hidden');
+    if (window.overlayAPI && window.overlayAPI.setInteractive) {
+      window.overlayAPI.setInteractive(false);
+    }
+  }
+
+  // ─── Session Over card ────────────────────────────────────────────────────────
   function showSessionOver(data) {
     if (!sessionOverCard) return;
 
@@ -450,21 +425,49 @@
       .replace(/"/g,'&quot;');
   }
 
-  // ─── Panel corner positioning ─────────────────────────────────────────────────
-  function applyPanelCorner(corner) {
-    const MAP = {
-      'top-left':     { top: '20px', left: '20px', right: '',    bottom: '' },
-      'top-right':    { top: '20px', left: '',    right: '20px', bottom: '' },
-      'bottom-left':  { top: '',    left: '20px', right: '',    bottom: '20px' },
-      'bottom-right': { top: '',    left: '',    right: '20px', bottom: '20px' },
-    };
-    const pos = MAP[corner] || MAP['top-left'];
+  // ─── Overlay (panel) position ────────────────────────────────────────────────
+  const OVERLAY_POS_MAP = {
+    'top-left':     { top: '20px', left: '20px', right: 'auto', bottom: 'auto' },
+    'top-right':    { top: '20px', right: '20px', left: 'auto', bottom: 'auto' },
+    'bottom-left':  { bottom: '20px', left: '20px', top: 'auto', right: 'auto' },
+    'bottom-right': { bottom: '20px', right: '20px', top: 'auto', left: 'auto' },
+  };
+
+  function applyOverlayPosition(pos) {
+    overlayPosition = pos || 'top-left';
+    const p = OVERLAY_POS_MAP[overlayPosition] || OVERLAY_POS_MAP['top-left'];
     [panel, panelMini].forEach(el => {
-      el.style.top    = pos.top;
-      el.style.left   = pos.left;
-      el.style.right  = pos.right;
-      el.style.bottom = pos.bottom;
+      el.style.top    = p.top    || '';
+      el.style.right  = p.right  || '';
+      el.style.bottom = p.bottom || '';
+      el.style.left   = p.left   || '';
     });
+  }
+
+  // ─── Tip container position ───────────────────────────────────────────────────
+  function applyTipPosition(pos) {
+    tipPosition = pos || 'bottom-right';
+    const container = document.getElementById('tip-container');
+    const histPanel = document.getElementById('tip-history');
+    const isRight   = tipPosition.includes('right');
+    const isTop     = tipPosition.includes('top');
+
+    if (container) {
+      container.style.position      = 'fixed';
+      container.style.top           = isTop   ? '80px' : 'auto';
+      container.style.bottom        = isTop   ? 'auto' : '80px';
+      container.style.right         = isRight ? '20px' : 'auto';
+      container.style.left          = isRight ? 'auto' : '20px';
+      container.style.display       = 'flex';
+      container.style.flexDirection = 'column';
+      container.style.alignItems    = isRight ? 'flex-end' : 'flex-start';
+    }
+
+    // History panel on the opposite side
+    if (histPanel) {
+      histPanel.style.right = isRight ? 'auto' : '20px';
+      histPanel.style.left  = isRight ? '20px' : 'auto';
+    }
   }
 
   // ─── Minimize panel ───────────────────────────────────────────────────────────
@@ -513,13 +516,8 @@
         applyMinimizeState(!!state.panelMinimized, false);
       }
 
-      if (state.tipPos) {
-        tipPosition = state.tipPos;
-        hudTips.className = 'pos-' + tipPosition;
-      }
-      if (state.panelCorner) {
-        applyPanelCorner(state.panelCorner);
-      }
+      if (state.tipPos)         applyTipPosition(state.tipPos);
+      if (state.overlayPosition) applyOverlayPosition(state.overlayPosition);
       if (state.performanceMode) {
         performanceMode = state.performanceMode;
         updatePerfIndicator();
@@ -673,5 +671,7 @@
 
   // ─── Init ─────────────────────────────────────────────────────────────────────
   updatePerfIndicator();
+  applyOverlayPosition(overlayPosition);
+  applyTipPosition(tipPosition);
 
 })();
