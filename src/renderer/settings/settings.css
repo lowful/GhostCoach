@@ -426,5 +426,40 @@ kbd {
   border-color: rgba(255,70,85,0.5);
 }
 
+/* ─── License display ────────────────────────────────────────── */
+.license-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#license-plan {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.5px;
+}
+
+.license-badge {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  padding: 2px 7px;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+
+.badge-active {
+  color: var(--success);
+  background: rgba(0,196,140,0.12);
+  border: 1px solid rgba(0,196,140,0.3);
+}
+
+.badge-warn {
+  color: var(--warning);
+  background: rgba(255,184,0,0.1);
+  border: 1px solid rgba(255,184,0,0.3);
+}
+
 /* ─── Utility ─────────────────────────────────────────────────── */
 .hidden { display: none !important; }

@@ -21,6 +21,17 @@
 
     <div id="settings-body">
 
+      <!-- ─── LICENSE ────────────────────────────────────────── -->
+      <div class="settings-section">
+        <div class="section-label">LICENSE</div>
+        <div class="license-row">
+          <span id="license-plan">—</span>
+          <span id="license-status-badge" class="license-badge hidden">ACTIVE</span>
+        </div>
+        <div id="license-expiry" class="key-hint hidden"></div>
+      </div>
+
+      <!-- ─── COACHING ───────────────────────────────────────── -->
       <div class="settings-section">
         <div class="section-label">COACHING</div>
         <div id="status-row">
@@ -39,6 +50,19 @@
         </div>
       </div>
 
+      <!-- ─── AUDIO DETECTION ────────────────────────────────── -->
+      <div class="settings-section">
+        <div class="section-label">AUDIO DETECTION</div>
+        <div class="row">
+          <div class="toggle" id="audio-toggle" data-on="true">
+            <div class="toggle-track"><div class="toggle-thumb"></div></div>
+          </div>
+          <span id="audio-label" style="font-size:11px;font-weight:600;color:var(--text2);cursor:pointer;">Enabled</span>
+        </div>
+        <p class="key-hint">Detects combat sounds to time AI screenshots for quiet moments.</p>
+      </div>
+
+      <!-- ─── POSITIONS ──────────────────────────────────────── -->
       <div class="settings-section">
         <div class="section-label">SETTINGS</div>
 
@@ -46,9 +70,9 @@
           <span class="label">PERF</span>
           <div class="select-wrap">
             <select id="perf-select">
-              <option value="quality">Quality (8s)</option>
+              <option value="quality">Quality (10s)</option>
               <option value="balanced">Balanced (15s)</option>
-              <option value="lightweight">Lite (20s)</option>
+              <option value="lightweight">Lite (25s)</option>
             </select>
           </div>
         </div>
@@ -75,6 +99,7 @@
 
       </div>
 
+      <!-- ─── HOTKEYS ────────────────────────────────────────── -->
       <div class="settings-section">
         <div class="section-label">HOTKEYS</div>
         <div class="hotkeys-grid">
@@ -87,6 +112,7 @@
         </div>
       </div>
 
+      <!-- ─── VANGUARD SAFE ──────────────────────────────────── -->
       <div class="settings-section safety-section">
         <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12" style="color:var(--success)"><path d="M8 1L2 3.5v5C2 12 5 14.5 8 15c3-0.5 6-3 6-6.5v-5L8 1zm-.3 9.7l-2.4-2.4 1-1 1.4 1.4 3-3 1 1-4 4z"/></svg>
         <span style="color:var(--success);font-weight:700;font-size:11px;">100% VANGUARD SAFE</span>

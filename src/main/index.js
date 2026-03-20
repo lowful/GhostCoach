@@ -22,6 +22,7 @@ const { getMatchSummary } = require('./api');
 
 const { registerHotkeys, unregisterHotkeys } = require('./hotkeys');
 const CoachingEngine = require('./coaching-engine');
+const { startAudioMonitor, stopAudioMonitor } = require('./audio-monitor');
 
 // ─── Session State ─────────────────────────────────────────────────────────────
 let activationWindow = null;
@@ -217,6 +218,15 @@ function startCoaching() {
 
   engine.start(licenseKey);
 
+  // Start audio monitor if enabled
+  if (store.get('audioDetection') !== false) {
+    startAudioMonitor((state) => {
+      if (engine && state !== 'ready' && state !== 'unavailable') {
+        engine.setAudioState(state);
+      }
+    });
+  }
+
   updateTrayMenu(true);
   const state = buildState();
   sendToOverlay('coach:state', state);
@@ -230,10 +240,10 @@ function stopCoaching() {
   isPaused   = false;
 
   if (engine) {
-    // Trigger match review if enough tips accumulated
     const matchTips = engine.matchTips || [];
     engine.stop();
     engine = null;
+    stopAudioMonitor();
     if (matchTips.length >= 5) triggerMatchSummary(matchTips);
   }
 
@@ -282,12 +292,16 @@ function buildState() {
     tipPos:              store.get('tipPosition'),
     overlayPosition:     store.get('overlayPosition'),
     performanceMode:     store.get('performanceMode'),
+    audioDetection:      store.get('audioDetection'),
     onboardingCompleted: store.get('onboardingCompleted'),
     history:             tipHistory,
     summaries:           roundSummaries,
     sessionStart:        sessionStartTime,
     tipCount:            tipHistory.length,
     panelMinimized:      store.get('panelMinimized'),
+    licensePlan:         store.get('licensePlan'),
+    licenseStatus:       store.get('licenseStatus'),
+    licenseExpiry:       store.get('licenseExpiry'),
   };
 }
 
@@ -372,7 +386,23 @@ ipcMain.on('settings:quit', () => {
 ipcMain.on('settings:save', (_, settings) => {
   if (settings.tipPos)          store.set('tipPosition',     settings.tipPos);
   if (settings.overlayPosition) store.set('overlayPosition', settings.overlayPosition);
-  if (settings.performanceMode) store.set('performanceMode', settings.performanceMode);
+  if (settings.performanceMode) {
+    store.set('performanceMode', settings.performanceMode);
+    if (engine) engine.setPerformanceMode(settings.performanceMode);
+  }
+  if (settings.audioDetection !== undefined) {
+    store.set('audioDetection', !!settings.audioDetection);
+    if (isCoaching) {
+      if (settings.audioDetection) {
+        startAudioMonitor((state) => {
+          if (engine && state !== 'ready' && state !== 'unavailable') engine.setAudioState(state);
+        });
+      } else {
+        stopAudioMonitor();
+        if (engine) engine.setAudioState('quiet');
+      }
+    }
+  }
 
   const state = buildState();
   sendToOverlay('coach:state', state);
@@ -510,38 +540,23 @@ app.whenReady().then(async () => {
     return;
   }
 
-  // Server-side re-validation on every launch (device check + expiry)
-  try {
-    const result = await validateLicenseWithServer(licenseKey);
-    if (!result.valid) {
-      // Handle expired/cancelled/device_mismatch — clear license and show activation
-      const reason  = result.reason || result.status || 'unknown';
-      const message = LICENSE_STATE_MESSAGES[reason];
-      console.warn(`[startup] License invalid on server: ${reason}`);
-      store.set('licenseKey',    '');
-      store.set('licenseStatus', '');
-      store.set('licensePlan',   '');
-      store.set('licenseExpiry', '');
-      createActivationWindow();
-      // Show error message in activation window once it loads
-      if (message) {
-        const win = activationWindow;
-        if (win) win.webContents.once('did-finish-load', () => {
-          if (!win.isDestroyed()) win.webContents.send('activate:serverMessage', message);
-        });
-      }
-      return;
-    }
-    // Update cached values from server response
-    store.set('licenseStatus', result.status   || 'active');
-    store.set('licensePlan',   result.plan     || store.get('licensePlan'));
-    store.set('licenseExpiry', result.expiresAt || licenseExpiry);
-  } catch (err) {
-    // Network error — allow offline grace, proceed with cached license
-    console.warn('[startup] Server unreachable, using cached license:', err.message);
-  }
-
+  // POLISH 4: Launch immediately for fast startup, validate server in background
   launchMainApp();
+
+  validateLicenseWithServer(licenseKey).then(result => {
+    if (!result.valid) {
+      const reason = result.reason || result.status || 'unknown';
+      console.warn(`[startup] License invalid on server: ${reason}`);
+      // Stop coaching and clear license — user will see warning tip
+      handleInvalidLicenseState(result);
+    } else {
+      store.set('licenseStatus', result.status   || 'active');
+      store.set('licensePlan',   result.plan     || store.get('licensePlan'));
+      store.set('licenseExpiry', result.expiresAt || licenseExpiry);
+    }
+  }).catch(err => {
+    console.warn('[startup] Server unreachable, using cached license:', err.message);
+  });
 });
 
 app.on('window-all-closed', () => {

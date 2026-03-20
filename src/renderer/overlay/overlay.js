@@ -214,13 +214,32 @@
     const raw = (data.text || '').trim();
     if (shouldSkipResponse(raw)) return;
 
-    const text = cleanTipText(raw);
-    const cat  = detectCategory(text);
+    const text           = cleanTipText(raw);
+    const isMotivational = !!data.isMotivational;
 
-    // Update panel preview
+    // Badge: AI=cyan category, Library=white TIP, Motivational=gold MENTAL
+    let badgeText, badgeColor, badgeBg;
+    if (isMotivational) {
+      badgeText  = 'MENTAL';
+      badgeColor = '#FFB800';
+      badgeBg    = 'rgba(255,184,0,0.12)';
+    } else if (data.isLibrary) {
+      badgeText  = 'TIP';
+      badgeColor = 'rgba(236,232,225,0.7)';
+      badgeBg    = 'rgba(255,255,255,0.08)';
+    } else {
+      const cat  = detectCategory(text);
+      badgeText  = cat.label;
+      badgeColor = '#00F0FF';
+      badgeBg    = 'rgba(0,240,255,0.1)';
+    }
+
+    const borderColor = isMotivational ? '#FFB800' : '#FF4655';
+
+    // Update panel preview (POLISH 2: truncate to 30 chars)
     if (tipPreview && tipPreviewText) {
       tipPreview.classList.remove('hidden');
-      tipPreviewText.textContent = text;
+      tipPreviewText.textContent = text.length > 30 ? text.slice(0, 30) + '\u2026' : text;
     }
 
     sessionTipCount++;
@@ -230,19 +249,29 @@
     const container = document.getElementById('tip-container');
     if (!container) return;
 
-    if (tipDismissTimer) { clearTimeout(tipDismissTimer); tipDismissTimer = null; }
-
-    const isRight      = tipPosition.includes('right');
-    const slideStart   = isRight ? 'translateX(100px)' : 'translateX(-100px)';
-    const borderSide   = isRight ? 'border-right:3px solid #FF4655;border-left:none;' : 'border-left:3px solid #FF4655;';
+    const isRight    = tipPosition.includes('right');
+    const slideStart = isRight ? 'translateX(100px)' : 'translateX(-100px)';
+    const borderSide = isRight
+      ? `border-right:3px solid ${borderColor};border-left:none;`
+      : `border-left:3px solid ${borderColor};`;
 
     const card = document.createElement('div');
-    card.style.cssText = `background:rgba(15,25,35,0.92);${borderSide}border-radius:6px;padding:10px 14px;max-width:320px;box-shadow:0 4px 20px rgba(0,0,0,0.6);transform:${slideStart};transition:transform 0.25s ease,opacity 0.25s ease;opacity:0;`;
+    card.style.cssText = `background:rgba(15,25,35,0.92);${borderSide}border-radius:6px;padding:10px 14px;max-width:320px;box-shadow:0 4px 20px rgba(0,0,0,0.6);transform:${slideStart};transition:transform 0.3s ease,opacity 0.3s ease;opacity:0;`;
     card.innerHTML =
-      `<div style="font-size:9px;font-weight:700;letter-spacing:1px;color:#FF4655;margin-bottom:4px;">${escHtml(cat.label)}</div>` +
-      `<div style="font-size:13px;color:#ECF0F1;line-height:1.4;">${escHtml(text)}</div>`;
+      `<div style="font-size:9px;font-weight:700;letter-spacing:1px;color:${badgeColor};background:${badgeBg};display:inline-block;padding:2px 6px;border-radius:3px;margin-bottom:5px;">${escHtml(badgeText)}</div>` +
+      `<div style="font-size:13px;color:#ECE8E1;line-height:1.4;">${escHtml(text)}</div>`;
 
-    container.innerHTML = '';
+    // Crossfade: smoothly replace existing card
+    const oldCard = container.firstChild;
+    if (oldCard) {
+      oldCard.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+      oldCard.style.opacity    = '0';
+      oldCard.style.transform  = slideStart;
+      setTimeout(() => { if (container.contains(oldCard)) container.removeChild(oldCard); }, 200);
+    }
+
+    if (tipDismissTimer) { clearTimeout(tipDismissTimer); tipDismissTimer = null; }
+
     container.appendChild(card);
 
     requestAnimationFrame(() => {
@@ -545,7 +574,6 @@
 
     // New coaching tip
     window.overlayAPI.onTip((data) => {
-      console.log('[tip] IPC received, overlayHidden:', overlayHidden, 'text:', data.text);
       // Fix 3: buffer tips when overlay is hidden
       if (overlayHidden) {
         hiddenTipBuffer.push(data);

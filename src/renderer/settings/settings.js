@@ -14,6 +14,11 @@
   const overlayPosBtns   = document.querySelectorAll('.overlay-pos-btn');
   const tipPosBtns       = document.querySelectorAll('.tip-pos-btn');
   const btnQuit          = document.getElementById('btn-quit');
+  const audioToggle      = document.getElementById('audio-toggle');
+  const audioLabel       = document.getElementById('audio-label');
+  const licensePlanEl    = document.getElementById('license-plan');
+  const licenseStatusEl  = document.getElementById('license-status-badge');
+  const licenseExpiryEl  = document.getElementById('license-expiry');
 
   // ─── Local state ──────────────────────────────────────────────────────────────
   let isCoaching       = false;
@@ -21,6 +26,7 @@
   let tipPosition      = 'bottom-right';
   let overlayPosition  = 'top-left';
   let performanceMode  = 'balanced';
+  let audioDetection   = true;
   let sessionStartTime = null;
   let sessionTipCount  = 0;
   let sessionTimerInterval = null;
@@ -95,10 +101,46 @@
     tipPosBtns.forEach(b => b.classList.toggle('active', b.dataset.pos === tipPosition));
   }
 
+  // ─── Audio toggle ─────────────────────────────────────────────────────────────
+  function setAudioToggle(enabled) {
+    audioDetection = !!enabled;
+    audioToggle.dataset.on = audioDetection ? 'true' : 'false';
+    audioLabel.textContent = audioDetection ? 'Enabled' : 'Disabled';
+  }
+
+  // ─── License display ──────────────────────────────────────────────────────────
+  function updateLicenseDisplay(state) {
+    if (!state.licenseStatus) return;
+
+    if (licensePlanEl && state.licensePlan) {
+      licensePlanEl.textContent = state.licensePlan.toUpperCase() || 'GHOSTCOACH';
+    }
+
+    if (licenseStatusEl) {
+      licenseStatusEl.textContent = (state.licenseStatus || '').toUpperCase();
+      licenseStatusEl.className = 'license-badge ' +
+        (state.licenseStatus === 'active' ? 'badge-active' : 'badge-warn');
+      licenseStatusEl.classList.remove('hidden');
+    }
+
+    if (licenseExpiryEl && state.licenseExpiry) {
+      const d = new Date(state.licenseExpiry);
+      if (!isNaN(d)) {
+        licenseExpiryEl.textContent = 'Renews ' + d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+        licenseExpiryEl.classList.remove('hidden');
+      }
+    }
+  }
+
   // ─── Save settings ────────────────────────────────────────────────────────────
   function saveSettings(patch) {
     if (!window.settingsAPI) return;
-    window.settingsAPI.saveSettings(Object.assign({ tipPos: tipPosition, overlayPosition, performanceMode }, patch));
+    window.settingsAPI.saveSettings(Object.assign({
+      tipPos: tipPosition,
+      overlayPosition,
+      performanceMode,
+      audioDetection,
+    }, patch));
   }
 
   // ─── Button handlers ──────────────────────────────────────────────────────────
@@ -143,6 +185,14 @@
     });
   });
 
+  // Audio toggle click
+  [audioToggle, audioLabel].forEach(el => {
+    el.addEventListener('click', () => {
+      setAudioToggle(!audioDetection);
+      saveSettings();
+    });
+  });
+
   // ─── Quit ─────────────────────────────────────────────────────────────────────
   btnQuit.addEventListener('click', () => {
     if (!window.settingsAPI) return;
@@ -181,6 +231,10 @@
       } else if (!state.isCoaching) {
         sessionStartTime = null;
       }
+      if (state.audioDetection !== undefined) {
+        setAudioToggle(state.audioDetection);
+      }
+      updateLicenseDisplay(state);
     });
 
     window.settingsAPI.onStatus((data) => {

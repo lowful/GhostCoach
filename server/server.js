@@ -40,7 +40,7 @@ app.use(cors({
     callback(null, true); // allow all during dev — tighten for full prod launch
   },
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-License-Key', 'X-Prompt-Mode', 'X-Combat-Tip-Given', 'X-Recent-Tips', 'X-Admin-Password'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-License-Key', 'X-Prompt-Mode', 'X-Combat-Tip-Given', 'X-Recent-Tips', 'X-Admin-Password', 'X-Forced'],
   credentials: true,
 }));
 

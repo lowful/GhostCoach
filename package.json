@@ -59,7 +59,6 @@
     "asar": true
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.36.3",
     "dotenv": "^16.4.5",
     "electron-store": "^8.2.0"
   },
