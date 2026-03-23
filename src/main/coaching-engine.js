@@ -176,14 +176,21 @@ class CoachingEngine extends EventEmitter {
       return;
     }
 
-    // Filter non-tips
-    if (trimmed.toUpperCase() === 'SKIP' || trimmed.length < 15) {
+    // Filter non-tips and short garbage
+    if (trimmed.toUpperCase() === 'SKIP' || trimmed.length < 20) {
       this.skipCount++;
       console.log('[engine] SKIP, count:', this.skipCount);
       if (this.skipCount >= 3) {
         this.skipCount = 0;
         this.showContextualLibraryTip();
       }
+      return;
+    }
+
+    // Reject incomplete tips that don't end with punctuation
+    const lastChar = trimmed.charAt(trimmed.length - 1);
+    if (lastChar !== '.' && lastChar !== '!' && lastChar !== '?') {
+      console.log('[engine] Rejected incomplete tip:', trimmed);
       return;
     }
 

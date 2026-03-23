@@ -227,8 +227,8 @@
     const isAI         = source === 'ai';
     const isSystem     = source === 'system';
     const isMotivation = category === 'motivation' || category === 'hype';
-    const borderColor  = isAI ? '#00F0FF' : isSystem ? 'rgba(236,232,225,0.3)' : isMotivation ? '#FFB800' : '#FF4655';
-    const badgeColor   = isAI ? '#00F0FF' : isSystem ? 'rgba(236,232,225,0.4)' : isMotivation ? '#FFB800' : 'rgba(236,232,225,0.5)';
+    const borderColor  = isSystem ? 'rgba(255,70,85,0.4)' : isMotivation ? '#FFB800' : '#FF4655';
+    const badgeColor   = isAI ? '#FF4655' : isSystem ? 'rgba(255,70,85,0.4)' : isMotivation ? '#FFB800' : 'rgba(255,70,85,0.6)';
     const badgeText    = isAI ? 'AI TIP'  : isSystem ? 'GHOSTCOACH' : isMotivation ? (category === 'hype' ? 'HYPE' : 'MENTAL') : 'TIP';
 
     // Remove existing card

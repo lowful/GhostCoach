@@ -249,7 +249,9 @@ Stay SILENT (respond with "SKIP") when:
 - There is no specific advice that would help right now.
 - The round just started and players are still positioning.
 
-It is BETTER to say SKIP and give no tip than to give generic obvious advice. Only speak when you have something specific and useful to say based on what you SEE in the screenshot. Quality over quantity. If you cannot identify a specific mistake or opportunity, say SKIP.`;
+It is BETTER to say SKIP and give no tip than to give generic obvious advice. Only speak when you have something specific and useful to say based on what you SEE in the screenshot. Quality over quantity. If you cannot identify a specific mistake or opportunity, say SKIP.
+
+CRITICAL RULE: Every tip must be a complete sentence that ends with a period. Never cut off mid-sentence. If your tip would be too long, shorten it but always finish the sentence. A tip like "You are exposed to two" is WRONG. A tip like "You are exposed to two angles, reposition to cover." is CORRECT.`;
 
 const FORCED_PROMPT = SMART_PROMPT + `\n\nOVERRIDE: The player is manually requesting coaching advice right now. Look at the screenshot and give your best tip based on the current situation. Do not respond with SKIP. Always give advice when manually requested.`;
 
