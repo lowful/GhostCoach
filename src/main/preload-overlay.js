@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld('overlayAPI', {
 
   // ── Inbound: main → renderer ──────────────────────────────────────────────────
   onTip:          (cb) => ipcRenderer.on('coach:tip',           (_, d) => cb(d)),
+  onShowTip:      (cb) => ipcRenderer.on('show-tip',            (_, d) => cb(d)),
+  onMatchReview:  (cb) => ipcRenderer.on('coach:matchReview',   (_, d) => cb(d)),
   onRoundSummary: (cb) => ipcRenderer.on('coach:roundSummary',  (_, d) => cb(d)),
   onMatchSummary: (cb) => ipcRenderer.on('coach:matchSummary',  (_, d) => cb(d)),
   onSessionOver:  (cb) => ipcRenderer.on('coach:sessionOver',   (_, d) => cb(d)),

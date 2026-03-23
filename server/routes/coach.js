@@ -360,6 +360,63 @@ router.post('/recap', async (req, res) => {
   }
 });
 
+// GET /api/coach/player-stats?username=Name%23TAG
+router.get('/player-stats', async (req, res) => {
+  const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
+  if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+
+  const username = req.query.username;
+  if (!username || !username.includes('#')) return res.json({ error: 'No username or missing # tag' });
+
+  try {
+    const [name, tag] = username.split('#');
+    const url = `https://api.tracker.gg/api/v2/valorant/standard/profile/riot/${encodeURIComponent(name)}%23${encodeURIComponent(tag)}`;
+
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'GhostCoach/1.0', 'TRN-Api-Key': process.env.TRACKER_API_KEY || '' }
+    });
+
+    if (!response.ok) return res.json({ error: 'Player not found' });
+
+    const data = await response.json();
+    const stats = data?.data?.segments?.[0]?.stats;
+
+    res.json({
+      rank:         stats?.rank?.metadata?.tierName || 'Unknown',
+      kd:           stats?.kDRatio?.value           || 0,
+      winRate:      stats?.matchesWinPct?.value      || 0,
+      headshotPct:  stats?.headshotsPercentage?.value || 0,
+      topAgent:     data?.data?.segments?.[1]?.metadata?.name || 'Unknown',
+    });
+  } catch (e) {
+    console.error('[stats] Error:', e.message);
+    res.json({ error: 'Failed to fetch stats' });
+  }
+});
+
+// POST /api/coach/match-review  — JSON body: { tips: string[] }
+router.post('/match-review', async (req, res) => {
+  const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
+  if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+
+  const tips = Array.isArray(req.body && req.body.tips) ? req.body.tips.slice(0, 30) : [];
+  if (tips.length < 3) return res.json({ review: 'Not enough data for a review.' });
+
+  const prompt = `Here are coaching tips from a Valorant match:\n${tips.join('\n')}\n\nWrite a 3-sentence match review. Sentence 1: what the player did well. Sentence 2: their most common mistake. Sentence 3: what to focus on next match. Do not use dashes. End each sentence with a period.`;
+
+  try {
+    const review = await Promise.race([
+      geminiTextCall(prompt, 200),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 12000)),
+    ]);
+    trackCall(licenseKey);
+    res.json({ review: review || 'Could not generate review.' });
+  } catch (e) {
+    console.error('[review] Error:', e.message);
+    res.json({ review: 'Review generation failed.' });
+  }
+});
+
 module.exports = router;
 module.exports.costStore   = costStore;
 module.exports.globalStats = globalStats;

@@ -40,7 +40,7 @@ app.use(cors({
     callback(null, true); // allow all during dev — tighten for full prod launch
   },
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-License-Key', 'X-Prompt-Mode', 'X-Combat-Tip-Given', 'X-Recent-Tips', 'X-Admin-Password', 'X-Forced'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-License-Key', 'X-Prompt-Mode', 'X-Combat-Tip-Given', 'X-Recent-Tips', 'X-Admin-Password', 'X-Forced', 'X-Player-Stats'],
   credentials: true,
 }));
 
@@ -60,7 +60,7 @@ const checkoutLimiter = rateLimit({
 // ─── Raw body routes — MUST come before JSON parser ──────────────────────────
 // Stripe webhook needs raw JSON; coach/analyze needs raw binary JPEG
 app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), webhookHandler);
-app.post('/api/coach/analyze',      express.raw({ type: 'image/jpeg', limit: '500kb' }), (req, _, next) => { req._rawBody = req.body; next(); });
+app.post('/api/coach/analyze',      express.raw({ type: ['image/jpeg', 'application/octet-stream'], limit: '500kb' }), (req, _, next) => { req._rawBody = req.body; next(); });
 app.post('/api/coach/summary/round', express.raw({ type: 'image/jpeg', limit: '500kb' }), (req, _, next) => { req._rawBody = req.body; next(); });
 
 // ─── Global JSON parser ───────────────────────────────────────────────────────

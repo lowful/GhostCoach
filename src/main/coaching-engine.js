@@ -1,338 +1,364 @@
 'use strict';
 
-const { captureScreen }     = require('./capture');
-const { analyzeScreenshot, getRoundRecap } = require('./api');
-const store = require('./store');
+const Store = require('electron-store');
+const store = new Store();
 
-// ─── Built-in tip library ─────────────────────────────────────────────────────
-const TIPS = {
-  economy: [
-    "Pistol round: buy light shields and abilities. No rifles.",
-    "After winning pistol, buy Spectre and full shields round two.",
-    "After losing pistol, full save round two. Buy nothing.",
-    "Under 2000 credits, full save. Do not buy anything.",
-    "Force buy round: Spectre with light shields is best value.",
-    "Full buy at 3900 credits or more. Vandal or Phantom with full shields.",
-    "If your team is saving, save with them. Never buy alone.",
-    "Marshal is great on a budget if you cannot afford a rifle.",
-    "Always buy full shields when you can afford them. Fifty HP matters.",
-    "If you have Operator money, make sure your team can also full buy.",
-  ],
-  death: [
-    "You peeked without using any utility. Flash or smoke before peeking next time.",
-    "Your crosshair placement was too low. Always aim at head height.",
-    "You took a solo duel. Play with a teammate for trades next time.",
-    "You repeeked the same angle twice. Always reposition after a fight.",
-    "You wide swung that corner. Jiggle peek for info before committing.",
-    "Check your minimap before pushing. A teammate might already have that angle.",
-    "You ran into the open without clearing corners. Slow down and clear.",
-    "You crouched during the fight. Stay standing for better movement options.",
-    "They heard your footsteps. Walk when you are close to enemies.",
-    "You used your ability too late. Use it before you peek, not after.",
-    "You challenged a long-range fight with a short-range gun. Smoke it off instead.",
-    "You pushed through a smoke. Never walk through enemy smokes.",
-    "You were looking at the ground when they peeked. Keep crosshair up.",
-    "You stood still while shooting. Counter-strafe between shots.",
-    "You peeked while your teammate was already fighting. Wait for the trade moment.",
-  ],
-  roundStart: [
-    "New round. Play slow for the first 10 seconds and gather info before committing.",
-    "Comm your default position now. Information is the most valuable resource.",
-    "This round: prioritize crosshair placement over movement speed.",
-    "Use utility for information before pushing. Do not play blind.",
-    "Watch your flank. Entry fraggers get flanked most often at round start.",
-    "Play a default and stay patient. Force them to make the first mistake.",
-    "Check the minimap every few seconds. Your team's spread tells you everything.",
-    "Do not burn utility in the first ten seconds. Save it for the plant or defense.",
-  ],
-  motivation: [
-    "Three deaths in a row? That is tilt. This round: play passive and take only safe trades.",
-    "You are getting frustrated. Recognize it. Slow down, breathe, reset crosshair placement.",
-    "Even pros hit death streaks. One clean round turns it around. Play smart, not fast.",
-    "Stop rushing them. This round: let them come to you. Play reactively.",
-    "Frustration makes you peek without info. This round: gather info before every commitment.",
-    "Breathe. Tilt is real. Play ultra-conservative this round and reset your mental.",
-    "Down? Focus on one thing: crosshair placement. That alone will get you the kill.",
-  ],
-  hype: [
-    "Halftime. Clean slate. Come back with one goal: play your game.",
-    "Second half, different side, different reads. Adapt right now.",
-    "Clutch time. One player, slow play, let them make the mistake.",
-    "Stay calm. In clutches, the player who panics first loses.",
-    "You have got this. Trust your fundamentals. Clean crosshair placement wins rounds.",
-    "Last few rounds. Everything you have learned this session — apply it right now.",
-    "Halftime reset. Energy and focus both start fresh. Make this half yours.",
-  ],
-};
-
-// ─── Keyword detection ────────────────────────────────────────────────────────
-const ECONOMY_KW = /\b(buy|save|credit|eco|force|shield|vandal|phantom|spectre|marshal|operator|ghost|stinger|sheriff|ares|rifle|pistol)\b/i;
-const DEATH_KW   = /\b(died|death|peeked without|crosshair was|should have|next time|mistake|spectating)\b/i;
-const CLUTCH_KW  = /\b(clutch|alone|last player|1v[2-5]|outnumbered)\b/i;
-
-// ─── CoachingEngine ───────────────────────────────────────────────────────────
 class CoachingEngine {
-  constructor() {
-    this.licenseKey          = '';
-    this.isCapturing         = false;
-    this.stopped             = false;
-    this.matchTips           = [];
-    this.shownLibraryTips    = new Set();
-    this.captureInterval     = null;
-    this._timers             = [];
+  constructor(options = {}) {
+    this.serverUrl = options.serverUrl || '';
+    this.licenseKey = options.licenseKey || '';
+    this.captureFunction = options.captureFunction || null;
+    this.onTip = null;
+    this.onStatusChange = null;
+    this.onMatchReview = null;
 
-    // Round tracking
-    this.wasInBuyPhase       = false;
-    this.currentRoundTips    = [];
-    this.shownEconomyTip     = false;
-    this.roundNumber         = 0;
-    this.isBurstActive       = false;
+    // State
+    this.isRunning = false;
+    this.isCapturing = false;
+    this.tips = [];
+    this.roundTips = [];
+    this.matchTips = [];
+    this.shownLibraryTips = new Set();
+    this.lastScreenshotTime = 0;
+    this.lastTipTime = 0;
+    this.consecutiveDeaths = 0;
+    this.roundNumber = 0;
+    this.inBurstMode = false;
+    this.burstTimer = null;
 
-    // Audio state (FEATURE 2)
-    this.audioState          = 'quiet';
-    this.combatEndTime       = null;
-    this.lastCaptureTime     = null;
+    // Timers
+    this.mainTimer = null;
+    this.libraryTimer = null;
 
-    // Motivational tracking (FEATURE 5)
-    this.consecutiveDeaths          = 0;
-    this.motivationalGivenThisRound = false;
-    this.halfTimeGiven              = false;
-
-    // Callbacks — set by index.js before calling start()
-    this.onTip      = null;   // (tipData) => void
-    this.onStatus   = null;   // (statusKey) => void
-    this.onMatchEnd = null;   // (tips) => void
-    this.onRecap    = null;   // (text) => void
+    // Player info
+    this.playerUsername = store.get('valorantUsername', '');
+    this.playerStats = null;
   }
 
-  // ─── Timer helper (auto-cancelled on stop) ───────────────────────────────────
-  _setTimeout(fn, ms) {
-    const t = setTimeout(() => {
-      this._timers = this._timers.filter(x => x !== t);
-      if (!this.stopped) fn();
-    }, ms);
-    this._timers.push(t);
-    return t;
+  // ============ TIP LIBRARIES ============
+
+  get library() {
+    return {
+      roundStart: [
+        "Check what your team is buying. Match their economy.",
+        "Pick a different angle than last round. Be unpredictable.",
+        "Think about the enemy economy. Are they saving or buying?",
+        "Make sure you have full shields before the barrier drops.",
+        "Use the buy phase to plan your utility usage for the round.",
+        "If attacking, decide which site to hit before the round starts.",
+        "If defending, set up crossfires with a teammate.",
+        "Buy abilities first, then weapons. Utility wins rounds.",
+        "Think about where you died last round. Play a different spot.",
+        "If the enemy keeps rushing, consider stacking that site."
+      ],
+      economy: [
+        "Pistol round: buy light shields and abilities only. No rifles.",
+        "After winning pistol, buy Spectre and full shields.",
+        "After losing pistol, full save. Buy nothing.",
+        "Under 2000 credits means full save. Do not buy anything.",
+        "Force buy round: Spectre with light shields is best value.",
+        "Full buy at 3900 or more. Vandal or Phantom with full shields.",
+        "If your team is saving, save with them. Never buy alone.",
+        "Always buy full shields when you can afford them."
+      ],
+      death: [
+        "You peeked without utility. Flash or smoke before peeking next time.",
+        "Your crosshair was too low. Always aim at head height.",
+        "You took a solo duel. Play with a teammate for trades.",
+        "You repeeked the same angle. Always reposition after shooting.",
+        "You wide swung that corner. Jiggle peek for info first.",
+        "Check minimap before pushing. Know where your team is.",
+        "You ran into the open without clearing corners. Slow down.",
+        "They heard your footsteps. Walk when close to enemies.",
+        "You used your ability too late. Use it before peeking.",
+        "You pushed through a smoke. Never walk through enemy smokes."
+      ],
+      combat: [
+        "Trade your teammate. If they die, swing immediately.",
+        "Do not repeek. Reposition after every engagement.",
+        "Use utility before swinging. Flash or smoke the angle.",
+        "Stay calm. Aim for the head, do not panic spray.",
+        "If your teammate is fighting, be ready to refrag.",
+        "Do not chase kills. Hold your position after getting one.",
+        "If they are pushing, fall back to a better angle.",
+        "In a 1vX, play time and isolate duels one by one.",
+        "Listen for audio cues before peeking any angle."
+      ],
+      spike: [
+        "Spike is down. Play time on attack, do not repeek.",
+        "On retake, group up. Do not go one by one.",
+        "Check all corners before defusing. Clear the site.",
+        "Smoke the spike for a safe defuse attempt.",
+        "Half defuse to bait them out, then fight.",
+        "Do not rotate until you hear spike at a site."
+      ],
+      motivation: [
+        "Shake off last round. Reset and focus on this one.",
+        "One round at a time. Stay in the moment.",
+        "Stay confident. Trust your aim and your game sense.",
+        "Every death is a lesson. Apply it next round.",
+        "Losing rounds happens. The comeback starts now.",
+        "Take a breath. Calm shots beat panic sprays.",
+        "Stay positive in comms. Good vibes win rounds.",
+        "You do not need to top frag. Play your role.",
+        "One clutch round can shift the entire game.",
+        "Mute toxic players. Protect your mental."
+      ],
+      hype: [
+        "Good round. Keep this energy going.",
+        "You are reading them well. Trust your instincts.",
+        "Momentum is yours. Stay disciplined.",
+        "Economy is strong. Dominate this round.",
+        "Keep playing together. This is winnable."
+      ]
+    };
   }
 
-  // ─── Lifecycle ──────────────────────────────────────────────────────────────
-  start(licenseKey) {
-    this.licenseKey             = licenseKey;
-    this.matchTips              = [];
-    this.shownLibraryTips       = new Set();
-    this.isCapturing            = false;
-    this.stopped                = false;
-    this.wasInBuyPhase          = false;
-    this.currentRoundTips       = [];
-    this.shownEconomyTip        = false;
-    this.roundNumber            = 0;
-    this.isBurstActive          = false;
-    this.audioState             = 'quiet';
-    this.combatEndTime          = null;
-    this.lastCaptureTime        = null;
-    this.consecutiveDeaths      = 0;
-    this.motivationalGivenThisRound = false;
-    this.halfTimeGiven          = false;
+  // ============ CORE METHODS ============
 
-    const interval = CoachingEngine.modeInterval(store.get('performanceMode') || 'balanced');
-    this.captureInterval = setInterval(() => this.captureAndAnalyze(), interval);
-    setTimeout(() => this.captureAndAnalyze(), 5000);
+  start() {
+    this.isRunning = true;
+    this.tips = [];
+    this.roundTips = [];
+    this.matchTips = [];
+    this.roundNumber = 1;
+    this.updateStatus('coaching');
 
-    console.log('[engine] Started');
+    // Fetch player stats if username is set
+    if (this.playerUsername) {
+      this.fetchPlayerStats();
+    }
+
+    // Start round burst immediately (first round)
+    this.startRoundBurst();
+
+    // Main screenshot timer — every 18 seconds
+    this.mainTimer = setInterval(() => {
+      if (!this.inBurstMode) {
+        this.captureAndAnalyze();
+      }
+    }, 18000);
+
+    console.log('[engine] Coaching started');
   }
 
   stop() {
-    this.stopped = true;
-    this._timers.forEach(t => clearTimeout(t));
-    this._timers = [];
-    if (this.captureInterval) { clearInterval(this.captureInterval); this.captureInterval = null; }
-    this.isCapturing = false;
-    console.log('[engine] Stopped');
-  }
+    this.isRunning = false;
+    clearInterval(this.mainTimer);
+    clearInterval(this.libraryTimer);
+    clearTimeout(this.burstTimer);
+    this.mainTimer = null;
+    this.libraryTimer = null;
+    this.burstTimer = null;
+    this.inBurstMode = false;
+    this.updateStatus('stopped');
 
-  // ─── Live performance mode update ────────────────────────────────────────────
-  setPerformanceMode(mode) {
-    if (!this.captureInterval) return;
-    clearInterval(this.captureInterval);
-    const interval = CoachingEngine.modeInterval(mode);
-    this.captureInterval = setInterval(() => this.captureAndAnalyze(), interval);
-    console.log(`[engine] Performance mode → ${mode} (${interval / 1000}s)`);
-  }
-
-  static modeInterval(mode) {
-    if (mode === 'quality')     return 10000;
-    if (mode === 'lightweight') return 25000;
-    return 15000;
-  }
-
-  // ─── Manual capture (Ctrl+Shift+T / Ctrl+Shift+S) ────────────────────────────
-  requestImmediateCapture() {
-    this.captureAndAnalyze(true);
-  }
-
-  // ─── Audio state (FEATURE 2) ─────────────────────────────────────────────────
-  setAudioState(state) {
-    if (state !== 'combat' && this.audioState === 'combat') {
-      this.combatEndTime = Date.now();
+    // Trigger match review if we had tips
+    if (this.matchTips.length >= 3) {
+      this.requestMatchReview();
     }
-    this.audioState = state;
+
+    console.log('[engine] Coaching stopped');
   }
 
-  // ─── Library tips ────────────────────────────────────────────────────────────
+  // ============ ROUND BURST ============
+
+  startRoundBurst() {
+    this.inBurstMode = true;
+    console.log('[engine] Round burst started (round', this.roundNumber, ')');
+
+    // Immediate: economy tip
+    this.showLibraryTip('economy');
+
+    // At 3 seconds: AI screenshot (analyze buy phase)
+    setTimeout(() => {
+      if (this.isRunning) this.captureAndAnalyze();
+    }, 3000);
+
+    // At 7 seconds: round start tip
+    setTimeout(() => {
+      if (this.isRunning) this.showLibraryTip('roundStart');
+    }, 7000);
+
+    // At 14 seconds: second AI screenshot (pre-round positioning)
+    setTimeout(() => {
+      if (this.isRunning) this.captureAndAnalyze();
+    }, 14000);
+
+    // At 20 seconds: end burst mode, return to normal pacing
+    this.burstTimer = setTimeout(() => {
+      this.inBurstMode = false;
+      console.log('[engine] Round burst ended');
+    }, 20000);
+  }
+
+  // ============ LIBRARY TIPS ============
+
   showLibraryTip(category) {
-    const pool      = TIPS[category] || TIPS.death;
-    let   available = pool.filter(t => !this.shownLibraryTips.has(t));
+    const tips = this.library[category];
+    if (!tips || tips.length === 0) return;
+
+    const key = category + ':';
+    const available = tips.filter(t => !this.shownLibraryTips.has(key + t));
     if (available.length === 0) {
-      pool.forEach(t => this.shownLibraryTips.delete(t));
-      available = [...pool];
+      // Reset shown tips for this category
+      tips.forEach(t => this.shownLibraryTips.delete(key + t));
+      return this.showLibraryTip(category);
     }
+
     const tip = available[Math.floor(Math.random() * available.length)];
-    this.shownLibraryTips.add(tip);
-    if (this.onTip) this.onTip({ text: tip, isLibrary: true, timestamp: Date.now() });
+    this.shownLibraryTips.add(key + tip);
+    this.emitTip(tip, 'library', category);
   }
 
-  // ─── Motivational tips (FEATURE 5) ───────────────────────────────────────────
-  showMotivationalTip(category) {
-    const pool = TIPS[category] || TIPS.motivation;
-    const tip  = pool[Math.floor(Math.random() * pool.length)];
-    if (this.onTip) this.onTip({ text: tip, isLibrary: true, isMotivational: true, timestamp: Date.now() });
-  }
+  // ============ AI SCREENSHOTS ============
 
-  // ─── AI capture + analyze ────────────────────────────────────────────────────
-  async captureAndAnalyze(forced = false, burstCapture = false) {
-    if (this.isCapturing && !forced && !burstCapture) return;
+  async captureAndAnalyze() {
+    if (this.isCapturing || !this.isRunning) return;
+    if (Date.now() - this.lastScreenshotTime < 8000) return; // Min 8s gap
+
     this.isCapturing = true;
-
-    const now = Date.now();
-
-    if (!forced && !burstCapture) {
-      // Block regular interval during burst (burst controls its own timing)
-      if (this.isBurstActive) { this.isCapturing = false; return; }
-      // Audio gate: skip during combat unless 30s fallback exceeded
-      if (this.audioState === 'combat') {
-        if (!this.lastCaptureTime || now - this.lastCaptureTime < 30000) {
-          this.isCapturing = false; return;
-        }
-      }
-      // Post-combat 3s delay
-      if (this.combatEndTime && now - this.combatEndTime < 3000) {
-        this.isCapturing = false; return;
-      }
-    }
-
-    this.lastCaptureTime = now;
+    this.lastScreenshotTime = Date.now();
 
     try {
-      if (this.onStatus) this.onStatus('capturing');
-      const { buffer, hash } = await captureScreen();
-      if (this.onStatus) this.onStatus('analyzing');
-      const result = await analyzeScreenshot(buffer, this.licenseKey, 'smart', false, [], hash, forced);
-      this.handleAIResponse(result || '', forced);
-    } catch (err) {
-      console.error('[engine] Error:', err.message);
-      if (this.onStatus) {
-        if (err.message.includes('timeout') || err.message.includes('ENOTFOUND') || err.message.includes('ETIMEDOUT')) {
-          this.onStatus('connection_lost');
-        }
+      if (!this.captureFunction) {
+        this.isCapturing = false;
+        return;
       }
+
+      const screenshot = await this.captureFunction();
+      if (!screenshot) {
+        this.isCapturing = false;
+        return;
+      }
+
+      const response = await fetch(this.serverUrl + '/api/coach/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'image/jpeg',
+          'X-License-Key': this.licenseKey,
+          'X-Player-Stats': this.playerStats ? JSON.stringify(this.playerStats) : ''
+        },
+        body: Buffer.from(screenshot, 'base64'),
+        signal: AbortSignal.timeout(8000)
+      });
+
+      if (!response.ok) {
+        this.isCapturing = false;
+        return;
+      }
+
+      const data = await response.json();
+      if (data.tip) {
+        this.handleAIResponse(data.tip);
+      }
+    } catch (e) {
+      console.error('[engine] Capture error:', e.message);
     }
 
     this.isCapturing = false;
-    if (!this.stopped && this.onStatus) this.onStatus('coaching');
   }
 
-  // ─── Response processing ─────────────────────────────────────────────────────
-  handleAIResponse(text, forced = false) {
-    const t = text.trim();
-    if (!t || t.length < 20) return;
+  handleAIResponse(text) {
+    const trimmed = text.trim();
 
-    const upper = t.toUpperCase();
-    if (upper === 'SKIP') return;
-    if (upper === 'VICTORY' || upper === 'DEFEAT') {
-      if (this.onMatchEnd) this.onMatchEnd([...this.matchTips]);
+    // Filter bad responses
+    if (trimmed.toUpperCase() === 'SKIP') return;
+    if (trimmed.length < 15) return;
+    if (!trimmed.match(/[.!?"]$/)) return; // Must end with punctuation
+
+    // Detect round transition (buy phase mentioned after gameplay)
+    if (trimmed.toLowerCase().match(/buy|credits|save|pistol round|economy|full buy/)) {
+      if (this.roundTips.length > 0) {
+        // New round detected
+        this.roundNumber++;
+        this.roundTips = [];
+        this.startRoundBurst();
+        return; // Burst mode will handle tips
+      }
+    }
+
+    // Detect death
+    if (trimmed.toLowerCase().match(/you died|you are dead|spectating|death screen/)) {
+      this.consecutiveDeaths++;
+      this.showLibraryTip('death');
+      if (this.consecutiveDeaths >= 2) {
+        setTimeout(() => this.showLibraryTip('motivation'), 5000);
+      }
       return;
     }
-    if (!/[.!?]$/.test(t)) return;
 
-    const clean = t
-      .replace(/[\u2014\u2013\u2012\u2015]/g, ',')
-      .replace(/ - /g, ', ')
-      .slice(0, 120);
+    // Normal tip — reset death counter
+    this.consecutiveDeaths = 0;
 
-    const isBuyPhase = ECONOMY_KW.test(clean);
-    const isDeath    = DEATH_KW.test(clean);
-    const isClutch   = CLUTCH_KW.test(clean);
+    // Display the AI tip
+    const cleaned = trimmed.replace(/—/g, ',').replace(/–/g, ',').replace(/ - /g, ', ');
+    this.emitTip(cleaned, 'ai', 'general');
+    this.roundTips.push(cleaned);
+    this.matchTips.push(cleaned);
+  }
 
-    // Round transition: gameplay → buy phase = new round
-    if (isBuyPhase && !this.wasInBuyPhase) {
-      this.roundNumber++;
+  // ============ PLAYER STATS FROM TRACKER ============
 
-      // Recap for the round just ended
-      if (this.currentRoundTips.length >= 2) {
-        const roundTips = [...this.currentRoundTips];
-        this.currentRoundTips = [];
-        getRoundRecap(roundTips, this.licenseKey).then(recap => {
-          if (recap && this.onRecap) this.onRecap(recap);
-        }).catch(() => {});
-      } else {
-        this.currentRoundTips = [];
+  async fetchPlayerStats() {
+    try {
+      const response = await fetch(
+        this.serverUrl + '/api/coach/player-stats?username=' + encodeURIComponent(this.playerUsername),
+        {
+          headers: { 'X-License-Key': this.licenseKey },
+          signal: AbortSignal.timeout(10000)
+        }
+      );
+      if (response.ok) {
+        this.playerStats = await response.json();
+        console.log('[engine] Player stats loaded:', this.playerStats.rank);
       }
+    } catch (e) {
+      console.log('[engine] Could not fetch player stats:', e.message);
+    }
+  }
 
-      // Reset per-round motivational state
-      this.motivationalGivenThisRound = false;
-      this.consecutiveDeaths          = 0;
+  // ============ MATCH REVIEW ============
 
-      // Round start burst (FEATURE 3)
-      if (!this.shownEconomyTip) {
-        this.shownEconomyTip = true;
-        this.isBurstActive   = true;
-
-        this.showLibraryTip('economy');                                          // 0s
-        this._setTimeout(() => this.captureAndAnalyze(false, true), 3000);      // 3s AI
-        this._setTimeout(() => this.showLibraryTip('roundStart'),   8000);      // 8s lib
-        this._setTimeout(() => this.captureAndAnalyze(false, true), 15000);     // 15s AI
-        this._setTimeout(() => { this.isBurstActive = false; },     20000);     // 20s end
+  async requestMatchReview() {
+    try {
+      const response = await fetch(this.serverUrl + '/api/coach/match-review', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-License-Key': this.licenseKey
+        },
+        body: JSON.stringify({ tips: this.matchTips }),
+        signal: AbortSignal.timeout(15000)
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (this.onMatchReview) this.onMatchReview(data.review);
       }
-
-      // Halftime hype at round 12 (FEATURE 5)
-      if (this.roundNumber === 12 && !this.halfTimeGiven) {
-        this.halfTimeGiven = true;
-        this._setTimeout(() => this.showMotivationalTip('hype'), 4000);
-      }
+    } catch (e) {
+      console.log('[engine] Match review error:', e.message);
     }
+  }
 
-    if (!isBuyPhase) {
-      this.wasInBuyPhase   = false;
-      this.shownEconomyTip = false;
-    } else {
-      this.wasInBuyPhase = true;
-    }
+  // ============ TIP EMISSION ============
 
-    // Track for match review + round recap
-    this.matchTips.push(clean);
-    if (!isBuyPhase) this.currentRoundTips.push(clean);
+  emitTip(text, source, category) {
+    const tip = { text, source, category, time: Date.now() };
+    this.tips.push(tip);
+    if (this.tips.length > 50) this.tips.shift();
+    this.lastTipTime = Date.now();
+    console.log('[engine] Tip:', source, '-', text);
+    if (this.onTip) this.onTip(tip);
+  }
 
-    // Show AI tip
-    if (this.onTip) this.onTip({ text: clean, isLibrary: false, timestamp: Date.now() });
+  updateStatus(status) {
+    if (this.onStatusChange) this.onStatusChange(status);
+  }
 
-    // Death handling (FEATURE 5)
-    if (isDeath) {
-      this.consecutiveDeaths++;
-      this._setTimeout(() => this.showLibraryTip('death'), 4000);
+  // ============ MANUAL TIP REQUEST ============
 
-      if (this.consecutiveDeaths >= 3 && !this.isBurstActive && !this.motivationalGivenThisRound) {
-        this.motivationalGivenThisRound = true;
-        this._setTimeout(() => this.showMotivationalTip('motivation'), 6000);
-      }
-    } else if (!isBuyPhase) {
-      this.consecutiveDeaths = 0; // good play resets streak
-    }
-
-    // Clutch detected → hype (FEATURE 5)
-    if (isClutch && !this.isBurstActive && !this.motivationalGivenThisRound) {
-      this.motivationalGivenThisRound = true;
-      this._setTimeout(() => this.showMotivationalTip('hype'), 2000);
-    }
+  async requestTip() {
+    await this.captureAndAnalyze();
   }
 }
 

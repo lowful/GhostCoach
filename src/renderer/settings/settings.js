@@ -19,6 +19,7 @@
   const licensePlanEl    = document.getElementById('license-plan');
   const licenseStatusEl  = document.getElementById('license-status-badge');
   const licenseExpiryEl  = document.getElementById('license-expiry');
+  const usernameInput    = document.getElementById('valorant-username');
 
   // ─── Local state ──────────────────────────────────────────────────────────────
   let isCoaching       = false;
@@ -140,6 +141,7 @@
       overlayPosition,
       performanceMode,
       audioDetection,
+      valorantUsername: usernameInput ? usernameInput.value.trim() : '',
     }, patch));
   }
 
@@ -193,6 +195,15 @@
     });
   });
 
+  // ─── Valorant username ────────────────────────────────────────────────────────
+  if (usernameInput) {
+    let usernameTimer = null;
+    usernameInput.addEventListener('input', () => {
+      clearTimeout(usernameTimer);
+      usernameTimer = setTimeout(() => saveSettings(), 1000);
+    });
+  }
+
   // ─── Quit ─────────────────────────────────────────────────────────────────────
   btnQuit.addEventListener('click', () => {
     if (!window.settingsAPI) return;
@@ -233,6 +244,9 @@
       }
       if (state.audioDetection !== undefined) {
         setAudioToggle(state.audioDetection);
+      }
+      if (state.valorantUsername !== undefined && usernameInput && !usernameInput.value) {
+        usernameInput.value = state.valorantUsername;
       }
       updateLicenseDisplay(state);
     });

@@ -19,10 +19,10 @@ const {
 } = require('./overlay');
 const { createSettingsWindow, sendToSettings, getSettingsWindow } = require('./settings-window');
 const { getMatchSummary } = require('./api');
+const { captureScreen } = require('./capture');
 
 const { registerHotkeys, unregisterHotkeys } = require('./hotkeys');
 const CoachingEngine = require('./coaching-engine');
-const { startAudioMonitor, stopAudioMonitor } = require('./audio-monitor');
 
 // ─── Session State ─────────────────────────────────────────────────────────────
 let activationWindow = null;
@@ -191,41 +191,37 @@ function startCoaching() {
   sessionStartTime = Date.now();
   tipHistory       = [];
 
-  const licenseKey = store.get('licenseKey');
+  // Strip trailing /api from stored URL so engine can append its own paths
+  const rawUrl = store.get('serverUrl') || 'https://ghostcoach-production.up.railway.app/api';
+  const baseUrl = rawUrl.replace(/\/api\/?$/, '');
 
-  engine = new CoachingEngine();
+  engine = new CoachingEngine({
+    serverUrl:       baseUrl,
+    licenseKey:      store.get('licenseKey') || '',
+    captureFunction: async () => {
+      const { buffer } = await captureScreen();
+      return buffer.toString('base64');
+    }
+  });
 
   engine.onTip = (tipData) => {
     tipHistory.unshift(tipData);
     if (tipHistory.length > 40) tipHistory.pop();
-    sendToOverlay('coach:tip', tipData);
+    sendToOverlay('show-tip', tipData);
     sendToOverlay('coach:state', buildState());
     sendToSettings('settings:state', buildState());
   };
 
-  engine.onStatus = (statusKey) => {
+  engine.onStatusChange = (statusKey) => {
     sendToOverlay('coach:status', { status: statusKey });
     sendToSettings('settings:status', { status: statusKey });
   };
 
-  engine.onMatchEnd = (tips) => {
-    triggerMatchSummary(tips);
+  engine.onMatchReview = (review) => {
+    sendToOverlay('coach:matchReview', { review });
   };
 
-  engine.onRecap = (recap) => {
-    sendToOverlay('coach:recap', { text: recap });
-  };
-
-  engine.start(licenseKey);
-
-  // Start audio monitor if enabled
-  if (store.get('audioDetection') !== false) {
-    startAudioMonitor((state) => {
-      if (engine && state !== 'ready' && state !== 'unavailable') {
-        engine.setAudioState(state);
-      }
-    });
-  }
+  engine.start();
 
   updateTrayMenu(true);
   const state = buildState();
@@ -240,11 +236,8 @@ function stopCoaching() {
   isPaused   = false;
 
   if (engine) {
-    const matchTips = engine.matchTips || [];
     engine.stop();
     engine = null;
-    stopAudioMonitor();
-    if (matchTips.length >= 5) triggerMatchSummary(matchTips);
   }
 
   sendToOverlay('coach:sessionOver', {
@@ -274,7 +267,7 @@ function pauseResumeCoaching() {
   } else {
     sendToOverlay('coach:status', { status: 'coaching' });
     sendToSettings('settings:status', { status: 'coaching' });
-    if (engine) engine.requestImmediateCapture();
+    if (engine) engine.requestTip();
   }
 
   sendToOverlay('coach:pauseState', { paused: isPaused });
@@ -302,6 +295,7 @@ function buildState() {
     licensePlan:         store.get('licensePlan'),
     licenseStatus:       store.get('licenseStatus'),
     licenseExpiry:       store.get('licenseExpiry'),
+    valorantUsername:    store.get('valorantUsername') || '',
   };
 }
 
@@ -376,7 +370,7 @@ ipcMain.on('overlay:doClose', () => {
 ipcMain.on('settings:startCoaching',  () => startCoaching());
 ipcMain.on('settings:stopCoaching',   () => stopCoaching());
 ipcMain.on('settings:pauseResume',    () => pauseResumeCoaching());
-ipcMain.on('settings:forceCapture',   () => { if (engine) engine.requestImmediateCapture(); });
+ipcMain.on('settings:forceCapture',   () => { if (engine) engine.requestTip(); });
 
 ipcMain.on('settings:quit', () => {
   cleanup();
@@ -384,25 +378,10 @@ ipcMain.on('settings:quit', () => {
 });
 
 ipcMain.on('settings:save', (_, settings) => {
-  if (settings.tipPos)          store.set('tipPosition',     settings.tipPos);
-  if (settings.overlayPosition) store.set('overlayPosition', settings.overlayPosition);
-  if (settings.performanceMode) {
-    store.set('performanceMode', settings.performanceMode);
-    if (engine) engine.setPerformanceMode(settings.performanceMode);
-  }
-  if (settings.audioDetection !== undefined) {
-    store.set('audioDetection', !!settings.audioDetection);
-    if (isCoaching) {
-      if (settings.audioDetection) {
-        startAudioMonitor((state) => {
-          if (engine && state !== 'ready' && state !== 'unavailable') engine.setAudioState(state);
-        });
-      } else {
-        stopAudioMonitor();
-        if (engine) engine.setAudioState('quiet');
-      }
-    }
-  }
+  if (settings.tipPos)              store.set('tipPosition',       settings.tipPos);
+  if (settings.overlayPosition)     store.set('overlayPosition',   settings.overlayPosition);
+  if (settings.performanceMode)     store.set('performanceMode',   settings.performanceMode);
+  if (settings.valorantUsername !== undefined) store.set('valorantUsername', settings.valorantUsername);
 
   const state = buildState();
   sendToOverlay('coach:state', state);
@@ -500,11 +479,11 @@ function launchMainApp() {
   registerHotkeys({
     toggleOverlay:   () => toggleOverlay(),
     forceCapture:    () => {
-      if (engine) engine.requestImmediateCapture();
+      if (engine) engine.requestTip();
       sendToOverlay('overlay:miniToast', { text: 'Scanning...' });
     },
     requestTip:      () => {
-      if (engine) engine.requestImmediateCapture();
+      if (engine) engine.requestTip();
       sendToOverlay('overlay:miniToast', { text: 'Scanning...' });
     },
     pauseResume:     () => {
