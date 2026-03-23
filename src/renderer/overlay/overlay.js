@@ -225,10 +225,11 @@
     addToHistory(text, false, source === 'library');
 
     const isAI         = source === 'ai';
+    const isSystem     = source === 'system';
     const isMotivation = category === 'motivation' || category === 'hype';
-    const borderColor  = isAI ? '#00F0FF' : isMotivation ? '#FFB800' : '#FF4655';
-    const badgeColor   = isAI ? '#00F0FF' : isMotivation ? '#FFB800' : 'rgba(236,232,225,0.5)';
-    const badgeText    = isAI ? 'AI TIP'  : isMotivation ? (category === 'hype' ? 'HYPE' : 'MENTAL') : 'TIP';
+    const borderColor  = isAI ? '#00F0FF' : isSystem ? 'rgba(236,232,225,0.3)' : isMotivation ? '#FFB800' : '#FF4655';
+    const badgeColor   = isAI ? '#00F0FF' : isSystem ? 'rgba(236,232,225,0.4)' : isMotivation ? '#FFB800' : 'rgba(236,232,225,0.5)';
+    const badgeText    = isAI ? 'AI TIP'  : isSystem ? 'GHOSTCOACH' : isMotivation ? (category === 'hype' ? 'HYPE' : 'MENTAL') : 'TIP';
 
     // Remove existing card
     container.innerHTML = '';

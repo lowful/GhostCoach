@@ -37,28 +37,36 @@ class CoachingEngine extends EventEmitter {
     this.consecutiveWins = 0;
     this.lastPhase = 'unknown';
     this.shownFromCategory = {};
+    this.lastTipTime = Date.now(); // cooldown starts from launch
     this.emit('status', 'coaching');
     console.log('[engine] Started');
 
-    // Welcome tips
-    this.showContextualLibraryTip();
+    // 2 seconds: welcome message (subtle system source, not a coaching tip)
     setTimeout(() => {
-      if (this.isRunning) this.showContextualLibraryTip();
-    }, 8000);
+      if (!this.isRunning) return;
+      const welcome = WELCOME_MESSAGES[Math.floor(Math.random() * WELCOME_MESSAGES.length)];
+      this.emit('tip', { text: welcome, source: 'system', time: Date.now() });
+    }, 2000);
 
-    // AI screenshot every 30 seconds — the ONLY recurring timer
+    // 12 seconds: first real contextual library tip
+    setTimeout(() => {
+      if (!this.isRunning) return;
+      this.showContextualLibraryTip();
+    }, 12000);
+
+    // 20 seconds: first AI screenshot
+    setTimeout(() => {
+      if (this.isRunning && !this.isCapturing) {
+        this.captureAndAnalyze();
+      }
+    }, 20000);
+
+    // Regular AI screenshots every 30 seconds after that
     this.timer = setInterval(() => {
       if (this.isRunning && !this.isCapturing) {
         this.captureAndAnalyze();
       }
     }, 30000);
-
-    // First AI screenshot after 15 seconds
-    setTimeout(() => {
-      if (this.isRunning && !this.isCapturing) {
-        this.captureAndAnalyze();
-      }
-    }, 15000);
   }
 
   stop() {
@@ -284,6 +292,16 @@ class CoachingEngine extends EventEmitter {
     this.emit('tip', tip);
   }
 }
+
+const WELCOME_MESSAGES = [
+  "GhostCoach is watching. Let's get this win.",
+  "Coaching active. Focus up and play your game.",
+  "GhostCoach is live. Play smart, I have got your back.",
+  "Locked in. Let's climb some ranks today.",
+  "GhostCoach online. Time to dominate.",
+  "Ready to coach. Stay calm and trust your plays.",
+  "GhostCoach activated. Let's make this a good one."
+];
 
 const TIP_CATEGORIES = {
   early: [
