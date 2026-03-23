@@ -284,11 +284,28 @@ router.post('/analyze', async (req, res) => {
 
   const t0 = Date.now();
   try {
-    const tip = await Promise.race([
+    let tip = await Promise.race([
       geminiCall(req.body.toString('base64'), prompt, 150),
       new Promise((_, rej) => setTimeout(() => rej(new Error('Gemini timeout')), 10000)),
     ]);
     trackCall(licenseKey);
+
+    // Enforce complete sentence on the server before sending to client
+    if (tip && tip !== 'SKIP' && tip !== 'VICTORY' && tip !== 'DEFEAT') {
+      const lastChar = tip.charAt(tip.length - 1);
+      if (lastChar !== '.' && lastChar !== '!' && lastChar !== '?') {
+        if (tip.length > 30) {
+          // Long enough to be a real tip — append period to complete it
+          tip = tip + '.';
+          console.log('[coach] Appended period to complete tip');
+        } else {
+          // Too short and incomplete — discard it
+          console.log('[coach] Discarded incomplete tip:', tip);
+          tip = 'SKIP';
+        }
+      }
+    }
+
     console.log('[coach] ' + licenseKey.slice(0, 8) + '... -> "' + (tip || '').slice(0, 60) + '" (' + (Date.now() - t0) + 'ms)');
     res.json({ tip: tip || '' });
   } catch (err) {
