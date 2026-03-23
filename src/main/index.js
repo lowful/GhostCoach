@@ -204,22 +204,19 @@ function startCoaching() {
     }
   });
 
-  engine.onTip = (tipData) => {
+  engine.on('tip', (tipData) => {
+    console.log('[main] FORWARDING TIP TO OVERLAY');
     tipHistory.unshift(tipData);
     if (tipHistory.length > 40) tipHistory.pop();
     sendToOverlay('show-tip', tipData);
     sendToOverlay('coach:state', buildState());
     sendToSettings('settings:state', buildState());
-  };
+  });
 
-  engine.onStatusChange = (statusKey) => {
-    sendToOverlay('coach:status', { status: statusKey });
-    sendToSettings('settings:status', { status: statusKey });
-  };
-
-  engine.onMatchReview = (review) => {
-    sendToOverlay('coach:matchReview', { review });
-  };
+  engine.on('status', (status) => {
+    sendToOverlay('coach:status', { status });
+    sendToSettings('settings:status', { status });
+  });
 
   engine.start();
 
