@@ -117,9 +117,6 @@ class CoachingEngine extends EventEmitter {
       return;
     }
 
-    // Must end with punctuation
-    if (!trimmed.match(/[.!?"]$/)) return;
-
     // Enforce 20-second cooldown between tips
     if (Date.now() - this.lastTipTime < 20000) {
       console.log('[engine] Tip skipped due to cooldown');
