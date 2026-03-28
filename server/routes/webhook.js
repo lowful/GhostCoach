@@ -49,20 +49,60 @@ async function webhookHandler(req, res) {
 
       case 'checkout.session.completed': {
         const session = event.data.object;
-        const userId  = session.client_reference_id;
-        const plan    = session.metadata?.plan;
 
-        if (!userId || !plan) {
-          console.error('[webhook] Missing userId or plan in session metadata', session.id);
+        // Full session dump so we can see exactly what arrived
+        console.log('[webhook] checkout.session.completed fired');
+        console.log('[webhook] Session ID:', session.id);
+        console.log('[webhook] Mode:', session.mode);
+        console.log('[webhook] client_reference_id:', session.client_reference_id);
+        console.log('[webhook] customer:', session.customer);
+        console.log('[webhook] subscription:', session.subscription);
+        console.log('[webhook] customer_email:', session.customer_details?.email);
+        console.log('[webhook] metadata:', JSON.stringify(session.metadata));
+        console.log('[webhook] payment_status:', session.payment_status);
+
+        const userId = session.client_reference_id || session.metadata?.userId || null;
+        let plan = session.metadata?.plan || null;
+
+        console.log('[webhook] Resolved userId:', userId);
+        console.log('[webhook] Resolved plan from metadata:', plan);
+
+        // Fallback: determine plan from price ID if metadata.plan is missing
+        if (!plan) {
+          console.log('[webhook] Plan missing from metadata, looking up from line items...');
+          try {
+            const lineItems = await stripe.checkout.sessions.listLineItems(session.id);
+            const priceId = lineItems.data[0]?.price?.id;
+            console.log('[webhook] Price ID from line items:', priceId);
+            if (priceId === process.env.STRIPE_PRICE_WEEKLY)   plan = 'weekly';
+            else if (priceId === process.env.STRIPE_PRICE_MONTHLY)  plan = 'monthly';
+            else if (priceId === process.env.STRIPE_PRICE_LIFETIME) plan = 'lifetime';
+            else plan = 'monthly'; // safe fallback
+            console.log('[webhook] Determined plan from price ID:', plan);
+          } catch (e) {
+            console.error('[webhook] Failed to look up line items:', e.message);
+            plan = 'monthly';
+          }
+        }
+
+        if (!userId) {
+          console.error('[webhook] CRITICAL: userId is null — cannot create license. Session:', session.id);
+          console.error('[webhook] client_reference_id was:', session.client_reference_id);
+          console.error('[webhook] metadata was:', JSON.stringify(session.metadata));
           break;
         }
 
         // Idempotency — skip if license already exists for this session
-        const { data: existing } = await supabase
+        console.log('[webhook] Checking for existing license for session:', session.id);
+        const { data: existing, error: lookupError } = await supabase
           .from('licenses')
           .select('id')
           .eq('stripe_session_id', session.id)
           .single();
+
+        if (lookupError && lookupError.code !== 'PGRST116') {
+          console.error('[webhook] Idempotency check error:', JSON.stringify(lookupError));
+        }
 
         if (existing) {
           console.log(`[webhook] License already exists for session ${session.id}, skipping`);
@@ -72,7 +112,13 @@ async function webhookHandler(req, res) {
         const licenseKey = generateLicenseKey();
         const expiresAt  = getExpiresAt(plan);
 
-        const { error } = await supabase.from('licenses').insert({
+        console.log('[webhook] Inserting license into Supabase...');
+        console.log('[webhook] License key:', licenseKey);
+        console.log('[webhook] User ID:', userId);
+        console.log('[webhook] Plan:', plan);
+        console.log('[webhook] Expires at:', expiresAt);
+
+        const { data: insertData, error: insertError } = await supabase.from('licenses').insert({
           user_id:                userId,
           license_key:            licenseKey,
           plan,
@@ -81,14 +127,18 @@ async function webhookHandler(req, res) {
           stripe_customer_id:     session.customer || null,
           stripe_subscription_id: session.subscription || null,
           stripe_session_id:      session.id,
-        });
+        }).select();
 
-        if (error) {
-          console.error('[webhook] Supabase insert error:', error.message);
+        if (insertError) {
+          console.error('[webhook] SUPABASE INSERT FAILED:', JSON.stringify(insertError));
+          console.error('[webhook] Insert error code:', insertError.code);
+          console.error('[webhook] Insert error message:', insertError.message);
+          console.error('[webhook] Insert error details:', insertError.details);
           break;
         }
 
-        console.log(`[webhook] License ${licenseKey} created for user ${userId} (${plan})`);
+        console.log(`[webhook] SUCCESS: License ${licenseKey} created for user ${userId} (${plan})`);
+        console.log('[webhook] Insert result:', JSON.stringify(insertData));
         break;
       }
 
