@@ -54,6 +54,59 @@ router.post('/create-checkout', async (req, res) => {
   }
 });
 
+// POST /api/payments/cancel
+// Body: { userId }
+router.post('/cancel', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ error: 'Missing userId' });
+
+    const { data: license, error: licenseError } = await supabase
+      .from('licenses')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (licenseError || !license) {
+      return res.status(404).json({ error: 'No license found' });
+    }
+
+    if (license.plan === 'lifetime') {
+      return res.status(400).json({ error: 'Lifetime plans cannot be cancelled' });
+    }
+
+    if (!license.stripe_subscription_id) {
+      await supabase
+        .from('licenses')
+        .update({ status: 'cancelled' })
+        .eq('id', license.id);
+      return res.json({ success: true, message: 'Subscription cancelled' });
+    }
+
+    const subscription = await stripe.subscriptions.update(license.stripe_subscription_id, {
+      cancel_at_period_end: true,
+    });
+
+    await supabase
+      .from('licenses')
+      .update({
+        status:     'cancelled',
+        expires_at: new Date(subscription.current_period_end * 1000).toISOString(),
+      })
+      .eq('id', license.id);
+
+    console.log('[payments] Subscription cancelled for user:', userId);
+    res.json({
+      success:     true,
+      message:     'Subscription cancelled',
+      accessUntil: new Date(subscription.current_period_end * 1000).toISOString(),
+    });
+  } catch (e) {
+    console.error('[payments] Cancel error:', e.message);
+    res.status(500).json({ error: 'Failed to cancel subscription: ' + e.message });
+  }
+});
+
 // GET /api/payments/success?session_id=xxx
 // Called by success page after Stripe redirect.
 // Retrieves session from Stripe, then polls Supabase for the generated license.
