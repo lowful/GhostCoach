@@ -11,7 +11,6 @@ const schema = {
   licenseExpiry:             { type: 'string',  default: '' },
   serverUrl:                 { type: 'string',  default: 'https://ghostcoach-production.up.railway.app/api' },
   panelMinimized:            { type: 'boolean', default: false },
-  audioDetection:            { type: 'boolean', default: true },
   deviceId:                  { type: 'string',  default: '' }
 };
 

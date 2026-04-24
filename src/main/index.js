@@ -17,7 +17,7 @@ const {
   sendToOverlay,
   getOverlayWindow
 } = require('./overlay');
-const { createSettingsWindow, sendToSettings, getSettingsWindow } = require('./settings-window');
+const { createSettingsWindow, sendToSettings } = require('./settings-window');
 const { captureScreenshot } = require('./capture');
 
 const { registerHotkeys, unregisterHotkeys } = require('./hotkeys');
@@ -149,10 +149,10 @@ function handleInvalidLicenseState(result) {
   if (isCoaching) stopCoaching();
 
   // Show overlay notification
-  sendToOverlay('coach:tip', {
-    text:     message,
-    type:     'warning',
-    priority: 'high',
+  sendToOverlay('show-tip', {
+    text:   message,
+    source: 'system',
+    time:   Date.now(),
   });
 
   // Clear stored license so activation screen shows on next launch
@@ -265,7 +265,6 @@ function buildState() {
     tipPos:              store.get('tipPosition'),
     overlayPosition:     store.get('overlayPosition'),
     performanceMode:     store.get('performanceMode'),
-    audioDetection:      store.get('audioDetection'),
     onboardingCompleted: store.get('onboardingCompleted'),
     history:             tipHistory,
     summaries:           roundSummaries,
@@ -275,7 +274,6 @@ function buildState() {
     licensePlan:         store.get('licensePlan'),
     licenseStatus:       store.get('licenseStatus'),
     licenseExpiry:       store.get('licenseExpiry'),
-    valorantUsername:    store.get('valorantUsername') || '',
   };
 }
 
@@ -361,7 +359,6 @@ ipcMain.on('settings:save', (_, settings) => {
   if (settings.tipPos)              store.set('tipPosition',       settings.tipPos);
   if (settings.overlayPosition)     store.set('overlayPosition',   settings.overlayPosition);
   if (settings.performanceMode)     store.set('performanceMode',   settings.performanceMode);
-  if (settings.valorantUsername !== undefined) store.set('valorantUsername', settings.valorantUsername);
 
   const state = buildState();
   sendToOverlay('coach:state', state);

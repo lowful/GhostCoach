@@ -207,14 +207,17 @@
 
   // ─── Tip display (#tip-container) ────────────────────────────────────────────
 
-  function showTipCard(text, source, category) {
+  function showTipCard(tip) {
     const container = document.getElementById('tip-container');
     if (!container) {
       console.error('[overlay] tip-container not found!');
       return;
     }
 
-    // Update panel preview
+    const text   = cleanTipText((tip.text || '').trim());
+    const source = tip.source || 'ai';
+    if (shouldSkipResponse(text)) return;
+
     if (tipPreview && tipPreviewText) {
       tipPreview.classList.remove('hidden');
       tipPreviewText.textContent = text.length > 30 ? text.slice(0, 30) + '\u2026' : text;
@@ -224,66 +227,62 @@
     updateSessionStats();
     addToHistory(text, false, source === 'library');
 
-    const isAI         = source === 'ai';
-    const isSystem     = source === 'system';
-    const isMotivation = category === 'motivation' || category === 'hype';
-    const borderColor  = isSystem ? 'rgba(255,70,85,0.4)' : isMotivation ? '#FFB800' : '#FF4655';
-    const badgeColor   = isAI ? '#FF4655' : isSystem ? 'rgba(255,70,85,0.4)' : isMotivation ? '#FFB800' : 'rgba(255,70,85,0.6)';
-    const badgeText    = isAI ? 'AI TIP'  : isSystem ? 'GHOSTCOACH' : isMotivation ? (category === 'hype' ? 'HYPE' : 'MENTAL') : 'TIP';
+    const isAI     = source === 'ai';
+    const isSystem = source === 'system';
+    const borderColor = isSystem ? 'rgba(255,70,85,0.4)' : '#FF4655';
+    const badgeColor  = isAI ? '#FF4655' : isSystem ? 'rgba(255,70,85,0.4)' : 'rgba(255,70,85,0.6)';
+    const badgeText   = isAI ? 'AI TIP' : isSystem ? 'GHOSTCOACH' : 'TIP';
 
-    // Remove existing card
     container.innerHTML = '';
 
     const card = document.createElement('div');
-    card.className  = 'tip-card';
+    card.className = 'tip-card';
     card.style.cssText = [
       'background:rgba(15,20,30,0.92)',
+      'backdrop-filter:blur(16px)',
+      '-webkit-backdrop-filter:blur(16px)',
       'border-radius:10px',
       `border-left:3px solid ${borderColor}`,
       'padding:12px 16px',
       'max-width:380px',
       'opacity:0',
-      'transition:opacity 0.3s ease',
+      'transform:translateX(20px)',
+      'transition:opacity 0.3s ease, transform 0.3s ease',
       'pointer-events:none',
+      'box-shadow:0 8px 24px rgba(0,0,0,0.4)',
+      'font-family:Inter,-apple-system,Arial,sans-serif',
     ].join(';');
 
     const badge = document.createElement('div');
-    badge.style.cssText = `font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;color:${badgeColor};`;
+    badge.style.cssText = `font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1.2px;margin-bottom:4px;color:${badgeColor};`;
     badge.textContent = badgeText;
 
     const tipText = document.createElement('div');
-    tipText.style.cssText = 'font-size:14px;color:#ECE8E1;line-height:1.5;font-family:Inter,Arial,sans-serif;';
+    tipText.style.cssText = 'font-size:14px;color:#ECE8E1;line-height:1.5;';
     tipText.textContent = text;
 
     card.appendChild(badge);
     card.appendChild(tipText);
     container.appendChild(card);
 
-    // Animate in
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => { card.style.opacity = '1'; });
+      requestAnimationFrame(() => {
+        card.style.opacity   = '1';
+        card.style.transform = 'translateX(0)';
+      });
     });
 
-    // Auto-dismiss after 8 seconds
     setTimeout(() => {
-      card.style.opacity = '0';
+      card.style.opacity   = '0';
+      card.style.transform = 'translateX(20px)';
       setTimeout(() => { if (card.parentNode) card.parentNode.removeChild(card); }, 300);
     }, TIP_DURATION);
-  }
-
-  // Legacy wrapper so old coach:tip events still work if any remain
-  function showTip(data) {
-    const text = cleanTipText((data.text || '').trim());
-    if (shouldSkipResponse(text)) return;
-    const source   = data.isLibrary ? 'library' : 'ai';
-    const category = data.isMotivational ? 'motivation' : 'general';
-    showTipCard(text, source, category);
   }
 
   function showRecap(data) {
     const raw = (data.recap || data.text || '').trim();
     if (!raw || raw.length < 8) return;
-    showTipCard(cleanTipText(raw), 'library', 'general');
+    showTipCard({ text: raw, source: 'library' });
   }
 
   // ─── Round summary ────────────────────────────────────────────────────────────
@@ -560,25 +559,15 @@
       }
     });
 
-    // New coaching tip (new engine path via show-tip)
+    // Coaching tip
     window.overlayAPI.onShowTip((data) => {
-      console.log('[overlay] Received tip:', data.text, data.source);
+      console.log('[overlay] Received tip:', data.source, '-', data.text);
       if (overlayHidden) {
         hiddenTipBuffer.push(data);
         if (hiddenTipBuffer.length > 5) hiddenTipBuffer.shift();
         return;
       }
-      showTipCard(data.text, data.source, data.category);
-    });
-
-    // Legacy coach:tip path (kept for backwards compat)
-    window.overlayAPI.onTip((data) => {
-      if (overlayHidden) {
-        hiddenTipBuffer.push(data);
-        if (hiddenTipBuffer.length > 5) hiddenTipBuffer.shift();
-        return;
-      }
-      showTip(data);
+      showTipCard(data);
     });
 
     // Round summary
@@ -624,11 +613,7 @@
       if (vis && hiddenTipBuffer.length > 0) {
         const mostRecent = hiddenTipBuffer[hiddenTipBuffer.length - 1];
         hiddenTipBuffer = [];
-        if (mostRecent.source) {
-          showTipCard(mostRecent.text, mostRecent.source, mostRecent.category);
-        } else {
-          showTip(mostRecent);
-        }
+        showTipCard(mostRecent);
       }
     });
 

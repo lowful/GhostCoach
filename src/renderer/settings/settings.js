@@ -14,12 +14,9 @@
   const overlayPosBtns   = document.querySelectorAll('.overlay-pos-btn');
   const tipPosBtns       = document.querySelectorAll('.tip-pos-btn');
   const btnQuit          = document.getElementById('btn-quit');
-  const audioToggle      = document.getElementById('audio-toggle');
-  const audioLabel       = document.getElementById('audio-label');
   const licensePlanEl    = document.getElementById('license-plan');
   const licenseStatusEl  = document.getElementById('license-status-badge');
   const licenseExpiryEl  = document.getElementById('license-expiry');
-  const usernameInput    = document.getElementById('valorant-username');
 
   // ─── Local state ──────────────────────────────────────────────────────────────
   let isCoaching       = false;
@@ -27,7 +24,6 @@
   let tipPosition      = 'bottom-right';
   let overlayPosition  = 'top-left';
   let performanceMode  = 'balanced';
-  let audioDetection   = true;
   let sessionStartTime = null;
   let sessionTipCount  = 0;
   let sessionTimerInterval = null;
@@ -102,13 +98,6 @@
     tipPosBtns.forEach(b => b.classList.toggle('active', b.dataset.pos === tipPosition));
   }
 
-  // ─── Audio toggle ─────────────────────────────────────────────────────────────
-  function setAudioToggle(enabled) {
-    audioDetection = !!enabled;
-    audioToggle.dataset.on = audioDetection ? 'true' : 'false';
-    audioLabel.textContent = audioDetection ? 'Enabled' : 'Disabled';
-  }
-
   // ─── License display ──────────────────────────────────────────────────────────
   function updateLicenseDisplay(state) {
     if (!state.licenseStatus) return;
@@ -140,8 +129,6 @@
       tipPos: tipPosition,
       overlayPosition,
       performanceMode,
-      audioDetection,
-      valorantUsername: usernameInput ? usernameInput.value.trim() : '',
     }, patch));
   }
 
@@ -187,23 +174,6 @@
     });
   });
 
-  // Audio toggle click
-  [audioToggle, audioLabel].forEach(el => {
-    el.addEventListener('click', () => {
-      setAudioToggle(!audioDetection);
-      saveSettings();
-    });
-  });
-
-  // ─── Valorant username ────────────────────────────────────────────────────────
-  if (usernameInput) {
-    let usernameTimer = null;
-    usernameInput.addEventListener('input', () => {
-      clearTimeout(usernameTimer);
-      usernameTimer = setTimeout(() => saveSettings(), 1000);
-    });
-  }
-
   // ─── Quit ─────────────────────────────────────────────────────────────────────
   btnQuit.addEventListener('click', () => {
     if (!window.settingsAPI) return;
@@ -241,12 +211,6 @@
         updateSessionStats();
       } else if (!state.isCoaching) {
         sessionStartTime = null;
-      }
-      if (state.audioDetection !== undefined) {
-        setAudioToggle(state.audioDetection);
-      }
-      if (state.valorantUsername !== undefined && usernameInput && !usernameInput.value) {
-        usernameInput.value = state.valorantUsername;
       }
       updateLicenseDisplay(state);
     });
