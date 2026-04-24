@@ -58,13 +58,12 @@ const checkoutLimiter = rateLimit({
 });
 
 // ─── Raw body routes — MUST come before JSON parser ──────────────────────────
-// Stripe webhook needs raw JSON; coach/analyze needs raw binary JPEG
+// Stripe webhook needs raw JSON; coach/summary/round needs raw binary JPEG
 app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), webhookHandler);
-app.post('/api/coach/analyze',      express.raw({ type: ['image/jpeg', 'application/octet-stream'], limit: '500kb' }), (req, _, next) => { req._rawBody = req.body; next(); });
 app.post('/api/coach/summary/round', express.raw({ type: 'image/jpeg', limit: '500kb' }), (req, _, next) => { req._rawBody = req.body; next(); });
 
-// ─── Global JSON parser ───────────────────────────────────────────────────────
-app.use(express.json());
+// ─── Global JSON parser (2mb so /api/coach/analyze can carry base64 JPEG) ─────
+app.use(express.json({ limit: '2mb' }));
 
 // ─── Route-level rate limits ──────────────────────────────────────────────────
 app.use('/api/license/activate',        activationLimiter);

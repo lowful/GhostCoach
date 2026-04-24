@@ -18,8 +18,7 @@ const {
   getOverlayWindow
 } = require('./overlay');
 const { createSettingsWindow, sendToSettings, getSettingsWindow } = require('./settings-window');
-const { getMatchSummary } = require('./api');
-const { captureScreen } = require('./capture');
+const { captureScreenshot } = require('./capture');
 
 const { registerHotkeys, unregisterHotkeys } = require('./hotkeys');
 const CoachingEngine = require('./coaching-engine');
@@ -165,24 +164,6 @@ function handleInvalidLicenseState(result) {
   console.warn(`[license] Invalid state: ${reason} — coaching stopped, license cleared`);
 }
 
-// ─── Match summary ─────────────────────────────────────────────────────────────
-async function triggerMatchSummary(tips) {
-  if (!tips || tips.length < 5) return;
-  const licenseKey = store.get('licenseKey');
-  if (!licenseKey) return;
-
-  try {
-    const summary = await getMatchSummary(tips, licenseKey);
-    if (summary) {
-      const data = { ...summary, game: 'Valorant', timestamp: Date.now(), tipsCount: tips.length };
-      saveMatchSummary(data);
-      sendToOverlay('coach:matchSummary', data);
-    }
-  } catch (err) {
-    console.error('[match-summary] Error:', err.message);
-  }
-}
-
 // ─── Coaching Loop ─────────────────────────────────────────────────────────────
 function startCoaching() {
   if (isCoaching) return;
@@ -198,14 +179,10 @@ function startCoaching() {
   engine = new CoachingEngine({
     serverUrl:       baseUrl,
     licenseKey:      store.get('licenseKey') || '',
-    captureFunction: async () => {
-      const { buffer } = await captureScreen();
-      return buffer.toString('base64');
-    }
+    captureFunction: captureScreenshot,
   });
 
   engine.on('tip', (tipData) => {
-    console.log('[main] FORWARDING TIP TO OVERLAY');
     tipHistory.unshift(tipData);
     if (tipHistory.length > 40) tipHistory.pop();
     sendToOverlay('show-tip', tipData);
@@ -216,6 +193,12 @@ function startCoaching() {
   engine.on('status', (status) => {
     sendToOverlay('coach:status', { status });
     sendToSettings('settings:status', { status });
+  });
+
+  engine.on('match-review', (review) => {
+    const data = { review, game: 'Valorant', timestamp: Date.now(), tipsCount: tipHistory.length };
+    saveMatchSummary(data);
+    sendToOverlay('coach:matchReview', data);
   });
 
   engine.start();

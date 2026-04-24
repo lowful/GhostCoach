@@ -37,8 +37,11 @@ function sanitize(t) {
 // ─── Direct Gemini REST call — tries primary model, falls back if 404 ─────────
 const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash-001', 'gemini-1.5-flash-latest'];
 
-async function geminiCall(imageB64, prompt, maxTokens) {
+async function geminiCall(imageB64, prompt, maxTokens, jsonMode) {
   const apiKey = process.env.GEMINI_API_KEY;
+  const generationConfig = { maxOutputTokens: maxTokens || 100, temperature: 0.7 };
+  if (jsonMode) generationConfig.responseMimeType = 'application/json';
+
   const body = JSON.stringify({
     contents: [{
       parts: [
@@ -46,7 +49,7 @@ async function geminiCall(imageB64, prompt, maxTokens) {
         { inlineData: { mimeType: 'image/jpeg', data: imageB64 } },
       ],
     }],
-    generationConfig: { maxOutputTokens: maxTokens || 100, temperature: 0.7 },
+    generationConfig,
   });
 
   let lastError;
@@ -74,7 +77,7 @@ async function geminiCall(imageB64, prompt, maxTokens) {
 
       const data = await response.json();
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      return sanitize(text);
+      return jsonMode ? text : sanitize(text);
     } catch (err) {
       if (err.message.startsWith('404 for model')) { lastError = err; continue; }
       throw err;
@@ -120,6 +123,104 @@ async function geminiTextCall(prompt, maxTokens) {
     }
   }
   throw lastError || new Error('All Gemini models failed');
+}
+
+function buildContextPrompt(context) {
+  const ctx = context || {};
+  const recent = (ctx.lastTipsGiven || []).map((t, i) => `  ${i + 1}. ${t}`).join('\n') || '  None yet';
+
+  return `You are a Radiant-level Valorant coach watching a live match. You have memory of the match so far.
+
+CURRENT MATCH STATE (carry this forward, do not re-detect from scratch every frame):
+- Agent: ${ctx.agent || 'Unknown'}
+- Map: ${ctx.map || 'Unknown'}
+- Side: ${ctx.side || 'Unknown'}
+- Round: ${ctx.roundNumber || 'Unknown'}
+- Score: ${ctx.teamScore || 0} to ${ctx.enemyScore || 0}
+- Phase: ${ctx.phase || 'Unknown'}
+- Player credits: ${ctx.playerCredits == null ? 'Unknown' : ctx.playerCredits}
+- Player alive: ${ctx.playerAlive === false ? 'No' : 'Yes'}
+- Consecutive deaths: ${ctx.consecutiveDeaths || 0}
+- Recent tips you gave (do NOT repeat or rephrase these):
+${recent}
+
+YOUR TASK:
+Analyze the screenshot and give ONE specific coaching tip if there is something useful to say. Otherwise respond with SKIP.
+
+AGENT KNOWLEDGE (only suggest abilities the player's agent actually has):
+- Jett: Cloudburst smoke, Updraft jump, Tailwind dash, Blade Storm ult. NO walls, NO flashes.
+- Reyna: Leer blind eye, Devour heal, Dismiss escape, Empress ult. NO smokes.
+- Phoenix: Curveball flash, Hot Hands molly, Blaze fire wall, Run It Back ult.
+- Raze: Boom Bot, Blast Pack satchel, Paint Shells nade, Showstopper rocket.
+- Sova: Owl Drone, Shock Bolt, Recon Bolt, Hunter's Fury wallbang.
+- Omen: Shrouded Step teleport, Paranoia blind, Dark Cover smokes, From The Shadows.
+- Brimstone: Stim Beacon, Incendiary molly, Sky Smoke, Orbital Strike ult.
+- Viper: Snake Bite molly, Poison Cloud, Toxic Screen wall, Viper's Pit ult.
+- Killjoy: Nanoswarm, Alarmbot, Turret, Lockdown ult.
+- Sage: Slow Orb, Healing Orb, Barrier wall, Resurrection ult.
+- Cypher: Trapwire, Cyber Cage, Spycam, Neural Theft.
+- Chamber: Trademark trap, Headhunter pistol, Rendezvous teleport, Tour De Force op.
+- Skye: Trailblazer dog, Guiding Light flash bird, Regrowth heal, Seekers ult.
+- KAY/O: FLASH/drive, ZERO/point knife, FRAG/ment molly, NULL/cmd suppress ult.
+- Breach: Flashpoint, Fault Line stun, Aftershock, Rolling Thunder ult.
+- Astra: Gravity Well, Nova Pulse, Nebula smoke, Cosmic Divide wall.
+- Yoru: Fakeout, Blindside flash, Gatecrash teleport, Dimensional Drift.
+- Fade: Prowler, Seize tether, Haunt eye, Nightfall ult.
+- Gekko: Wingman, Dizzy, Mosh Pit, Thrash ult.
+- Neon: Fast Lane walls, Relay Bolt stun, High Gear sprint, Overdrive beam.
+- Harbor: Cove bubble, High Tide wall, Cascade wave, Reckoning ult.
+- Iso: Undercut, Double Tap shield, Contingency wall, Kill Contract.
+- Deadlock: GravNet, Sonic Sensor, Barrier Mesh, Annihilation ult.
+- Clove: Pick-Me-Up, Meddle, Ruse smokes (can cast dead), Not Dead Yet.
+- Vyse: Arc Rose, Shear, Razorvine, Steel Garden.
+- Tejo / Waylay / others: only reference abilities visibly shown on screen, do not invent.
+
+ECONOMY RULES:
+- Round 1 or 13 (pistol): only Ghost or light shields plus abilities.
+- Under 2000 credits: full save.
+- 2000 to 3900: force buy Spectre with light shields.
+- 3900+: full buy Vandal or Phantom with full shields and abilities.
+- If team is saving, save with them.
+
+WHEN TO STAY SILENT (respond with SKIP):
+- Player is just walking with nothing notable happening.
+- Nothing visible has changed since the last tip.
+- You would just repeat what you already said.
+- The screen shows a menu, lobby, agent select, or loading screen.
+- You cannot identify a specific actionable tip.
+
+WHEN TO GIVE A TIP:
+- Buy phase: economy advice based on visible credits.
+- Player is in bad position: suggest reposition.
+- Player just died: explain what happened.
+- Spike planted: post-plant or retake advice.
+- Player has utility unused that should be used.
+- Player about to make obvious mistake.
+
+RESPONSE FORMAT (return valid JSON, nothing else):
+{
+  "tip": "Your coaching tip in 8 to 20 words ending with a period. OR the word SKIP if nothing useful to say.",
+  "context": {
+    "agent": "detected agent name or null",
+    "map": "detected map name or null",
+    "side": "Attack or Defense or null",
+    "roundNumber": detected round number or null,
+    "teamScore": detected team score or null,
+    "enemyScore": detected enemy score or null,
+    "phase": "buy or active or postplant or dead or menu",
+    "playerCredits": detected credits number or null,
+    "playerAlive": true or false
+  }
+}
+
+CRITICAL RULES:
+- Tip MUST be a complete sentence ending in a period.
+- Tip MUST be 8 to 20 words.
+- Never use em-dashes or long dashes. Use commas and periods.
+- Never suggest abilities the player's agent does not have.
+- Never repeat tips from the recent tips list above.
+- When in doubt, respond with SKIP. Quality over quantity.
+- Always return valid JSON.`;
 }
 
 const SMART_PROMPT = `You are a Radiant-level Valorant coach analyzing a live gameplay screenshot. Give one coaching tip that is 8 to 20 words long. Your tip must be a complete, specific, actionable sentence.
@@ -271,46 +372,61 @@ async function validateKey(k) {
   return true;
 }
 
-// POST /api/coach/analyze  — raw binary JPEG body
+// POST /api/coach/analyze  — JSON body: { image: base64, context: {...} }
 router.post('/analyze', async (req, res) => {
   const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
 
   if (!licenseKey) return res.status(400).json({ error: 'X-License-Key header required' });
   if (!await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid or expired license key' });
-  if (!req.body || !req.body.length) return res.status(400).json({ error: 'No image data' });
+
+  const image   = req.body && req.body.image;
+  const context = (req.body && req.body.context) || {};
+  if (!image || typeof image !== 'string') return res.status(400).json({ error: 'No image data' });
 
   const isForced = req.headers['x-forced'] === 'true';
-  const prompt   = isForced ? FORCED_PROMPT : SMART_PROMPT;
+  const prompt   = buildContextPrompt(context) + (isForced
+    ? '\n\nOVERRIDE: The player manually requested coaching. Always give a real tip — do not respond with SKIP.'
+    : '');
 
   const t0 = Date.now();
   try {
-    let tip = await Promise.race([
-      geminiCall(req.body.toString('base64'), prompt, 150),
+    const raw = await Promise.race([
+      geminiCall(image, prompt, 250, true),
       new Promise((_, rej) => setTimeout(() => rej(new Error('Gemini timeout')), 10000)),
     ]);
     trackCall(licenseKey);
+
+    let tip = '';
+    let outCtx = {};
+    try {
+      const parsed = JSON.parse(String(raw).replace(/```json\s*|```/g, '').trim());
+      tip    = sanitize(parsed.tip || '');
+      outCtx = parsed.context || {};
+    } catch (parseErr) {
+      // Fallback: treat as plain tip text
+      tip = sanitize(String(raw));
+    }
 
     // Enforce complete sentence on the server before sending to client
     if (tip && tip !== 'SKIP' && tip !== 'VICTORY' && tip !== 'DEFEAT') {
       const lastChar = tip.charAt(tip.length - 1);
       if (lastChar !== '.' && lastChar !== '!' && lastChar !== '?') {
         if (tip.length > 30) {
-          // Long enough to be a real tip — append period to complete it
           tip = tip + '.';
-          console.log('[coach] Appended period to complete tip');
         } else {
-          // Too short and incomplete — discard it
           console.log('[coach] Discarded incomplete tip:', tip);
           tip = 'SKIP';
         }
       }
     }
 
-    console.log('[coach] ' + licenseKey.slice(0, 8) + '... -> "' + (tip || '').slice(0, 60) + '" (' + (Date.now() - t0) + 'ms)');
-    res.json({ tip: tip || '' });
+    console.log('[coach] ' + licenseKey.slice(0, 8) + '... agent=' + (outCtx.agent || '?') +
+      ' round=' + (outCtx.roundNumber || '?') + ' phase=' + (outCtx.phase || '?') +
+      ' -> "' + (tip || '').slice(0, 60) + '" (' + (Date.now() - t0) + 'ms)');
+    res.json({ tip: tip || '', context: outCtx });
   } catch (err) {
     console.error('[coach] analyze error:', err.message);
-    res.json({ tip: '' });
+    res.json({ tip: '', context: {} });
   }
 });
 
