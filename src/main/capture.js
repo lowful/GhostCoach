@@ -37,19 +37,30 @@ function getWorker() {
 
 function captureScreenshot() {
   return new Promise((resolve, reject) => {
-    if (pending) { reject(new Error('Capture already in progress')); return; }
+    console.log('[capture] captureScreenshot() called');
+    if (pending) { console.warn('[capture] Already pending, rejecting'); reject(new Error('Capture already in progress')); return; }
     const worker = getWorker();
+    console.log('[capture] Worker exists:', !!worker);
     pending = { resolve, reject };
 
     const timer = setTimeout(() => {
-      if (pending) { pending.reject(new Error('Capture timeout')); pending = null; }
+      if (pending) { console.error('[capture] Worker timeout after 6s'); pending.reject(new Error('Capture timeout')); pending = null; }
     }, 6000);
 
     const origResolve = resolve;
     const origReject  = reject;
-    pending.resolve = (v) => { clearTimeout(timer); origResolve(v); };
-    pending.reject  = (e) => { clearTimeout(timer); origReject(e);  };
+    pending.resolve = (v) => {
+      clearTimeout(timer);
+      console.log('[capture] Worker responded: success, base64 len=', v ? v.length : 0);
+      origResolve(v);
+    };
+    pending.reject = (e) => {
+      clearTimeout(timer);
+      console.error('[capture] Worker responded: error =', e.message);
+      origReject(e);
+    };
 
+    console.log('[capture] Posting "capture" message to worker');
     worker.postMessage('capture');
   });
 }

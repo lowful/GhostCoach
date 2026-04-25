@@ -37,10 +37,14 @@ class CoachingEngine extends EventEmitter {
   }
 
   start() {
+    console.log('[engine] start() called, isRunning was:', this.isRunning);
     if (this.isRunning) return;
     this.isRunning   = true;
     this.shouldAbort = false;
     this.lastTipTime = 0; // 0 = no prior tip, so first AI tip is not blocked by cooldown
+    console.log('[engine] License key set:', this.licenseKey ? 'YES (' + this.licenseKey.substring(0, 8) + '...)' : 'NO');
+    console.log('[engine] Server URL:', this.serverUrl);
+    console.log('[engine] Capture function set:', this.captureFunction ? 'YES' : 'NO');
     this.emit('status', 'coaching');
     console.log('[engine] Started');
 
@@ -75,22 +79,28 @@ class CoachingEngine extends EventEmitter {
   }
 
   async captureAndAnalyze() {
-    if (this.isCapturing) return;
-    if (Date.now() - this.lastCaptureTime < 15000) return;
+    console.log('[engine] captureAndAnalyze() called');
+    if (this.isCapturing) { console.log('[engine] Skipping: already capturing'); return; }
+    const sinceLast = Date.now() - this.lastCaptureTime;
+    if (sinceLast < 15000) { console.log('[engine] Skipping: only', sinceLast, 'ms since last capture'); return; }
 
     this.isCapturing     = true;
     this.lastCaptureTime = Date.now();
 
     try {
+      console.log('[engine] About to call captureFunction');
       const screenshot = await this.captureFunction();
-      if (this.shouldAbort) { this.isCapturing = false; return; }
-      if (!screenshot)      { this.isCapturing = false; return; }
+      console.log('[engine] Capture returned:', screenshot ? 'data (' + screenshot.length + ' chars)' : 'null');
+      if (this.shouldAbort) { console.log('[engine] Aborted after capture'); this.isCapturing = false; return; }
+      if (!screenshot)      { console.log('[engine] No screenshot data, aborting'); this.isCapturing = false; return; }
 
+      console.log('[engine] Sending to server:', this.serverUrl + '/api/coach/analyze');
       const response = await this.sendToServer(screenshot);
-      if (this.shouldAbort) { this.isCapturing = false; return; }
+      console.log('[engine] Server response:', response ? JSON.stringify(response).slice(0, 200) : 'null');
+      if (this.shouldAbort) { console.log('[engine] Aborted after server response'); this.isCapturing = false; return; }
       if (response) this.processAIResponse(response);
     } catch (e) {
-      console.error('[engine] Capture error:', e.message);
+      console.error('[engine] Capture error:', e.message, e.stack && e.stack.split('\n')[1]);
     }
 
     this.isCapturing = false;
@@ -107,6 +117,7 @@ class CoachingEngine extends EventEmitter {
       };
       if (forced) headers['X-Forced'] = 'true';
 
+      console.log('[engine] fetch() starting, body size ~', screenshot.length, 'chars');
       const response = await fetch(this.serverUrl + '/api/coach/analyze', {
         method:  'POST',
         headers,
@@ -115,8 +126,14 @@ class CoachingEngine extends EventEmitter {
       });
 
       clearTimeout(timeout);
-      if (!response.ok) return null;
-      return await response.json();
+      console.log('[engine] Server response status:', response.status);
+      if (!response.ok) {
+        const errText = await response.text().catch(() => '');
+        console.error('[engine] Non-OK response body:', errText.slice(0, 200));
+        return null;
+      }
+      const data = await response.json();
+      return data;
     } catch (e) {
       console.error('[engine] Server error:', e.message);
       return null;

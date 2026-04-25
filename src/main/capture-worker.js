@@ -10,6 +10,7 @@ const TARGET_H = 480;
 const JPEG_Q   = 50;
 
 function capture() {
+  console.log('[worker] Capture started');
   const outputPath = path.join(os.tmpdir(), `ghostcoach_${process.pid}_${Date.now()}.jpg`);
   const escaped    = outputPath.replace(/\\/g, '\\\\');
 
@@ -34,12 +35,15 @@ $g.Dispose(); $bmp.Dispose(); $r.Dispose()
       ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', psScript],
       { timeout: 4000 },
       (err) => {
-        if (err) { reject(err); return; }
+        if (err) { console.error('[worker] PowerShell failed:', err.message); reject(err); return; }
+        console.log('[worker] PowerShell completed');
         try {
           const buf = fs.readFileSync(outputPath);
+          console.log('[worker] File read, size:', buf.length, 'bytes');
           fs.unlink(outputPath, () => {});
           resolve(buf.toString('base64'));
         } catch (e) {
+          console.error('[worker] File read failed:', e.message);
           reject(e);
         }
       }

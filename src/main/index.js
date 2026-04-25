@@ -1,8 +1,33 @@
 require('dotenv').config();
 
-const { app, ipcMain, BrowserWindow, shell } = require('electron');
+const { app, ipcMain, BrowserWindow, shell, globalShortcut } = require('electron');
 const path   = require('path');
 const fs     = require('fs');
+
+// ─── File logger — main-process console.log is invisible in installed builds ──
+// Tee everything to %APPDATA%\ghostcoach\debug.log so we can debug production.
+let debugLogPath = null;
+function setupFileLogger() {
+  try {
+    debugLogPath = path.join(app.getPath('userData'), 'debug.log');
+    // Truncate on each launch so the log doesn't grow forever
+    try { fs.writeFileSync(debugLogPath, '=== GhostCoach session started ' + new Date().toISOString() + ' ===\n'); } catch {}
+    const origLog  = console.log.bind(console);
+    const origWarn = console.warn.bind(console);
+    const origErr  = console.error.bind(console);
+    const tee = (level, fn) => (...args) => {
+      try {
+        const line = '[' + new Date().toISOString() + '] [' + level + '] ' +
+          args.map(a => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ') + '\n';
+        fs.appendFileSync(debugLogPath, line);
+      } catch {}
+      fn(...args);
+    };
+    console.log   = tee('log',   origLog);
+    console.warn  = tee('warn',  origWarn);
+    console.error = tee('error', origErr);
+  } catch {}
+}
 const https  = require('https');
 const http   = require('http');
 const os     = require('os');
@@ -482,6 +507,18 @@ function launchMainApp() {
 app.setAppUserModelId('com.ghostcoach.app');
 
 app.whenReady().then(async () => {
+  setupFileLogger();
+  console.log('[main] App ready, debug log at:', debugLogPath);
+
+  // DevTools hotkey — opens detached devtools on the overlay window any time
+  globalShortcut.register('Ctrl+Shift+D', () => {
+    const w = getOverlayWindow();
+    if (w && !w.isDestroyed()) {
+      w.webContents.openDevTools({ mode: 'detach' });
+      console.log('[main] DevTools opened via Ctrl+Shift+D');
+    }
+  });
+
   const licenseKey    = store.get('licenseKey');
   const licenseStatus = store.get('licenseStatus');
   const licenseExpiry = store.get('licenseExpiry');
