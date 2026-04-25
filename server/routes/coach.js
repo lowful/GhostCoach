@@ -37,10 +37,36 @@ function sanitize(t) {
 // ─── Direct Gemini REST call — tries primary model, falls back if 404 ─────────
 const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash-001', 'gemini-1.5-flash-latest'];
 
+// Strict schema for /analyze responses — guarantees Gemini returns valid JSON
+const ANALYZE_SCHEMA = {
+  type: 'object',
+  properties: {
+    tip: { type: 'string' },
+    context: {
+      type: 'object',
+      properties: {
+        agent:         { type: 'string', nullable: true },
+        map:           { type: 'string', nullable: true },
+        side:          { type: 'string', nullable: true },
+        roundNumber:   { type: 'integer', nullable: true },
+        teamScore:     { type: 'integer', nullable: true },
+        enemyScore:    { type: 'integer', nullable: true },
+        phase:         { type: 'string', nullable: true },
+        playerCredits: { type: 'integer', nullable: true },
+        playerAlive:   { type: 'boolean', nullable: true },
+      },
+    },
+  },
+  required: ['tip'],
+};
+
 async function geminiCall(imageB64, prompt, maxTokens, jsonMode) {
   const apiKey = process.env.GEMINI_API_KEY;
   const generationConfig = { maxOutputTokens: maxTokens || 100, temperature: 0.7 };
-  if (jsonMode) generationConfig.responseMimeType = 'application/json';
+  if (jsonMode) {
+    generationConfig.responseMimeType = 'application/json';
+    generationConfig.responseSchema   = ANALYZE_SCHEMA;
+  }
 
   const body = JSON.stringify({
     contents: [{
@@ -391,20 +417,35 @@ router.post('/analyze', async (req, res) => {
   const t0 = Date.now();
   try {
     const raw = await Promise.race([
-      geminiCall(image, prompt, 250, true),
+      geminiCall(image, prompt, 500, true),
       new Promise((_, rej) => setTimeout(() => rej(new Error('Gemini timeout')), 10000)),
     ]);
     trackCall(licenseKey);
 
     let tip = '';
     let outCtx = {};
+    const rawStr = String(raw).trim();
+
+    // Try direct parse first (works when responseSchema is honored)
+    let parsed = null;
     try {
-      const parsed = JSON.parse(String(raw).replace(/```json\s*|```/g, '').trim());
+      parsed = JSON.parse(rawStr);
+    } catch {
+      // Fallback: extract first {...} block from any conversational wrapper
+      const start = rawStr.indexOf('{');
+      const end   = rawStr.lastIndexOf('}');
+      if (start !== -1 && end > start) {
+        try { parsed = JSON.parse(rawStr.slice(start, end + 1)); } catch {}
+      }
+    }
+
+    if (parsed && typeof parsed === 'object') {
       tip    = sanitize(parsed.tip || '');
       outCtx = parsed.context || {};
-    } catch (parseErr) {
-      // Fallback: treat as plain tip text
-      tip = sanitize(String(raw));
+    } else {
+      // Couldn't extract any JSON — log and skip rather than ship garbage to client
+      console.warn('[coach] Could not parse Gemini response:', rawStr.slice(0, 100));
+      tip = 'SKIP';
     }
 
     // Enforce complete sentence on the server before sending to client
