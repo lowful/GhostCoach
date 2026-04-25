@@ -37,23 +37,23 @@ function sanitize(t) {
 // ─── Direct Gemini REST call — tries primary model, falls back if 404 ─────────
 const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash-001', 'gemini-1.5-flash-latest'];
 
-// Strict schema for /analyze responses — guarantees Gemini returns valid JSON
+// Strict schema for /analyze responses — Gemini requires UPPERCASE type names
 const ANALYZE_SCHEMA = {
-  type: 'object',
+  type: 'OBJECT',
   properties: {
-    tip: { type: 'string' },
+    tip: { type: 'STRING' },
     context: {
-      type: 'object',
+      type: 'OBJECT',
       properties: {
-        agent:         { type: 'string', nullable: true },
-        map:           { type: 'string', nullable: true },
-        side:          { type: 'string', nullable: true },
-        roundNumber:   { type: 'integer', nullable: true },
-        teamScore:     { type: 'integer', nullable: true },
-        enemyScore:    { type: 'integer', nullable: true },
-        phase:         { type: 'string', nullable: true },
-        playerCredits: { type: 'integer', nullable: true },
-        playerAlive:   { type: 'boolean', nullable: true },
+        agent:         { type: 'STRING',  nullable: true },
+        map:           { type: 'STRING',  nullable: true },
+        side:          { type: 'STRING',  nullable: true },
+        roundNumber:   { type: 'INTEGER', nullable: true },
+        teamScore:     { type: 'INTEGER', nullable: true },
+        enemyScore:    { type: 'INTEGER', nullable: true },
+        phase:         { type: 'STRING',  nullable: true },
+        playerCredits: { type: 'INTEGER', nullable: true },
+        playerAlive:   { type: 'BOOLEAN', nullable: true },
       },
     },
   },
@@ -466,7 +466,7 @@ router.post('/analyze', async (req, res) => {
       ' -> "' + (tip || '').slice(0, 60) + '" (' + (Date.now() - t0) + 'ms)');
     res.json({ tip: tip || '', context: outCtx });
   } catch (err) {
-    console.error('[coach] analyze error:', err.message);
+    console.error('[coach] analyze error:', err.message, err.stack && err.stack.split('\n')[1]);
     res.json({ tip: '', context: {} });
   }
 });
