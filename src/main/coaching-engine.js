@@ -40,7 +40,7 @@ class CoachingEngine extends EventEmitter {
     if (this.isRunning) return;
     this.isRunning   = true;
     this.shouldAbort = false;
-    this.lastTipTime = Date.now();
+    this.lastTipTime = 0; // 0 = no prior tip, so first AI tip is not blocked by cooldown
     this.emit('status', 'coaching');
     console.log('[engine] Started');
 
