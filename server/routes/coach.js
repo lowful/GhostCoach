@@ -422,31 +422,24 @@ router.post('/analyze', async (req, res) => {
     ]);
     trackCall(licenseKey);
 
-    let tip = '';
-    let outCtx = {};
+    // Robust parse — NEVER throws. Falls back to plain-text-as-tip.
+    let parsed = { tip: null, context: {} };
     const rawStr = String(raw).trim();
-
-    // Try direct parse first (works when responseSchema is honored)
-    let parsed = null;
     try {
-      parsed = JSON.parse(rawStr);
-    } catch {
-      // Fallback: extract first {...} block from any conversational wrapper
-      const start = rawStr.indexOf('{');
-      const end   = rawStr.lastIndexOf('}');
-      if (start !== -1 && end > start) {
-        try { parsed = JSON.parse(rawStr.slice(start, end + 1)); } catch {}
+      const cleaned   = rawStr.replace(/```json\s*/g, '').replace(/```/g, '').trim();
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsed = JSON.parse(jsonMatch[0]);
+      } else {
+        parsed = { tip: cleaned, context: {} };
       }
+    } catch (e) {
+      console.error('[coach] JSON parse failed, using as plain tip:', e.message);
+      parsed = { tip: rawStr, context: {} };
     }
 
-    if (parsed && typeof parsed === 'object') {
-      tip    = sanitize(parsed.tip || '');
-      outCtx = parsed.context || {};
-    } else {
-      // Couldn't extract any JSON — log and skip rather than ship garbage to client
-      console.warn('[coach] Could not parse Gemini response:', rawStr.slice(0, 100));
-      tip = 'SKIP';
-    }
+    let tip    = sanitize(parsed.tip || '');
+    let outCtx = parsed.context || {};
 
     // Enforce complete sentence on the server before sending to client
     if (tip && tip !== 'SKIP' && tip !== 'VICTORY' && tip !== 'DEFEAT') {
@@ -574,15 +567,15 @@ router.get('/player-stats', async (req, res) => {
 
 // POST /api/coach/match-review  — JSON body: { tips: string[] }
 router.post('/match-review', async (req, res) => {
-  const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
-  if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
-
-  const tips = Array.isArray(req.body && req.body.tips) ? req.body.tips.slice(0, 30) : [];
-  if (tips.length < 3) return res.json({ review: 'Not enough data for a review.' });
-
-  const prompt = `Here are coaching tips from a Valorant match:\n${tips.join('\n')}\n\nWrite a 3-sentence match review. Sentence 1: what the player did well. Sentence 2: their most common mistake. Sentence 3: what to focus on next match. Do not use dashes. End each sentence with a period.`;
-
   try {
+    const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
+    if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+
+    const tips = Array.isArray(req.body && req.body.tips) ? req.body.tips.slice(0, 30) : [];
+    if (tips.length < 3) return res.json({ review: 'Not enough data for a review.' });
+
+    const prompt = `Here are coaching tips from a Valorant match:\n${tips.join('\n')}\n\nWrite a 3-sentence match review. Sentence 1: what the player did well. Sentence 2: their most common mistake. Sentence 3: what to focus on next match. Do not use dashes. End each sentence with a period.`;
+
     const review = await Promise.race([
       geminiTextCall(prompt, 200),
       new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 12000)),
@@ -591,6 +584,7 @@ router.post('/match-review', async (req, res) => {
     res.json({ review: review || 'Could not generate review.' });
   } catch (e) {
     console.error('[review] Error:', e.message);
+    console.error(e.stack);
     res.json({ review: 'Review generation failed.' });
   }
 });

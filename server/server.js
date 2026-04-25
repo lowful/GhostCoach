@@ -1,6 +1,16 @@
 'use strict';
 require('dotenv').config();
 
+// ─── Global crash guards — keep the server alive on bad responses ────────────
+process.on('uncaughtException', (err) => {
+  console.error('[server] CRASH PREVENTED - uncaughtException:', err.message);
+  console.error(err.stack);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[server] CRASH PREVENTED - unhandledRejection:', reason);
+});
+
 const express   = require('express');
 const cors      = require('cors');
 const helmet    = require('helmet');
@@ -93,3 +103,9 @@ app.listen(PORT, () => {
   console.log(`[server] Supabase: ${process.env.SUPABASE_URL || '(not configured)'}`);
   console.log(`[server] Gemini: ${process.env.GEMINI_API_KEY ? 'configured' : '(GEMINI_API_KEY not set)'}`);
 });
+
+// ─── Memory logging — every 60s so we can spot leaks early ───────────────────
+setInterval(() => {
+  const used = process.memoryUsage();
+  console.log('[server] Memory:', Math.round(used.heapUsed / 1024 / 1024), 'MB heap');
+}, 60000);
