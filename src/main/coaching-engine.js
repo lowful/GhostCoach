@@ -141,11 +141,23 @@ class CoachingEngine extends EventEmitter {
   }
 
   processAIResponse(response) {
+    console.log('[engine] RAW response from server:', JSON.stringify(response).slice(0, 300));
+    console.log('[engine] response.tip type:', typeof response.tip, 'value:', String(response.tip).slice(0, 100));
+
     if (response.context) this.updateMatchContext(response.context);
 
     const tip = response.tip;
     if (!tip) return;
-    const trimmed = String(tip).trim();
+    let trimmed = String(tip).trim();
+
+    // Guard: never display raw JSON as a tip
+    if (trimmed.startsWith('{') || trimmed.startsWith('"tip"') || trimmed.includes('"tip":')) {
+      console.error('[engine] Rejecting JSON-looking tip:', trimmed.slice(0, 100));
+      return;
+    }
+
+    // Strip stray surrounding quotes
+    trimmed = trimmed.replace(/^["']/, '').replace(/["']$/, '').trim();
 
     if (trimmed.toUpperCase() === 'SKIP' || trimmed.length < 20) {
       this.skipCount++;
@@ -154,6 +166,12 @@ class CoachingEngine extends EventEmitter {
         this.skipCount = 0;
         this.showContextualLibraryTip();
       }
+      return;
+    }
+
+    // Reject tips that look truncated mid-sentence
+    if (trimmed.match(/'s\.?$/i) || trimmed.match(/\b(the|to|a|an|of|for|with|on|in|at)\.?$/i)) {
+      console.error('[engine] Rejecting truncated tip:', trimmed);
       return;
     }
 

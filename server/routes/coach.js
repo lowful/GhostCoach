@@ -246,7 +246,13 @@ CRITICAL RULES:
 - Never suggest abilities the player's agent does not have.
 - Never repeat tips from the recent tips list above.
 - When in doubt, respond with SKIP. Quality over quantity.
-- Always return valid JSON.`;
+- Always return valid JSON.
+
+COMPLETE-SENTENCE RULE: Your tip MUST be a complete sentence. Never end mid-thought. If your tip mentions an ability, name it specifically.
+- BAD: "Use Jett's." (incomplete — Jett's what?)
+- BAD: "You should rotate to the." (truncated)
+- GOOD: "Use Jett's Tailwind dash to escape after that kill."
+- GOOD: "Rotate to A site through spawn before the timer runs out."`;
 }
 
 const SMART_PROMPT = `You are a Radiant-level Valorant coach analyzing a live gameplay screenshot. Give one coaching tip that is 8 to 20 words long. Your tip must be a complete, specific, actionable sentence.
@@ -417,7 +423,7 @@ router.post('/analyze', async (req, res) => {
   const t0 = Date.now();
   try {
     const raw = await Promise.race([
-      geminiCall(image, prompt, 500, true),
+      geminiCall(image, prompt, 600, true),
       new Promise((_, rej) => setTimeout(() => rej(new Error('Gemini timeout')), 10000)),
     ]);
     trackCall(licenseKey);
@@ -425,8 +431,9 @@ router.post('/analyze', async (req, res) => {
     // Robust parse — NEVER throws. Falls back to plain-text-as-tip.
     let parsed = { tip: null, context: {} };
     const rawStr = String(raw).trim();
+    console.log('[coach] Raw Gemini text:', rawStr.slice(0, 200));
     try {
-      const cleaned   = rawStr.replace(/```json\s*/g, '').replace(/```/g, '').trim();
+      const cleaned   = rawStr.replace(/```json\s*/gi, '').replace(/```/g, '').trim();
       const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         parsed = JSON.parse(jsonMatch[0]);
@@ -438,8 +445,31 @@ router.post('/analyze', async (req, res) => {
       parsed = { tip: rawStr, context: {} };
     }
 
-    let tip    = sanitize(parsed.tip || '');
+    // Unwrap double-encoded responses ({ tip: "{\"tip\":\"...\"}" })
+    let finalTip = parsed.tip;
+    if (typeof finalTip === 'object' && finalTip !== null) {
+      finalTip = finalTip.tip || JSON.stringify(finalTip);
+    }
+    if (typeof finalTip !== 'string') finalTip = String(finalTip == null ? '' : finalTip);
+
+    // If the tip itself is JSON-looking, try to peel one more layer
+    const innerTrim = finalTip.trim();
+    if (innerTrim.startsWith('{') && innerTrim.endsWith('}')) {
+      try {
+        const inner = JSON.parse(innerTrim);
+        if (inner && typeof inner.tip === 'string') finalTip = inner.tip;
+      } catch {}
+    }
+
+    // Strip any leftover JSON syntax fragments
+    finalTip = finalTip
+      .replace(/^[\s{]*"?tip"?\s*:\s*"?/i, '')  // leading {"tip": "
+      .replace(/"?\s*[}]*\s*$/, '')             // trailing "}
+      .trim();
+
+    let tip    = sanitize(finalTip);
     let outCtx = parsed.context || {};
+    console.log('[coach] Final tip:', tip.slice(0, 100));
 
     // Enforce complete sentence on the server before sending to client
     if (tip && tip !== 'SKIP' && tip !== 'VICTORY' && tip !== 'DEFEAT') {
