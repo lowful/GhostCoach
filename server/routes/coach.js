@@ -155,18 +155,40 @@ function buildContextPrompt(context) {
   const ctx = context || {};
   const recent = (ctx.lastTipsGiven || []).map((t, i) => `  ${i + 1}. ${t}`).join('\n') || '  None yet';
 
+  const agentLine = ctx.agent
+    ? `PLAYER AGENT (LOCKED, confirmed earlier in match): ${ctx.agent}. ALWAYS use this. Do not change.`
+    : `PLAYER AGENT: Not yet identified. Look at bottom-center ability icons.`;
+
   return `You are a Radiant-level Valorant coach watching a live match. You have memory of the match so far.
 
-AGENT IDENTIFICATION (CRITICAL — READ FIRST):
-Before giving ANY ability-specific tip, you MUST identify the player's agent with 100% certainty by looking at the bottom-center of the screen where 4 ability icons appear in a row.
+${agentLine}
 
-If matchContext below already has a confirmed agent, USE THAT AGENT. Do not re-detect. The agent does not change mid-match.
+HOW TO IDENTIFY THE PLAYER (CRITICAL):
 
-If the agent is NOT confirmed yet:
-- Look at the 4 ability icons at the bottom-center of the screen.
-- Each agent has a UNIQUE combination of icons.
-- Only set the "agent" field in your response if you are 100 percent sure.
-- If you are not sure, set "agent" to null and give a tip that does NOT mention any specific abilities.
+The PLAYER is the person whose perspective the screenshot is from. To identify their agent, look ONLY at these locations:
+
+1. ABILITY ICONS at the BOTTOM-CENTER of the screen. The player has 4 ability icons in a row, just above their HP/shield bar. These are THE PLAYER'S abilities. Count the icons and match them to an agent.
+2. The player's AGENT PORTRAIT in the BOTTOM-LEFT corner (small circle showing the agent's face).
+3. The first-person view itself: if you can see hands, weapons, or first-person perspective, those are the player's.
+
+DO NOT identify the agent from:
+- The scoreboard at the top of the screen (those are all 10 players).
+- The kill feed in the top-right (those are recent kills involving anyone).
+- The minimap in the top-left (those dots are teammates).
+- Any teammate's agent portrait visible in the team panel.
+- Spectator views if the player is dead (in that case, focus on what the player did wrong before dying, not the spectated agent's gameplay).
+
+THE PLAYER'S AGENT = the agent whose 4 abilities are shown at the bottom-center. NOTHING ELSE.
+
+If you cannot clearly see the bottom-center ability bar, set agent to null and give general advice that does not mention any specific abilities.
+
+CRITICAL: Before suggesting any agent-specific ability, verify by checking the bottom-center ability icons. If the icons show smokes and a dash, the player is Jett (or possibly Omen depending on which smokes). If the icons show a knife, traps, and a camera, the player is Cypher. Match the EXACT icons to the EXACT agent. If the screenshot is a death/spectator screen and the player's ability bar is not visible, do NOT guess the agent — give general death advice without naming abilities.
+
+TIP FRAMING RULES:
+- When advising the player to use their own abilities: "Use your X" or "Your X can clear this corner".
+- When advising about a teammate's ability: "Ask your [Agent] teammate to X" or "Your [Agent] teammate's X would be useful here".
+- If you mention an agent name, ALWAYS specify if it is "your" agent (the player's) or "your teammate's" agent.
+- If you are not sure who has which agent, give general advice without agent names.
 
 NEVER suggest an ability unless you are 100 percent certain the player has it. When in doubt, give general advice (positioning, economy, crosshair placement) instead of agent-specific advice. Better to be vague than wrong.
 
@@ -292,14 +314,28 @@ CRITICAL RULES:
 - When in doubt, respond with SKIP. Quality over quantity.
 - Always return valid JSON.
 
-CRITICAL TIP REQUIREMENTS: Every tip must be a complete sentence. Never end with conjunctions (and, or, but), prepositions (to, with, for, of, in, at), articles (the, a, an), or possessives (Jett's, the player's, your). Always finish your thought before the period. If you are running out of room, shorten the tip but always complete the sentence.
+TIP LENGTH RULES (STRICT):
+- Maximum 14 words. NEVER more than 14 words.
+- Minimum 6 words.
+- Must be a complete sentence ending with a period.
+- Be concise. A real coach speaks in short, punchy commands.
+
+Bad (too long): "Consider how Breach might have used his utility to initiate that engagement and adapt your positioning."
+Good (concise): "Your Breach should flash, then you push the angle."
+
+Bad (too long): "After dying, analyze how Clove's abilities might have helped you survive that engagement."
+Good (concise): "Your Clove can smoke before you peek next time."
+
+If you cannot fit your thought in 14 words, simplify the advice.
+
+CRITICAL TIP REQUIREMENTS: Never end with conjunctions (and, or, but), prepositions (to, with, for, of, in, at), articles (the, a, an), or possessives (Jett's, the player's, your). Always finish your thought before the period.
 
 COMPLETE-SENTENCE RULE: If your tip mentions an ability, name it specifically.
 - BAD: "Use Jett's." (incomplete — Jett's what?)
 - BAD: "You should rotate to the." (truncated)
 - BAD: "Push hard and." (ends with conjunction)
 - GOOD: "Use Jett's Tailwind dash to escape after that kill."
-- GOOD: "Rotate to A site through spawn before the timer runs out."
+- GOOD: "Rotate A through spawn before the timer ends."
 
 WHEN TO SKIP vs GIVE A TIP:
 SKIP only in these specific cases:
@@ -484,7 +520,7 @@ router.post('/analyze', async (req, res) => {
   const t0 = Date.now();
   try {
     const raw = await Promise.race([
-      geminiCall(image, prompt, 800, true),
+      geminiCall(image, prompt, 250, true),
       new Promise((_, rej) => setTimeout(() => rej(new Error('Gemini timeout')), 10000)),
     ]);
     trackCall(licenseKey);

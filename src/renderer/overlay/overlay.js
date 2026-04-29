@@ -243,14 +243,18 @@
       '-webkit-backdrop-filter:blur(16px)',
       'border-radius:10px',
       `border-left:3px solid ${borderColor}`,
-      'padding:12px 16px',
-      'max-width:380px',
+      'padding:14px 18px',
+      'max-width:440px',
+      'min-width:280px',
+      'width:max-content',
       'opacity:0',
       'transform:translateX(20px)',
       'transition:opacity 0.3s ease, transform 0.3s ease',
       'pointer-events:none',
       'box-shadow:0 8px 24px rgba(0,0,0,0.4)',
       'font-family:Inter,-apple-system,Arial,sans-serif',
+      'word-wrap:break-word',
+      'white-space:normal',
     ].join(';');
 
     const badge = document.createElement('div');
@@ -258,7 +262,7 @@
     badge.textContent = badgeText;
 
     const tipText = document.createElement('div');
-    tipText.style.cssText = 'font-size:14px;color:#ECE8E1;line-height:1.5;';
+    tipText.style.cssText = 'font-size:14px;color:#ECE8E1;line-height:1.5;word-wrap:break-word;overflow-wrap:break-word;';
     tipText.textContent = text;
 
     card.appendChild(badge);

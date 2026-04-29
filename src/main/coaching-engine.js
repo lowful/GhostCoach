@@ -191,6 +191,13 @@ class CoachingEngine extends EventEmitter {
       return;
     }
 
+    // Hard length cap — even if AI ignored the 14-word instruction
+    const wordCount = trimmed.split(/\s+/).length;
+    if (wordCount > 16) {
+      console.log('[engine] Rejecting tip too long:', wordCount, 'words:', trimmed);
+      return;
+    }
+
     if (Date.now() - this.lastTipTime < 18000) {
       console.log('[engine] Tip skipped due to cooldown');
       return;
@@ -209,14 +216,32 @@ class CoachingEngine extends EventEmitter {
     const prevRound  = this.matchContext.roundNumber;
 
     Object.keys(updates).forEach(key => {
-      if (updates[key] !== null && updates[key] !== undefined) {
-        // Once an agent is locked in, never overwrite it within the same session
-        if (key === 'agent' && this.matchContext.agent && updates.agent !== this.matchContext.agent) {
-          console.log('[engine] Ignoring agent change attempt:', this.matchContext.agent, '->', updates.agent);
+      const v = updates[key];
+      if (v === null || v === undefined) return;
+
+      // Agent is LOCKED once set. Cannot change mid-session.
+      if (key === 'agent') {
+        if (this.matchContext.agent && this.matchContext.agent !== v) {
+          console.log('[engine] BLOCKED agent change:', this.matchContext.agent, '->', v);
           return;
         }
-        this.matchContext[key] = updates[key];
+        if (!this.matchContext.agent) {
+          console.log('[engine] Agent locked to:', v);
+          this.matchContext.agent = v;
+          return;
+        }
+        return; // agent already matches, nothing to do
       }
+
+      // Map is also locked once set
+      if (key === 'map') {
+        if (this.matchContext.map && this.matchContext.map !== v) {
+          console.log('[engine] BLOCKED map change:', this.matchContext.map, '->', v);
+          return;
+        }
+      }
+
+      this.matchContext[key] = v;
     });
 
     // Round transition: structured signal from AI, not text matching
