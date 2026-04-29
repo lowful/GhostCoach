@@ -157,6 +157,50 @@ function buildContextPrompt(context) {
 
   return `You are a Radiant-level Valorant coach watching a live match. You have memory of the match so far.
 
+AGENT IDENTIFICATION (CRITICAL — READ FIRST):
+Before giving ANY ability-specific tip, you MUST identify the player's agent with 100% certainty by looking at the bottom-center of the screen where 4 ability icons appear in a row.
+
+If matchContext below already has a confirmed agent, USE THAT AGENT. Do not re-detect. The agent does not change mid-match.
+
+If the agent is NOT confirmed yet:
+- Look at the 4 ability icons at the bottom-center of the screen.
+- Each agent has a UNIQUE combination of icons.
+- Only set the "agent" field in your response if you are 100 percent sure.
+- If you are not sure, set "agent" to null and give a tip that does NOT mention any specific abilities.
+
+NEVER suggest an ability unless you are 100 percent certain the player has it. When in doubt, give general advice (positioning, economy, crosshair placement) instead of agent-specific advice. Better to be vague than wrong.
+
+COMPLETE AGENT ABILITY LIST (memorize):
+- Jett: Cloudburst (smoke), Updraft (jump), Tailwind (dash), Blade Storm (knife ult). NO walls. NO flashes. NO traps.
+- Reyna: Leer (blind eye), Devour (heal), Dismiss (escape), Empress (ult). NO smokes. NO walls.
+- Phoenix: Curveball (flash), Hot Hands (molly), Blaze (fire wall), Run It Back (respawn ult).
+- Raze: Boom Bot, Blast Pack (satchel), Paint Shells (nade), Showstopper (rocket ult).
+- Neon: Fast Lane (walls), Relay Bolt (stun), High Gear (sprint), Overdrive (beam ult).
+- Iso: Undercut (debuff), Double Tap (shield), Contingency (wall), Kill Contract (ult).
+- Yoru: Fakeout (decoy), Blindside (flash), Gatecrash (teleport), Dimensional Drift (ult).
+- Sova: Owl Drone, Shock Bolt, Recon Bolt, Hunter's Fury (wallbang ult).
+- Breach: Flashpoint, Fault Line (stun), Aftershock, Rolling Thunder (ult).
+- Skye: Trailblazer (dog), Guiding Light (flash bird), Regrowth (heal), Seekers (ult).
+- KAY/O: FLASH/drive, ZERO/point (suppress knife), FRAG/ment (molly), NULL/cmd (suppress ult).
+- Fade: Prowler, Seize (tether), Haunt (eye), Nightfall (ult).
+- Gekko: Wingman, Dizzy, Mosh Pit, Thrash (ult).
+- Tejo: only mention abilities if visible on screen.
+- Omen: Shrouded Step (teleport), Paranoia (blind), Dark Cover (smokes), From The Shadows (ult).
+- Brimstone: Stim Beacon, Incendiary (molly), Sky Smoke (smokes), Orbital Strike (ult).
+- Viper: Snake Bite (molly), Poison Cloud (smoke orb), Toxic Screen (wall), Viper's Pit (ult).
+- Astra: Gravity Well, Nova Pulse, Nebula (smoke), Cosmic Divide (ult).
+- Harbor: Cove (bubble), High Tide (water wall), Cascade, Reckoning (ult).
+- Clove: Pick-Me-Up, Meddle, Ruse (smokes can cast dead), Not Dead Yet (self-revive ult).
+- Sage: Slow Orb, Healing Orb, Barrier (wall), Resurrection (ult).
+- Killjoy: Nanoswarm, Alarmbot, Turret, Lockdown (ult).
+- Cypher: Trapwire, Cyber Cage (smoke), Spycam, Neural Theft (ult).
+- Chamber: Trademark (slow trap), Headhunter (sheriff), Rendezvous (teleport), Tour De Force (op ult).
+- Deadlock: GravNet, Sonic Sensor, Barrier Mesh (wall), Annihilation (ult).
+- Vyse: Arc Rose, Shear, Razorvine, Steel Garden.
+- Waylay: only mention abilities if visible on screen.
+
+If you cannot see all 4 ability icons clearly, give general advice instead of agent-specific advice.
+
 CURRENT MATCH STATE (carry this forward, do not re-detect from scratch every frame):
 - Agent: ${ctx.agent || 'Unknown'}
 - Map: ${ctx.map || 'Unknown'}
@@ -248,11 +292,28 @@ CRITICAL RULES:
 - When in doubt, respond with SKIP. Quality over quantity.
 - Always return valid JSON.
 
-COMPLETE-SENTENCE RULE: Your tip MUST be a complete sentence. Never end mid-thought. If your tip mentions an ability, name it specifically.
+CRITICAL TIP REQUIREMENTS: Every tip must be a complete sentence. Never end with conjunctions (and, or, but), prepositions (to, with, for, of, in, at), articles (the, a, an), or possessives (Jett's, the player's, your). Always finish your thought before the period. If you are running out of room, shorten the tip but always complete the sentence.
+
+COMPLETE-SENTENCE RULE: If your tip mentions an ability, name it specifically.
 - BAD: "Use Jett's." (incomplete — Jett's what?)
 - BAD: "You should rotate to the." (truncated)
+- BAD: "Push hard and." (ends with conjunction)
 - GOOD: "Use Jett's Tailwind dash to escape after that kill."
-- GOOD: "Rotate to A site through spawn before the timer runs out."`;
+- GOOD: "Rotate to A site through spawn before the timer runs out."
+
+WHEN TO SKIP vs GIVE A TIP:
+SKIP only in these specific cases:
+- The screenshot shows a main menu, agent select, lobby, or loading screen.
+- You literally cannot see any Valorant gameplay.
+- The screen is mostly black or unreadable.
+
+ALWAYS give a tip when you see gameplay, even if nothing dramatic is happening. There is always something useful to say:
+- During buy phase: economy advice based on visible credits.
+- During active round: positioning, crosshair, utility usage.
+- Post-plant: time management, retake setup.
+- Death screen: what could have been done differently.
+
+Do not be overly conservative. The player WANTS feedback. If you see a Valorant match, give actionable advice. SKIP should be rare, only for non-gameplay screens.`;
 }
 
 const SMART_PROMPT = `You are a Radiant-level Valorant coach analyzing a live gameplay screenshot. Give one coaching tip that is 8 to 20 words long. Your tip must be a complete, specific, actionable sentence.
@@ -423,7 +484,7 @@ router.post('/analyze', async (req, res) => {
   const t0 = Date.now();
   try {
     const raw = await Promise.race([
-      geminiCall(image, prompt, 600, true),
+      geminiCall(image, prompt, 800, true),
       new Promise((_, rej) => setTimeout(() => rej(new Error('Gemini timeout')), 10000)),
     ]);
     trackCall(licenseKey);
@@ -616,6 +677,44 @@ router.post('/match-review', async (req, res) => {
     console.error('[review] Error:', e.message);
     console.error(e.stack);
     res.json({ review: 'Review generation failed.' });
+  }
+});
+
+// POST /api/coach/suggest-library-tip — JSON body: { context, availableTips: string[] }
+router.post('/suggest-library-tip', async (req, res) => {
+  try {
+    const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
+    if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+
+    const context       = (req.body && req.body.context) || {};
+    const availableTips = Array.isArray(req.body && req.body.availableTips) ? req.body.availableTips.slice(0, 30) : [];
+    if (availableTips.length === 0) return res.json({ tip: null });
+
+    const prompt = `You are a Valorant coach. Based on the current match state, pick the BEST tip from this list to show the player right now. Return ONLY the exact text of the chosen tip, nothing else.
+
+Match state:
+- Agent: ${context.agent || 'Unknown'}
+- Round: ${context.roundNumber || 'Unknown'}
+- Phase: ${context.phase || 'Unknown'}
+- Score: ${context.teamScore || 0} to ${context.enemyScore || 0}
+- Consecutive deaths: ${context.consecutiveDeaths || 0}
+- Consecutive wins: ${context.consecutiveWins || 0}
+
+Available tips:
+${availableTips.map((t, i) => `${i + 1}. ${t}`).join('\n')}
+
+Return only the exact tip text. No quotes, no formatting, no explanation.`;
+
+    const text = await Promise.race([
+      geminiTextCall(prompt, 100),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000)),
+    ]);
+    trackCall(licenseKey);
+    const tip = String(text || '').trim().replace(/^["']|["']$/g, '');
+    res.json({ tip: tip || null });
+  } catch (e) {
+    console.error('[coach] suggest-library-tip error:', e.message);
+    res.json({ tip: null });
   }
 });
 

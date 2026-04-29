@@ -42,6 +42,7 @@ class CoachingEngine extends EventEmitter {
     this.isRunning   = true;
     this.shouldAbort = false;
     this.lastTipTime = 0; // 0 = no prior tip, so first AI tip is not blocked by cooldown
+    this.matchContext.agent = null; // re-detect agent each session
     console.log('[engine] License key set:', this.licenseKey ? 'YES (' + this.licenseKey.substring(0, 8) + '...)' : 'NO');
     console.log('[engine] Server URL:', this.serverUrl);
     console.log('[engine] Capture function set:', this.captureFunction ? 'YES' : 'NO');
@@ -63,7 +64,7 @@ class CoachingEngine extends EventEmitter {
 
     this.captureTimer = setInterval(() => {
       if (this.isRunning && !this.isCapturing) this.captureAndAnalyze();
-    }, 25000);
+    }, 15000);
   }
 
   stop() {
@@ -82,7 +83,7 @@ class CoachingEngine extends EventEmitter {
     console.log('[engine] captureAndAnalyze() called');
     if (this.isCapturing) { console.log('[engine] Skipping: already capturing'); return; }
     const sinceLast = Date.now() - this.lastCaptureTime;
-    if (sinceLast < 15000) { console.log('[engine] Skipping: only', sinceLast, 'ms since last capture'); return; }
+    if (sinceLast < 10000) { console.log('[engine] Skipping: only', sinceLast, 'ms since last capture'); return; }
 
     this.isCapturing     = true;
     this.lastCaptureTime = Date.now();
@@ -162,17 +163,27 @@ class CoachingEngine extends EventEmitter {
     if (trimmed.toUpperCase() === 'SKIP' || trimmed.length < 20) {
       this.skipCount++;
       console.log('[engine] SKIP, count:', this.skipCount);
-      if (this.skipCount >= 3) {
+      if (this.skipCount >= 2) {
         this.skipCount = 0;
         this.showContextualLibraryTip();
       }
       return;
     }
 
-    // Reject tips that look truncated mid-sentence
-    if (trimmed.match(/'s\.?$/i) || trimmed.match(/\b(the|to|a|an|of|for|with|on|in|at)\.?$/i)) {
-      console.error('[engine] Rejecting truncated tip:', trimmed);
-      return;
+    // Aggressive truncation detection — reject tips ending mid-thought
+    const truncationPatterns = [
+      /\band\.?$/i,  /\bor\.?$/i,   /\bbut\.?$/i,
+      /\bto\.?$/i,   /\bwith\.?$/i, /\bfor\.?$/i,
+      /\bthe\.?$/i,  /\ba\.?$/i,    /\ban\.?$/i,
+      /\bof\.?$/i,   /\bin\.?$/i,   /\bat\.?$/i,
+      /\bon\.?$/i,   /\byour\.?$/i, /\bmy\.?$/i,
+      /'s\.?$/i,     /,\s*$/,
+    ];
+    for (const pattern of truncationPatterns) {
+      if (pattern.test(trimmed)) {
+        console.error('[engine] Rejecting truncated tip:', trimmed);
+        return;
+      }
     }
 
     if (!trimmed.match(/[.!?"]$/)) {
@@ -199,6 +210,11 @@ class CoachingEngine extends EventEmitter {
 
     Object.keys(updates).forEach(key => {
       if (updates[key] !== null && updates[key] !== undefined) {
+        // Once an agent is locked in, never overwrite it within the same session
+        if (key === 'agent' && this.matchContext.agent && updates.agent !== this.matchContext.agent) {
+          console.log('[engine] Ignoring agent change attempt:', this.matchContext.agent, '->', updates.agent);
+          return;
+        }
         this.matchContext[key] = updates[key];
       }
     });
@@ -224,26 +240,57 @@ class CoachingEngine extends EventEmitter {
       ' deaths=' + this.matchContext.consecutiveDeaths);
   }
 
-  showContextualLibraryTip() {
+  async showContextualLibraryTip() {
     if (Date.now() - this.lastTipTime < 18000) return;
-    const tip = this.pickLibraryTip();
-    if (tip) this.emitTip(tip, 'library');
-  }
 
-  pickLibraryTip() {
     const ctx = this.matchContext;
     let category = 'general';
+    let priority = 0;
 
-    if (ctx.consecutiveDeaths >= 2)        category = 'motivation';
-    else if (ctx.consecutiveWins >= 2)     category = 'hype';
-    else if (ctx.phase === 'dead')         category = 'death';
+    if (ctx.consecutiveDeaths >= 2)        { category = 'motivation'; priority = 5; }
+    else if (ctx.consecutiveWins >= 2)     { category = 'hype';       priority = 5; }
+    else if (ctx.phase === 'dead')         { category = 'death';      priority = 4; }
+    else if (ctx.phase === 'postplant')    { category = 'spike';      priority = 3; }
     else if (ctx.phase === 'buy') {
       category = (ctx.roundNumber === 1 || ctx.roundNumber === 13) ? 'pistol' : 'economy';
+      priority = 3;
     }
-    else if (ctx.phase === 'postplant')    category = 'spike';
+
+    // Low-priority tips need a longer silence before they fire
+    if (priority < 3 && Date.now() - this.lastTipTime < 30000) return;
 
     const tips = TIP_LIBRARY[category] || TIP_LIBRARY.general;
-    return tips[Math.floor(Math.random() * tips.length)];
+    if (!tips || tips.length === 0) return;
+
+    const recentTexts = this.tipHistory.slice(-10).map(t => t.text);
+    const fresh = tips.filter(t => !recentTexts.includes(t));
+    const pool  = fresh.length > 0 ? fresh : tips;
+
+    // Ask the AI to pick the best tip from the contextual pool
+    try {
+      const controller = new AbortController();
+      const timeout    = setTimeout(() => controller.abort(), 6000);
+      const response = await fetch(this.serverUrl + '/api/coach/suggest-library-tip', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'X-License-Key': this.licenseKey },
+        body:    JSON.stringify({ context: ctx, availableTips: pool }),
+        signal:  controller.signal,
+      });
+      clearTimeout(timeout);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.tip && pool.includes(data.tip)) {
+          this.emitTip(data.tip, 'library');
+          return;
+        }
+      }
+    } catch (e) {
+      console.error('[engine] AI library-tip selection failed:', e.message);
+    }
+
+    // Fallback: random pick from the pool
+    const tip = pool[Math.floor(Math.random() * pool.length)];
+    this.emitTip(tip, 'library');
   }
 
   emitTip(text, source) {
