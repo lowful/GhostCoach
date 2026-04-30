@@ -152,8 +152,9 @@ async function geminiTextCall(prompt, maxTokens) {
 }
 
 function buildContextPrompt(context) {
-  const ctx = context || {};
-  const recent = (ctx.lastTipsGiven || []).map((t, i) => `  ${i + 1}. ${t}`).join('\n') || '  None yet';
+  const ctx    = context || {};
+  const recent = (ctx.lastTipsGiven || []).map((t, i) => `${i + 1}. ${t}`).join('\n') || '  (none yet, give any appropriate tip)';
+  const topics = Array.isArray(ctx.recentTopics) && ctx.recentTopics.length ? ctx.recentTopics.join(', ') : 'none yet';
 
   const agentLine = ctx.agent
     ? `PLAYER AGENT (LOCKED, confirmed earlier in match): ${ctx.agent}. ALWAYS use this. Do not change.`
@@ -233,8 +234,6 @@ CURRENT MATCH STATE (carry this forward, do not re-detect from scratch every fra
 - Player credits: ${ctx.playerCredits == null ? 'Unknown' : ctx.playerCredits}
 - Player alive: ${ctx.playerAlive === false ? 'No' : 'Yes'}
 - Consecutive deaths: ${ctx.consecutiveDeaths || 0}
-- Recent tips you gave (do NOT repeat or rephrase these):
-${recent}
 
 YOUR TASK:
 Analyze the screenshot and give ONE specific coaching tip if there is something useful to say. Otherwise respond with SKIP.
@@ -337,19 +336,40 @@ COMPLETE-SENTENCE RULE: If your tip mentions an ability, name it specifically.
 - GOOD: "Use Jett's Tailwind dash to escape after that kill."
 - GOOD: "Rotate A through spawn before the timer ends."
 
-WHEN TO SKIP vs GIVE A TIP:
-SKIP only in these specific cases:
-- The screenshot shows a main menu, agent select, lobby, or loading screen.
-- You literally cannot see any Valorant gameplay.
-- The screen is mostly black or unreadable.
+WHEN TO SKIP (very rare):
+Only respond with SKIP if you see ONE of these:
+- Main menu, agent select screen, or lobby.
+- Loading screen between matches.
+- The screen is completely black or the game is not visible.
 
-ALWAYS give a tip when you see gameplay, even if nothing dramatic is happening. There is always something useful to say:
-- During buy phase: economy advice based on visible credits.
-- During active round: positioning, crosshair, utility usage.
-- Post-plant: time management, retake setup.
-- Death screen: what could have been done differently.
+EVERY OTHER SITUATION DESERVES A TIP. The player is paying for coaching. Give them coaching.
 
-Do not be overly conservative. The player WANTS feedback. If you see a Valorant match, give actionable advice. SKIP should be rare, only for non-gameplay screens.`;
+If gameplay is visible, even if "nothing is happening" right now, find SOMETHING actionable to say:
+- Buy phase: comment on their economy choice.
+- Walking around: positioning advice or crosshair placement.
+- Holding an angle: feedback on their position choice.
+- Mid-fight: tactical advice.
+- After a kill: reposition or trade advice.
+- After a death: what they could have done differently.
+- Spike planted: post-plant or retake advice.
+- Round over: thoughts on the round.
+- Rotating: rotation timing advice.
+
+A real coach speaks every 10-15 seconds. Be that coach. Only SKIP for non-gameplay screens.
+
+RECENT TIPS YOU GAVE (DO NOT REPEAT OR REPHRASE):
+${recent}
+
+CRITICAL ANTI-REPETITION RULES:
+- Do NOT repeat any tip from the list above.
+- Do NOT rephrase the same idea differently. If you said "use utility before peeking," do NOT later say "throw a flash before you peek."
+- Do NOT focus on the same topic twice in a row. If your last tip was about positioning, this one should be about utility, economy, or aim.
+- Vary your topics: economy, positioning, utility, aim, communication, mental game, rotation, post-plant, eco vs full buy, agent abilities.
+- If you cannot think of something genuinely new to say, respond with SKIP. Never repeat yourself.
+
+TOPIC VARIETY:
+Recent tips covered these topics: ${topics}.
+Cover a DIFFERENT topic this time. Cycle through: economy, positioning, utility, aim, rotation, spike play, teamwork, mental game, death analysis. Do not focus on the same topic twice in a row.`;
 }
 
 const SMART_PROMPT = `You are a Radiant-level Valorant coach analyzing a live gameplay screenshot. Give one coaching tip that is 8 to 20 words long. Your tip must be a complete, specific, actionable sentence.

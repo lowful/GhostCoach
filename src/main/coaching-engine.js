@@ -64,7 +64,7 @@ class CoachingEngine extends EventEmitter {
 
     this.captureTimer = setInterval(() => {
       if (this.isRunning && !this.isCapturing) this.captureAndAnalyze();
-    }, 15000);
+    }, 12000);
   }
 
   stop() {
@@ -119,10 +119,12 @@ class CoachingEngine extends EventEmitter {
       if (forced) headers['X-Forced'] = 'true';
 
       console.log('[engine] fetch() starting, body size ~', screenshot.length, 'chars');
+      const recentTopics = this.tipHistory.slice(-3).map(t => this.getTipTopic(t.text));
+      const ctxWithTopics = { ...this.matchContext, recentTopics };
       const response = await fetch(this.serverUrl + '/api/coach/analyze', {
         method:  'POST',
         headers,
-        body:    JSON.stringify({ image: screenshot, context: this.matchContext }),
+        body:    JSON.stringify({ image: screenshot, context: ctxWithTopics }),
         signal:  controller.signal,
       });
 
@@ -162,8 +164,9 @@ class CoachingEngine extends EventEmitter {
 
     if (trimmed.toUpperCase() === 'SKIP' || trimmed.length < 20) {
       this.skipCount++;
-      console.log('[engine] SKIP, count:', this.skipCount);
-      if (this.skipCount >= 2) {
+      console.log('[engine] AI returned SKIP, count:', this.skipCount);
+      // Library tip only after 3 consecutive skips AND 25s of silence
+      if (this.skipCount >= 3 && Date.now() - this.lastTipTime > 25000) {
         this.skipCount = 0;
         this.showContextualLibraryTip();
       }
@@ -203,12 +206,61 @@ class CoachingEngine extends EventEmitter {
       return;
     }
 
+    const cleaned = trimmed.replace(/—/g, ',').replace(/–/g, ',').replace(/ - /g, ', ');
+
+    // Reject if too similar in wording to a recent tip
+    if (this.isSimilarToRecent(cleaned)) {
+      console.log('[engine] Tip too similar to recent ones, skipping');
+      return;
+    }
+
+    // Reject if same topic was covered too recently
+    const newTopic     = this.getTipTopic(cleaned);
+    const recentTopics = this.tipHistory.slice(-3).map(t => this.getTipTopic(t.text));
+    if (recentTopics.filter(t => t === newTopic).length >= 2) {
+      console.log('[engine] Topic', newTopic, 'used too recently, skipping');
+      return;
+    }
+
     this.skipCount = 0;
-    const cleaned  = trimmed.replace(/—/g, ',').replace(/–/g, ',').replace(/ - /g, ', ');
     this.emitTip(cleaned, 'ai');
 
     this.matchContext.lastTipsGiven.push(cleaned);
-    if (this.matchContext.lastTipsGiven.length > 3) this.matchContext.lastTipsGiven.shift();
+    if (this.matchContext.lastTipsGiven.length > 8) this.matchContext.lastTipsGiven.shift();
+  }
+
+  isSimilarToRecent(newTip) {
+    const newWords = new Set(newTip.toLowerCase().split(/\s+/).filter(w => w.length > 3));
+    if (newWords.size === 0) return false;
+    const recentTips = this.tipHistory.slice(-10);
+
+    for (const old of recentTips) {
+      const oldWords = new Set(old.text.toLowerCase().split(/\s+/).filter(w => w.length > 3));
+      if (oldWords.size === 0) continue;
+      const intersection = [...newWords].filter(w => oldWords.has(w));
+      const similarity   = intersection.length / Math.min(newWords.size, oldWords.size);
+      if (similarity > 0.5) {
+        console.log('[engine] Rejecting similar tip. Match:', Math.round(similarity * 100) + '%');
+        console.log('[engine] New:', newTip);
+        console.log('[engine] Old:', old.text);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  getTipTopic(text) {
+    const lower = (text || '').toLowerCase();
+    if (lower.match(/buy|credit|economy|save|spectre|vandal|phantom|shield|pistol/)) return 'economy';
+    if (lower.match(/peek|wide|jiggle|swing|reposition/))                            return 'peeking';
+    if (lower.match(/flash|smoke|drone|molly|util/))                                 return 'utility';
+    if (lower.match(/crosshair|aim|head|tap|spray/))                                 return 'aim';
+    if (lower.match(/rotate|rotation|lurk/))                                         return 'rotation';
+    if (lower.match(/spike|plant|defus|retake|post.plant/))                          return 'spike';
+    if (lower.match(/team|trade|comm|callout/))                                      return 'teamwork';
+    if (lower.match(/tilt|mental|focus|breath|calm/))                                return 'mental';
+    if (lower.match(/dead|died|death|spectat/))                                      return 'death';
+    return 'general';
   }
 
   updateMatchContext(updates) {
