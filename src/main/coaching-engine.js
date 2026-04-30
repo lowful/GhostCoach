@@ -159,6 +159,19 @@ class CoachingEngine extends EventEmitter {
       return;
     }
 
+    // Guard: never display AI preamble/explanation as a tip
+    const preamblePatterns = [
+      /^here is/i, /^here's/i, /^sure[,!]/i, /^okay[,!]/i,
+      /^the json/i, /^as requested/i, /^based on/i,
+      /^analyzing/i, /^looking at/i, /^i'll/i, /^i can/i,
+    ];
+    for (const pattern of preamblePatterns) {
+      if (pattern.test(trimmed)) {
+        console.log('[engine] Rejecting preamble-style tip:', trimmed.slice(0, 80));
+        return;
+      }
+    }
+
     // Strip stray surrounding quotes
     trimmed = trimmed.replace(/^["']/, '').replace(/["']$/, '').trim();
 

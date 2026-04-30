@@ -336,26 +336,23 @@ COMPLETE-SENTENCE RULE: If your tip mentions an ability, name it specifically.
 - GOOD: "Use Jett's Tailwind dash to escape after that kill."
 - GOOD: "Rotate A through spawn before the timer ends."
 
-WHEN TO SKIP (very rare):
-Only respond with SKIP if you see ONE of these:
-- Main menu, agent select screen, or lobby.
-- Loading screen between matches.
-- The screen is completely black or the game is not visible.
+SKIP RULES:
+Only respond with SKIP if you see:
+1. The Valorant main menu.
+2. Agent select screen.
+3. Loading screen.
+4. Black screen or no game visible.
 
-EVERY OTHER SITUATION DESERVES A TIP. The player is paying for coaching. Give them coaching.
+EVERY OTHER FRAME deserves a tip. Even if "nothing seems to be happening," give:
+- Positioning advice based on where the player is.
+- Crosshair placement reminder.
+- Economy comment.
+- Awareness check (minimap, sound).
+- Mental game tip.
 
-If gameplay is visible, even if "nothing is happening" right now, find SOMETHING actionable to say:
-- Buy phase: comment on their economy choice.
-- Walking around: positioning advice or crosshair placement.
-- Holding an angle: feedback on their position choice.
-- Mid-fight: tactical advice.
-- After a kill: reposition or trade advice.
-- After a death: what they could have done differently.
-- Spike planted: post-plant or retake advice.
-- Round over: thoughts on the round.
-- Rotating: rotation timing advice.
+The player is paying for tips. Give tips. SKIP is for when there is literally no game visible.
 
-A real coach speaks every 10-15 seconds. Be that coach. Only SKIP for non-gameplay screens.
+A real coach speaks every 10-15 seconds. Be that coach.
 
 RECENT TIPS YOU GAVE (DO NOT REPEAT OR REPHRASE):
 ${recent}
@@ -369,7 +366,25 @@ CRITICAL ANTI-REPETITION RULES:
 
 TOPIC VARIETY:
 Recent tips covered these topics: ${topics}.
-Cover a DIFFERENT topic this time. Cycle through: economy, positioning, utility, aim, rotation, spike play, teamwork, mental game, death analysis. Do not focus on the same topic twice in a row.`;
+Cover a DIFFERENT topic this time. Cycle through: economy, positioning, utility, aim, rotation, spike play, teamwork, mental game, death analysis. Do not focus on the same topic twice in a row.
+
+OUTPUT FORMAT (CRITICAL — READ THIS LAST):
+Your entire response must be ONLY a valid JSON object. Nothing before it. Nothing after it.
+
+WRONG (do not do this):
+Here is the JSON requested:
+\`\`\`json
+{ "tip": "...", "context": {...} }
+\`\`\`
+
+WRONG (do not do this):
+Sure, here is my response:
+{ "tip": "..." }
+
+CORRECT (do this):
+{ "tip": "Use your Tailwind to escape after that kill.", "context": { "agent": "Jett", "phase": "active" } }
+
+Start your response with { and end with }. No preamble, no markdown, no explanation, no code fences. Just the raw JSON object.`;
 }
 
 const SMART_PROMPT = `You are a Radiant-level Valorant coach analyzing a live gameplay screenshot. Give one coaching tip that is 8 to 20 words long. Your tip must be a complete, specific, actionable sentence.
@@ -545,47 +560,54 @@ router.post('/analyze', async (req, res) => {
     ]);
     trackCall(licenseKey);
 
-    // Robust parse — NEVER throws. Falls back to plain-text-as-tip.
-    let parsed = { tip: null, context: {} };
-    const rawStr = String(raw).trim();
-    console.log('[coach] Raw Gemini text:', rawStr.slice(0, 200));
-    try {
-      const cleaned   = rawStr.replace(/```json\s*/gi, '').replace(/```/g, '').trim();
-      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        parsed = JSON.parse(jsonMatch[0]);
-      } else {
-        parsed = { tip: cleaned, context: {} };
+    // Robust parse — handles markdown fences, "Here is the JSON:" preambles, etc.
+    let parsedResponse = { tip: null, context: {} };
+    const rawStr = String(raw);
+    console.log('[coach] Raw Gemini text length:', rawStr.length);
+
+    // Step 1: strip markdown code fences (```json ... ``` and ``` ... ```)
+    let cleaned = rawStr
+      .replace(/```(?:json)?\s*\n?/gi, '')
+      .replace(/```/g, '');
+
+    // Step 2: strip everything before the first {  (kills "Here is the JSON:" etc.)
+    cleaned = cleaned.replace(/^[^{]*(?=\{)/s, '');
+
+    // Step 3: brace-match — take from first { through last }
+    const firstBrace = cleaned.indexOf('{');
+    const lastBrace  = cleaned.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      const jsonStr = cleaned.substring(firstBrace, lastBrace + 1);
+      try {
+        parsedResponse = JSON.parse(jsonStr);
+        console.log('[coach] Successfully parsed JSON');
+      } catch (e) {
+        console.error('[coach] JSON.parse failed:', e.message);
+        console.error('[coach] Attempted:', jsonStr.substring(0, 200));
+        // Last resort: regex-extract just the tip field
+        const tipMatch = jsonStr.match(/"tip"\s*:\s*"((?:\\.|[^"\\])+)"/);
+        if (tipMatch) {
+          parsedResponse = { tip: tipMatch[1], context: {} };
+          console.log('[coach] Recovered tip via regex:', tipMatch[1]);
+        }
       }
-    } catch (e) {
-      console.error('[coach] JSON parse failed, using as plain tip:', e.message);
-      parsed = { tip: rawStr, context: {} };
+    } else {
+      console.error('[coach] No JSON braces found in response');
     }
 
-    // Unwrap double-encoded responses ({ tip: "{\"tip\":\"...\"}" })
-    let finalTip = parsed.tip;
+    // Unwrap double-encoded { tip: { tip: "..." } }
+    let finalTip = parsedResponse.tip;
     if (typeof finalTip === 'object' && finalTip !== null) {
       finalTip = finalTip.tip || JSON.stringify(finalTip);
     }
-    if (typeof finalTip !== 'string') finalTip = String(finalTip == null ? '' : finalTip);
+    if (finalTip != null && typeof finalTip !== 'string') finalTip = String(finalTip);
 
-    // If the tip itself is JSON-looking, try to peel one more layer
-    const innerTrim = finalTip.trim();
-    if (innerTrim.startsWith('{') && innerTrim.endsWith('}')) {
-      try {
-        const inner = JSON.parse(innerTrim);
-        if (inner && typeof inner.tip === 'string') finalTip = inner.tip;
-      } catch {}
+    if (finalTip) {
+      finalTip = finalTip.trim().replace(/^["']|["']$/g, '');
     }
 
-    // Strip any leftover JSON syntax fragments
-    finalTip = finalTip
-      .replace(/^[\s{]*"?tip"?\s*:\s*"?/i, '')  // leading {"tip": "
-      .replace(/"?\s*[}]*\s*$/, '')             // trailing "}
-      .trim();
-
-    let tip    = sanitize(finalTip);
-    let outCtx = parsed.context || {};
+    let tip    = sanitize(finalTip || '');
+    let outCtx = parsedResponse.context || {};
     console.log('[coach] Final tip:', tip.slice(0, 100));
 
     // Enforce complete sentence on the server before sending to client
