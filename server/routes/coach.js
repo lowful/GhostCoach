@@ -288,30 +288,13 @@ WHEN TO GIVE A TIP:
 - Player has utility unused that should be used.
 - Player about to make obvious mistake.
 
-RESPONSE FORMAT (return valid JSON, nothing else):
-{
-  "tip": "Your coaching tip in 8 to 20 words ending with a period. OR the word SKIP if nothing useful to say.",
-  "context": {
-    "agent": "detected agent name or null",
-    "map": "detected map name or null",
-    "side": "Attack or Defense or null",
-    "roundNumber": detected round number or null,
-    "teamScore": detected team score or null,
-    "enemyScore": detected enemy score or null,
-    "phase": "buy or active or postplant or dead or menu",
-    "playerCredits": detected credits number or null,
-    "playerAlive": true or false
-  }
-}
-
 CRITICAL RULES:
 - Tip MUST be a complete sentence ending in a period.
-- Tip MUST be 8 to 20 words.
+- Tip MUST be 6 to 14 words.
 - Never use em-dashes or long dashes. Use commas and periods.
 - Never suggest abilities the player's agent does not have.
 - Never repeat tips from the recent tips list above.
 - When in doubt, respond with SKIP. Quality over quantity.
-- Always return valid JSON.
 
 TIP LENGTH RULES (STRICT):
 - Maximum 14 words. NEVER more than 14 words.
@@ -368,23 +351,18 @@ TOPIC VARIETY:
 Recent tips covered these topics: ${topics}.
 Cover a DIFFERENT topic this time. Cycle through: economy, positioning, utility, aim, rotation, spike play, teamwork, mental game, death analysis. Do not focus on the same topic twice in a row.
 
-OUTPUT FORMAT (CRITICAL — READ THIS LAST):
-Your entire response must be ONLY a valid JSON object. Nothing before it. Nothing after it.
+RESPONSE FORMAT (CRITICAL — READ THIS LAST):
+Respond with ONE plain text coaching tip in 6 to 14 words ending with a period. Just the tip, nothing else.
 
-WRONG (do not do this):
-Here is the JSON requested:
-\`\`\`json
-{ "tip": "...", "context": {...} }
-\`\`\`
+Example responses:
+Use your Tailwind to escape after that kill.
+Force buy with Spectre and light shields this round.
+Your crosshair is too low, aim at head height.
 
-WRONG (do not do this):
-Sure, here is my response:
-{ "tip": "..." }
+If you see a main menu or non-gameplay screen, respond with only:
+SKIP
 
-CORRECT (do this):
-{ "tip": "Use your Tailwind to escape after that kill.", "context": { "agent": "Jett", "phase": "active" } }
-
-Start your response with { and end with }. No preamble, no markdown, no explanation, no code fences. Just the raw JSON object.`;
+Do not include "Tip:" or quotes or any preamble. Do not wrap in JSON. Do not use code fences. Just the tip text or the word SKIP.`;
 }
 
 const SMART_PROMPT = `You are a Radiant-level Valorant coach analyzing a live gameplay screenshot. Give one coaching tip that is 8 to 20 words long. Your tip must be a complete, specific, actionable sentence.
@@ -555,60 +533,69 @@ router.post('/analyze', async (req, res) => {
   const t0 = Date.now();
   try {
     const raw = await Promise.race([
-      geminiCall(image, prompt, 250, true),
+      geminiCall(image, prompt, 250, false),
       new Promise((_, rej) => setTimeout(() => rej(new Error('Gemini timeout')), 10000)),
     ]);
     trackCall(licenseKey);
 
-    // Robust parse — handles markdown fences, "Here is the JSON:" preambles, etc.
-    let parsedResponse = { tip: null, context: {} };
+    let finalTip     = null;
+    let finalContext = {};
     const rawStr = String(raw);
     console.log('[coach] Raw Gemini text length:', rawStr.length);
+    console.log('[coach] Raw Gemini text:', rawStr.substring(0, 200));
 
-    // Step 1: strip markdown code fences (```json ... ``` and ``` ... ```)
+    // Strip code fences first
     let cleaned = rawStr
       .replace(/```(?:json)?\s*\n?/gi, '')
-      .replace(/```/g, '');
+      .replace(/```/g, '')
+      .trim();
 
-    // Step 2: strip everything before the first {  (kills "Here is the JSON:" etc.)
-    cleaned = cleaned.replace(/^[^{]*(?=\{)/s, '');
-
-    // Step 3: brace-match — take from first { through last }
+    // Try JSON first (in case Gemini still returns structured)
     const firstBrace = cleaned.indexOf('{');
     const lastBrace  = cleaned.lastIndexOf('}');
     if (firstBrace !== -1 && lastBrace > firstBrace) {
       const jsonStr = cleaned.substring(firstBrace, lastBrace + 1);
       try {
-        parsedResponse = JSON.parse(jsonStr);
-        console.log('[coach] Successfully parsed JSON');
+        const parsed = JSON.parse(jsonStr);
+        finalTip     = parsed.tip || null;
+        finalContext = parsed.context || {};
+        console.log('[coach] Parsed JSON successfully, tip:', finalTip);
       } catch (e) {
-        console.error('[coach] JSON.parse failed:', e.message);
-        console.error('[coach] Attempted:', jsonStr.substring(0, 200));
-        // Last resort: regex-extract just the tip field
         const tipMatch = jsonStr.match(/"tip"\s*:\s*"((?:\\.|[^"\\])+)"/);
         if (tipMatch) {
-          parsedResponse = { tip: tipMatch[1], context: {} };
-          console.log('[coach] Recovered tip via regex:', tipMatch[1]);
+          finalTip = tipMatch[1];
+          console.log('[coach] Regex-extracted tip:', finalTip);
         }
       }
-    } else {
-      console.error('[coach] No JSON braces found in response');
     }
 
-    // Unwrap double-encoded { tip: { tip: "..." } }
-    let finalTip = parsedResponse.tip;
-    if (typeof finalTip === 'object' && finalTip !== null) {
-      finalTip = finalTip.tip || JSON.stringify(finalTip);
-    }
-    if (finalTip != null && typeof finalTip !== 'string') finalTip = String(finalTip);
+    // No JSON — treat the whole response as a plain-text tip
+    if (!finalTip) {
+      let plain = cleaned
+        .replace(/^here is the json requested:?\s*/i, '')
+        .replace(/^here is the tip:?\s*/i, '')
+        .replace(/^here'?s?\s+the\s+(json|tip|response):?\s*/i, '')
+        .replace(/^sure[,!]?\s*/i, '')
+        .replace(/^okay[,!]?\s*/i, '')
+        .trim()
+        .replace(/^["']|["']$/g, '');
 
-    if (finalTip) {
-      finalTip = finalTip.trim().replace(/^["']|["']$/g, '');
+      if (plain.toUpperCase() === 'SKIP') {
+        finalTip = 'SKIP';
+        console.log('[coach] Plain SKIP response');
+      } else if (plain.length >= 10 && plain.length <= 200) {
+        finalTip = plain;
+        console.log('[coach] Using plain text as tip:', finalTip);
+      } else {
+        console.log('[coach] Plain text rejected - length', plain.length);
+      }
     }
+
+    if (finalTip && typeof finalTip !== 'string') finalTip = String(finalTip);
 
     let tip    = sanitize(finalTip || '');
-    let outCtx = parsedResponse.context || {};
-    console.log('[coach] Final tip:', tip.slice(0, 100));
+    let outCtx = finalContext;
+    console.log('[coach] FINAL TIP:', tip.slice(0, 100));
 
     // Enforce complete sentence on the server before sending to client
     if (tip && tip !== 'SKIP' && tip !== 'VICTORY' && tip !== 'DEFEAT') {
