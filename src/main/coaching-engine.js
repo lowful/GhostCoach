@@ -58,9 +58,25 @@ class CoachingEngine extends EventEmitter {
       });
     }, 2000);
 
+    // Dedicated agent detection at 8s (before any agent-specific tips fire)
+    setTimeout(() => {
+      if (this.isRunning) this.detectAgent();
+    }, 8000);
+
+    // Retry agent detection every 30s until we lock one
+    this.agentDetectionInterval = setInterval(() => {
+      if (!this.isRunning) return;
+      if (this.matchContext.agent) {
+        clearInterval(this.agentDetectionInterval);
+        this.agentDetectionInterval = null;
+        return;
+      }
+      this.detectAgent();
+    }, 30000);
+
     setTimeout(() => {
       if (this.isRunning) this.captureAndAnalyze();
-    }, 12000);
+    }, 14000);
 
     this.captureTimer = setInterval(() => {
       if (this.isRunning && !this.isCapturing) this.captureAndAnalyze();
@@ -72,6 +88,8 @@ class CoachingEngine extends EventEmitter {
     this.shouldAbort = true;
     if (this.captureTimer) clearInterval(this.captureTimer);
     this.captureTimer = null;
+    if (this.agentDetectionInterval) clearInterval(this.agentDetectionInterval);
+    this.agentDetectionInterval = null;
     this.emit('status', 'stopped');
 
     const aiTipCount = this.tipHistory.filter(t => t.source === 'ai').length;
@@ -194,6 +212,8 @@ class CoachingEngine extends EventEmitter {
       /\bof\.?$/i,   /\bin\.?$/i,   /\bat\.?$/i,
       /\bon\.?$/i,   /\byour\.?$/i, /\bmy\.?$/i,
       /'s\.?$/i,     /,\s*$/,
+      // Cut-off ability names
+      /\bcloud\.?$/i, /\bblade\.?$/i, /\btail\.?$/i, /\bup\.?$/i,
     ];
     for (const pattern of truncationPatterns) {
       if (pattern.test(trimmed)) {
@@ -235,11 +255,75 @@ class CoachingEngine extends EventEmitter {
       return;
     }
 
+    // Reject if tip mentions another agent's abilities while we have a locked agent
+    if (!this.validateTipForAgent(cleaned)) {
+      console.log('[engine] Tip rejected by agent validator');
+      return;
+    }
+
     this.skipCount = 0;
     this.emitTip(cleaned, 'ai');
 
     this.matchContext.lastTipsGiven.push(cleaned);
     if (this.matchContext.lastTipsGiven.length > 8) this.matchContext.lastTipsGiven.shift();
+  }
+
+  async detectAgent() {
+    if (this.matchContext.agent) return;
+    if (this.isCapturing) return;
+    this.isCapturing = true;
+
+    try {
+      const screenshot = await this.captureFunction();
+      if (!screenshot || this.shouldAbort) { this.isCapturing = false; return; }
+
+      const controller = new AbortController();
+      const timeout    = setTimeout(() => controller.abort(), 8000);
+      const response = await fetch(this.serverUrl + '/api/coach/detect-agent', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'X-License-Key': this.licenseKey },
+        body:    JSON.stringify({ image: screenshot }),
+        signal:  controller.signal,
+      });
+      clearTimeout(timeout);
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.agent) {
+          this.matchContext.agent = data.agent;
+          console.log('[engine] AGENT LOCKED:', data.agent);
+          if (this.agentDetectionInterval) {
+            clearInterval(this.agentDetectionInterval);
+            this.agentDetectionInterval = null;
+          }
+        } else {
+          console.log('[engine] Agent detection returned UNKNOWN, will retry');
+        }
+      }
+    } catch (e) {
+      console.error('[engine] Agent detection error:', e.message);
+    }
+
+    this.isCapturing = false;
+  }
+
+  validateTipForAgent(tip) {
+    if (!this.matchContext.agent) return true;
+    const lower       = tip.toLowerCase();
+    const playerAgent = this.matchContext.agent;
+
+    for (const [agent, abilities] of Object.entries(AGENT_ABILITIES)) {
+      if (agent === playerAgent) continue;
+      for (const ability of abilities) {
+        if (lower.includes(ability)) {
+          // Allow tips that explicitly reference a teammate's ability
+          if (lower.includes('teammate') || lower.includes("'s ")) return true;
+          console.log('[engine] REJECTED tip - mentions', agent, 'ability but player is', playerAgent, ':', tip);
+          return false;
+        }
+      }
+    }
+    return true;
   }
 
   isSimilarToRecent(newTip) {
@@ -446,6 +530,33 @@ class CoachingEngine extends EventEmitter {
     this.isCapturing = false;
   }
 }
+
+const AGENT_ABILITIES = {
+  'Jett':      ['cloudburst', 'updraft', 'tailwind', 'blade storm', 'dash', 'jett'],
+  'Reyna':     ['leer', 'devour', 'dismiss', 'empress', 'reyna'],
+  'Phoenix':   ['curveball', 'hot hands', 'blaze', 'run it back', 'phoenix'],
+  'Raze':      ['boom bot', 'blast pack', 'paint shells', 'showstopper', 'satchel', 'raze'],
+  'Neon':      ['fast lane', 'relay bolt', 'high gear', 'overdrive', 'neon'],
+  'Iso':       ['undercut', 'double tap', 'contingency', 'kill contract', 'iso'],
+  'Yoru':      ['fakeout', 'blindside', 'gatecrash', 'dimensional drift', 'yoru'],
+  'Sova':      ['owl drone', 'shock bolt', 'recon bolt', "hunter's fury", 'sova'],
+  'Breach':    ['flashpoint', 'fault line', 'aftershock', 'rolling thunder', 'breach'],
+  'Skye':      ['trailblazer', 'guiding light', 'regrowth', 'seekers', 'skye'],
+  'KAY/O':     ['flash/drive', 'zero/point', 'frag/ment', 'null/cmd', 'kay/o', 'kayo'],
+  'Fade':      ['prowler', 'seize', 'haunt', 'nightfall', 'fade'],
+  'Gekko':     ['wingman', 'dizzy', 'mosh pit', 'thrash', 'gekko'],
+  'Omen':      ['shrouded step', 'paranoia', 'dark cover', 'from the shadows', 'omen'],
+  'Brimstone': ['stim beacon', 'incendiary', 'sky smoke', 'orbital strike', 'brimstone'],
+  'Viper':     ['snake bite', 'poison cloud', 'toxic screen', "viper's pit", 'viper'],
+  'Astra':     ['gravity well', 'nova pulse', 'nebula', 'cosmic divide', 'astra'],
+  'Harbor':    ['cove', 'high tide', 'cascade', 'reckoning', 'harbor'],
+  'Clove':     ['pick-me-up', 'meddle', 'ruse', 'not dead yet', 'clove'],
+  'Sage':      ['slow orb', 'healing orb', 'barrier', 'resurrection', 'sage'],
+  'Killjoy':   ['nanoswarm', 'alarmbot', 'turret', 'lockdown', 'killjoy'],
+  'Cypher':    ['trapwire', 'cyber cage', 'spycam', 'neural theft', 'cypher'],
+  'Chamber':   ['trademark', 'headhunter', 'rendezvous', 'tour de force', 'chamber'],
+  'Deadlock':  ['gravnet', 'sonic sensor', 'barrier mesh', 'annihilation', 'deadlock'],
+};
 
 const WELCOME_MESSAGES = [
   "GhostCoach is locked in. Play smart, I have got you.",

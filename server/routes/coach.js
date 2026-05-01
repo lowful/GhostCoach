@@ -156,9 +156,18 @@ function buildContextPrompt(context) {
   const recent = (ctx.lastTipsGiven || []).map((t, i) => `${i + 1}. ${t}`).join('\n') || '  (none yet, give any appropriate tip)';
   const topics = Array.isArray(ctx.recentTopics) && ctx.recentTopics.length ? ctx.recentTopics.join(', ') : 'none yet';
 
-  const agentLine = ctx.agent
-    ? `PLAYER AGENT (LOCKED, confirmed earlier in match): ${ctx.agent}. ALWAYS use this. Do not change.`
-    : `PLAYER AGENT: Not yet identified. Look at bottom-center ability icons.`;
+  const agentSection = ctx.agent
+    ? `PLAYER'S AGENT IS ${String(ctx.agent).toUpperCase()}. THIS IS LOCKED AND CONFIRMED.
+The player is playing ${ctx.agent}. Their abilities are ${ctx.agent}'s abilities. Do NOT suggest abilities from any other agent.
+
+When suggesting an ability for the player to use, ONLY suggest ${ctx.agent}'s abilities. Their teammates may have other agents but the PLAYER is ${ctx.agent}.
+
+If you are about to write a tip with an ability name, verify it belongs to ${ctx.agent}. If it does not, rewrite the tip to use ${ctx.agent}'s actual abilities or give a non-ability tip about positioning, economy, or aim instead.`
+    : `PLAYER'S AGENT: Not yet identified.
+Do NOT mention any specific agent abilities. Give general advice about positioning, crosshair placement, economy, rotation, or game sense. Do not name any agent in your tip.`;
+
+  // Backwards-compat alias used elsewhere in this template literal
+  const agentLine = agentSection;
 
   return `You are a Radiant-level Valorant coach watching a live match. You have memory of the match so far.
 
@@ -742,6 +751,69 @@ router.post('/match-review', async (req, res) => {
     console.error('[review] Error:', e.message);
     console.error(e.stack);
     res.json({ review: 'Review generation failed.' });
+  }
+});
+
+// POST /api/coach/detect-agent — JSON body: { image: base64 }
+// Cheap one-shot agent detection. Used at session start to lock the agent.
+router.post('/detect-agent', async (req, res) => {
+  try {
+    const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
+    if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+
+    const image = req.body && req.body.image;
+    if (!image || typeof image !== 'string') return res.status(400).json({ error: 'No image' });
+
+    const prompt = `Look at this Valorant screenshot. The player has 4 ability icons at the BOTTOM-CENTER of the screen, just above their HP bar.
+
+Identify the player's agent by matching those 4 ability icons to one of these agents:
+
+Jett: Cloudburst smoke, Updraft jump, Tailwind dash, Blade Storm knife ult
+Reyna: Leer eye, Devour heal, Dismiss escape, Empress ult
+Phoenix: Curveball flash, Hot Hands molly, Blaze fire wall, Run It Back ult
+Raze: Boom Bot, Blast Pack satchel, Paint Shells nade, Showstopper rocket
+Neon: Fast Lane walls, Relay Bolt stun, High Gear sprint, Overdrive beam
+Iso: Undercut, Double Tap shield, Contingency wall, Kill Contract
+Yoru: Fakeout decoy, Blindside flash, Gatecrash teleport, Dimensional Drift
+Sova: Owl Drone, Shock Bolt, Recon Bolt, Hunter's Fury
+Breach: Flashpoint, Fault Line, Aftershock, Rolling Thunder
+Skye: Trailblazer dog, Guiding Light bird, Regrowth, Seekers
+KAY/O: FLASH/drive, ZERO/point knife, FRAG/ment, NULL/cmd
+Fade: Prowler, Seize tether, Haunt eye, Nightfall
+Gekko: Wingman, Dizzy, Mosh Pit, Thrash
+Tejo
+Omen: Shrouded Step teleport, Paranoia blind, Dark Cover smokes, From The Shadows
+Brimstone: Stim Beacon, Incendiary, Sky Smoke, Orbital Strike
+Viper: Snake Bite, Poison Cloud, Toxic Screen wall, Viper's Pit
+Astra: Gravity Well, Nova Pulse, Nebula smoke, Cosmic Divide
+Harbor: Cove bubble, High Tide wall, Cascade, Reckoning
+Clove: Pick-Me-Up, Meddle, Ruse smokes, Not Dead Yet
+Sage: Slow Orb, Healing Orb, Barrier wall, Resurrection
+Killjoy: Nanoswarm, Alarmbot, Turret, Lockdown
+Cypher: Trapwire, Cyber Cage smoke, Spycam, Neural Theft
+Chamber: Trademark, Headhunter, Rendezvous, Tour De Force
+Deadlock: GravNet, Sonic Sensor, Barrier Mesh, Annihilation
+Vyse, Waylay
+
+Respond with ONLY the agent name. Just one word. No explanation. No punctuation.
+
+If you cannot clearly see all 4 ability icons or are not 100% sure, respond with: UNKNOWN`;
+
+    const text = await Promise.race([
+      geminiCall(image, prompt, 20, false),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000)),
+    ]);
+    trackCall(licenseKey);
+
+    const validAgents = ['Jett','Reyna','Phoenix','Raze','Neon','Iso','Yoru','Sova','Breach','Skye','KAY/O','Fade','Gekko','Tejo','Omen','Brimstone','Viper','Astra','Harbor','Clove','Sage','Killjoy','Cypher','Chamber','Deadlock','Vyse','Waylay'];
+    const cleanText = String(text || '').trim();
+    const detected  = validAgents.find(a => cleanText.toLowerCase().includes(a.toLowerCase()));
+
+    console.log('[coach] Agent detection - raw:', cleanText.slice(0, 40), 'matched:', detected);
+    res.json({ agent: detected || null });
+  } catch (e) {
+    console.error('[coach] detect-agent error:', e.message);
+    res.json({ agent: null });
   }
 });
 
