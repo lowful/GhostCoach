@@ -1,0 +1,36 @@
+<svg width="120" height="140" viewBox="0 0 120 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="ghostBody" x1="60" y1="8" x2="60" y2="132" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FF5E6B"/>
+      <stop offset="1" stop-color="#E8323F"/>
+    </linearGradient>
+    <radialGradient id="ghostGlow" cx="0.5" cy="0.32" r="0.7">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#FF4655" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <!-- Body: rounded dome with a scalloped bottom edge -->
+  <path filter="url(#soft)" fill="url(#ghostBody)" d="
+    M60 8
+    C33 8 16 28 16 56
+    V118
+    c0 6 7 9 11 5
+    l8-8 8 8c2 2 6 2 8 0
+    l8-8 8 8c2 2 6 2 8 0
+    l8-8 8 8c4 4 11 1 11-5
+    V56
+    C104 28 87 8 60 8 Z"/>
+
+  <!-- Top highlight -->
+  <path fill="url(#ghostGlow)" d="M60 8C33 8 16 28 16 56v22c0-28 17-48 44-48s44 20 44 48V56C104 28 87 8 60 8Z"/>
+
+  <!-- Eyes -->
+  <circle cx="45" cy="58" r="8" fill="#0F1923"/>
+  <circle cx="75" cy="58" r="8" fill="#0F1923"/>
+  <circle cx="47.5" cy="55.5" r="2.6" fill="#00F0FF"/>
+  <circle cx="77.5" cy="55.5" r="2.6" fill="#00F0FF"/>
+</svg>

@@ -1,0 +1,76 @@
+/* Shared UI primitives, buttons, inputs, chips. */
+
+.btn {
+  -webkit-app-region: no-drag;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--glass-fill-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  padding: 9px 14px;
+  cursor: pointer;
+  transition: transform var(--t-fast) var(--ease),
+              background var(--t-fast) var(--ease),
+              box-shadow var(--t-fast) var(--ease),
+              border-color var(--t-fast) var(--ease);
+}
+.btn:hover  { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.16); }
+.btn:active { transform: scale(0.97); }
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--red), var(--red-2));
+  border-color: transparent;
+  color: #fff;
+}
+.btn-primary:hover { box-shadow: var(--glow-red); filter: brightness(1.06); }
+
+.btn-ghost { background: transparent; border-color: transparent; color: var(--text-dim); }
+.btn-ghost:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+
+.icon-btn {
+  -webkit-app-region: no-drag;
+  display: grid; place-items: center;
+  width: 34px; height: 34px;
+  border-radius: var(--r-md);
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all var(--t-fast) var(--ease);
+}
+.icon-btn:hover { color: var(--text); background: rgba(255,255,255,0.07); border-color: var(--glass-border); }
+.icon-btn:active { transform: scale(0.94); }
+
+.input {
+  -webkit-app-region: no-drag;
+  width: 100%;
+  font-family: 'SF Mono', 'Consolas', monospace;
+  font-size: 15px;
+  letter-spacing: 2px;
+  color: var(--text);
+  background: rgba(0,0,0,0.28);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  padding: 13px 14px;
+  outline: none;
+  transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+}
+.input:focus { border-color: rgba(0,240,255,0.5); box-shadow: var(--glow-cyan); }
+.input::placeholder { color: var(--text-mute); letter-spacing: 1px; }
+
+/* Status dot */
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--text-mute); transition: all var(--t-med) var(--ease); }
+.dot.coaching { background: var(--cyan); box-shadow: 0 0 10px var(--cyan); animation: pulse 1.6s var(--ease) infinite; }
+.dot.paused   { background: #f5a623; box-shadow: 0 0 8px #f5a623; }
+.dot.stopped  { background: var(--text-mute); }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 500;
+  padding: 5px 10px; border-radius: 999px;
+  background: rgba(255,70,85,0.12); color: #ff8a95;
+  border: 1px solid rgba(255,70,85,0.25);
+}

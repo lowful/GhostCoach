@@ -1,235 +1,112 @@
-(function () {
-  'use strict';
+'use strict';
 
-  // ─── DOM refs ─────────────────────────────────────────────────────────────────
-  const statusDot        = document.getElementById('status-dot');
-  const statusText       = document.getElementById('status-text');
-  const sessionStats     = document.getElementById('session-stats');
-  const statTips         = document.getElementById('stat-tips');
-  const statTime         = document.getElementById('stat-time');
-  const btnCoach         = document.getElementById('btn-coach');
-  const btnPause         = document.getElementById('btn-pause');
-  const btnForce         = document.getElementById('btn-force');
-  const perfSelect       = document.getElementById('perf-select');
-  const overlayPosBtns   = document.querySelectorAll('.overlay-pos-btn');
-  const tipPosBtns       = document.querySelectorAll('.tip-pos-btn');
-  const btnQuit          = document.getElementById('btn-quit');
-  const licensePlanEl    = document.getElementById('license-plan');
-  const licenseStatusEl  = document.getElementById('license-status-badge');
-  const licenseExpiryEl  = document.getElementById('license-expiry');
+const perfSeg   = document.getElementById('perf');
+const tipposSeg = document.getElementById('tippos');
 
-  // ─── Local state ──────────────────────────────────────────────────────────────
-  let isCoaching       = false;
-  let isPaused         = false;
-  let tipPosition      = 'bottom-right';
-  let overlayPosition  = 'top-left';
-  let performanceMode  = 'balanced';
-  let sessionStartTime = null;
-  let sessionTipCount  = 0;
-  let sessionTimerInterval = null;
-
-  // ─── Status map ───────────────────────────────────────────────────────────────
-  const STATUS_MAP = {
-    idle:             { cls: '',           text: 'Ready' },
-    coaching:         { cls: 'coaching',   text: 'Coaching' },
-    capturing:        { cls: 'capturing',  text: 'Capturing...' },
-    analyzing:        { cls: 'analyzing',  text: 'Analyzing...' },
-    summarizing:      { cls: 'analyzing',  text: 'Generating summary...' },
-    paused:           { cls: 'paused',     text: 'Paused' },
-    stopped:          { cls: '',           text: 'Stopped' },
-    connection_lost:  { cls: 'connection', text: 'Connection lost...' },
-    rate_limited:     { cls: 'rate',       text: 'Rate limited' },
-    error:            { cls: 'error',      text: 'Error' }
-  };
-
-  function setStatus(key, customText) {
-    const s = STATUS_MAP[key] || STATUS_MAP.idle;
-    statusDot.className = 'sdot ' + s.cls;
-    statusText.textContent = customText || s.text;
+function markSeg(seg, value) {
+  for (const btn of seg.querySelectorAll('button')) {
+    btn.classList.toggle('active', btn.dataset.val === value);
   }
+}
 
-  // ─── Coaching state ───────────────────────────────────────────────────────────
-  function setCoachingUI(active) {
-    isCoaching = active;
-    btnCoach.classList.toggle('active', active);
-    btnCoach.textContent = active ? 'STOP COACHING' : 'START COACHING';
-    btnPause.classList.toggle('hidden', !active);
+function wireSeg(seg, key) {
+  seg.addEventListener('click', async (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    markSeg(seg, btn.dataset.val);
+    await window.ghost.setConfig({ [key]: btn.dataset.val });
+  });
+}
 
-    if (active) {
-      setStatus('coaching', 'Coaching');
-      sessionStats.classList.remove('hidden');
-      startSessionTimer();
-    } else {
-      setStatus('idle', 'Ready');
-      sessionStats.classList.add('hidden');
-      stopSessionTimer();
+wireSeg(perfSeg, 'performanceMode');
+wireSeg(tipposSeg, 'tipPosition');
+
+// Render the license block. Accepts either a getLicense() result or a state
+// snapshot (both carry licensePlan / licenseStatus / licenseExpiry).
+const ENDED_MESSAGES = {
+  expired:        'Your subscription has expired. Renew to keep coaching.',
+  cancelled:      'Your subscription was cancelled. Resubscribe to keep coaching.',
+  payment_failed: 'Your last payment failed. Update your payment method to keep coaching.',
+  device_mismatch:'This key is active on another device.',
+};
+
+function renderLicense(lic) {
+  if (!lic) return;
+  document.getElementById('lic-plan').textContent = lic.licensePlan || '·';
+  // Reflect a lapsed subscription immediately, even before the server re-check.
+  let status = lic.licenseStatus || '';
+  if (lic.licenseExpiry && new Date(lic.licenseExpiry) < new Date()) status = 'expired';
+  const statusEl = document.getElementById('lic-status');
+  statusEl.textContent = status || '·';
+  statusEl.className = `badge ${status}`;
+  document.getElementById('lic-expiry').textContent = formatExpiry(lic.licenseExpiry);
+
+  // Big red notice when the subscription is no longer active.
+  const ended = !!status && status !== 'active';
+  const noticeEl = document.getElementById('lic-ended');
+  if (noticeEl) {
+    noticeEl.textContent = ENDED_MESSAGES[status] || 'Your subscription has ended. Renew to keep coaching.';
+    noticeEl.hidden = !ended;
+  }
+}
+
+async function refreshLicense() {
+  try { renderLicense(await window.ghost.getLicense()); } catch (e) {}
+}
+
+// Load current config + license.
+async function load() {
+  try {
+    const cfg = await window.ghost.getConfig();
+    if (cfg) {
+      markSeg(perfSeg, cfg.performanceMode);
+      markSeg(tipposSeg, cfg.tipPosition);
     }
+    await refreshLicense();
+  } catch (err) {
+    console.error('[settings] load failed', err);
   }
+}
 
-  // ─── Session timer ────────────────────────────────────────────────────────────
-  function startSessionTimer() {
-    stopSessionTimer();
-    if (!sessionStartTime) sessionStartTime = Date.now();
-    sessionTimerInterval = setInterval(updateSessionStats, 15000);
-    updateSessionStats();
-  }
+// Keep the license block consistent: on every pushed state, on window focus, and
+// on a slow poll (so an expiry/renewal shows without reopening Settings).
+window.ghost.onState((s) => renderLicense(s));
+window.addEventListener('focus', refreshLicense);
+setInterval(refreshLicense, 15000);
 
-  function stopSessionTimer() {
-    if (sessionTimerInterval) {
-      clearInterval(sessionTimerInterval);
-      sessionTimerInterval = null;
-    }
-  }
+function formatExpiry(value) {
+  if (!value) return 'Never';
+  const d = new Date(value);
+  return isNaN(d) ? value : d.toLocaleDateString();
+}
 
-  function updateSessionStats() {
-    statTips.textContent = 'Tips: ' + sessionTipCount;
-    if (sessionStartTime) {
-      const mins = Math.floor((Date.now() - sessionStartTime) / 60000);
-      statTime.textContent = mins + 'm';
-    }
-  }
+document.getElementById('purchase').addEventListener('click', () => window.ghost.openPurchase());
+document.getElementById('logout').addEventListener('click', () => window.ghost.logout());
+document.getElementById('quit').addEventListener('click', () => window.ghost.quit());
+document.getElementById('close').addEventListener('click', () => window.close());
 
-  // ─── Position button highlighters ─────────────────────────────────────────────
-  function updateOverlayPosBtns() {
-    overlayPosBtns.forEach(b => b.classList.toggle('active', b.dataset.pos === overlayPosition));
-  }
-
-  function updateTipPosBtns() {
-    tipPosBtns.forEach(b => b.classList.toggle('active', b.dataset.pos === tipPosition));
-  }
-
-  // ─── License display ──────────────────────────────────────────────────────────
-  function updateLicenseDisplay(state) {
-    if (!state.licenseStatus) return;
-
-    if (licensePlanEl && state.licensePlan) {
-      licensePlanEl.textContent = state.licensePlan.toUpperCase() || 'GHOSTCOACH';
-    }
-
-    if (licenseStatusEl) {
-      licenseStatusEl.textContent = (state.licenseStatus || '').toUpperCase();
-      licenseStatusEl.className = 'license-badge ' +
-        (state.licenseStatus === 'active' ? 'badge-active' : 'badge-warn');
-      licenseStatusEl.classList.remove('hidden');
-    }
-
-    if (licenseExpiryEl && state.licenseExpiry) {
-      const d = new Date(state.licenseExpiry);
-      if (!isNaN(d)) {
-        licenseExpiryEl.textContent = 'Renews ' + d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-        licenseExpiryEl.classList.remove('hidden');
-      }
-    }
-  }
-
-  // ─── Save settings ────────────────────────────────────────────────────────────
-  function saveSettings(patch) {
-    if (!window.settingsAPI) return;
-    window.settingsAPI.saveSettings(Object.assign({
-      tipPos: tipPosition,
-      overlayPosition,
-      performanceMode,
-    }, patch));
-  }
-
-  // ─── Button handlers ──────────────────────────────────────────────────────────
-  btnCoach.addEventListener('click', () => {
-    if (!window.settingsAPI) return;
-    if (isCoaching) window.settingsAPI.stopCoaching();
-    else            window.settingsAPI.startCoaching();
+// Support email: click to copy to clipboard (falls back to selecting the text).
+const emailEl = document.getElementById('support-email');
+if (emailEl) {
+  emailEl.addEventListener('click', () => {
+    const email = 'ghostcoachsupport@gmail.com';
+    const flash = () => {
+      const orig = emailEl.textContent;
+      emailEl.textContent = 'Copied!';
+      emailEl.classList.add('copied');
+      setTimeout(() => { emailEl.textContent = orig; emailEl.classList.remove('copied'); }, 1200);
+    };
+    const selectIt = () => {
+      const r = document.createRange(); r.selectNodeContents(emailEl);
+      const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(email).then(flash).catch(selectIt);
+      } else selectIt();
+    } catch { selectIt(); }
   });
+}
 
-  btnPause.addEventListener('click', () => {
-    if (!window.settingsAPI) return;
-    window.settingsAPI.pauseResume();
-    isPaused = !isPaused;
-    btnPause.textContent = isPaused ? '▶' : '⏸';
-    btnPause.title = isPaused ? 'Resume coaching (Ctrl+Shift+P)' : 'Pause coaching (Ctrl+Shift+P)';
-  });
-
-  btnForce.addEventListener('click', () => {
-    if (!window.settingsAPI) return;
-    window.settingsAPI.forceCapture();
-    setStatus('capturing', 'Capturing...');
-  });
-
-  perfSelect.addEventListener('change', () => {
-    performanceMode = perfSelect.value;
-    saveSettings();
-  });
-
-  overlayPosBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      overlayPosition = btn.dataset.pos;
-      updateOverlayPosBtns();
-      saveSettings();
-    });
-  });
-
-  tipPosBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      tipPosition = btn.dataset.pos;
-      updateTipPosBtns();
-      saveSettings();
-    });
-  });
-
-  // ─── Quit ─────────────────────────────────────────────────────────────────────
-  btnQuit.addEventListener('click', () => {
-    if (!window.settingsAPI) return;
-    window.settingsAPI.quit();
-  });
-
-  // ─── IPC listeners ────────────────────────────────────────────────────────────
-  if (window.settingsAPI) {
-
-    window.settingsAPI.onState((state) => {
-      setCoachingUI(!!state.isCoaching);
-
-      if (state.isPaused !== undefined) {
-        isPaused = state.isPaused;
-        btnPause.textContent = isPaused ? '▶' : '⏸';
-      }
-      if (state.performanceMode) {
-        performanceMode = state.performanceMode;
-        perfSelect.value = state.performanceMode;
-      }
-      if (state.tipPos) {
-        tipPosition = state.tipPos;
-        updateTipPosBtns();
-      }
-      if (state.overlayPosition) {
-        overlayPosition = state.overlayPosition;
-        updateOverlayPosBtns();
-      }
-      if (state.tipCount !== undefined) {
-        sessionTipCount = state.tipCount;
-        updateSessionStats();
-      }
-      if (state.sessionStart) {
-        sessionStartTime = state.sessionStart;
-        updateSessionStats();
-      } else if (!state.isCoaching) {
-        sessionStartTime = null;
-      }
-      updateLicenseDisplay(state);
-    });
-
-    window.settingsAPI.onStatus((data) => {
-      setStatus(data.status, data.message);
-
-      if (data.status === 'paused') {
-        isPaused = true;
-        if (btnPause) { btnPause.textContent = '▶'; btnPause.title = 'Resume coaching'; }
-      } else if (data.status === 'coaching' && isPaused) {
-        isPaused = false;
-        if (btnPause) { btnPause.textContent = '⏸'; btnPause.title = 'Pause coaching'; }
-      }
-    });
-  }
-
-  // ─── Init ─────────────────────────────────────────────────────────────────────
-  updateOverlayPosBtns();
-  updateTipPosBtns();
-
-})();
+load();
+console.log('[settings] ready');

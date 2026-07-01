@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';" />
+  <title>Activate GhostCoach</title>
+  <link rel="stylesheet" href="../shared/theme.css" />
+  <link rel="stylesheet" href="../shared/ui.css" />
+  <link rel="stylesheet" href="activation.css" />
+</head>
+<body>
+  <div class="bg-grad"></div>
+  <div class="grain"></div>
+
+  <div class="titlebar drag">
+    <button id="close" class="icon-btn no-drag" title="Quit" aria-label="Quit">✕</button>
+  </div>
+
+  <main class="card glass">
+    <div class="logo">
+      <img class="ghost" src="../../../assets/logo-ghost.svg" alt="GhostCoach" width="72" height="84" />
+      <h1>Ghost<span>Coach</span></h1>
+      <p class="sub">Real-time Valorant AI coaching</p>
+    </div>
+
+    <form id="form" autocomplete="off">
+      <label class="lbl" for="key">License key</label>
+      <input id="key" class="input" type="text" placeholder="XXXX-XXXX-XXXX-XXXX"
+             spellcheck="false" maxlength="40" autocomplete="off" />
+      <div id="error" class="error" hidden></div>
+      <button id="activate" class="btn btn-primary full" type="submit">
+        <span class="label">Activate</span>
+        <span class="spinner" hidden></span>
+        <span class="check" hidden>✓</span>
+      </button>
+    </form>
+
+    <button id="purchase" class="link no-drag">Don't have a key? Get one →</button>
+  </main>
+
+  <script src="activation.js"></script>
+</body>
+</html>

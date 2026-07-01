@@ -2,115 +2,79 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';" />
   <title>GhostCoach Settings</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="../shared/theme.css" />
+  <link rel="stylesheet" href="../shared/ui.css" />
   <link rel="stylesheet" href="settings.css" />
 </head>
 <body>
-  <div id="settings-container">
-    <div id="settings-header">
-      <div id="logo-wrap">
-        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 2C7.03 2 3 6.03 3 11v11l3-3 3 3 3-3 3 3 3-3V11C18 6.03 13.97 2 12 2zm-2.5 10.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm5 0a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/></svg>
-        <span class="logo-name">GHOSTCOACH</span>
-        <span class="logo-sub">Settings</span>
+  <div class="sheet glass">
+    <header class="drag">
+      <div class="h-brand">
+        <img src="../../../assets/logo-ghost.svg" alt="" width="16" height="19" />
+        <h2>Settings</h2>
       </div>
-      <div class="game-badge-header">VALORANT</div>
+      <button id="close" class="icon-btn no-drag" title="Close">✕</button>
+    </header>
+
+    <div class="body">
+      <section>
+        <h3>Screenshot frequency</h3>
+        <p class="hint">How often GhostCoach captures and analyzes your screen. More often = more tips, a bit more CPU.</p>
+        <div class="seg" id="perf">
+          <button data-val="performance">Very often</button>
+          <button data-val="balanced">Default</button>
+          <button data-val="battery">Barely</button>
+        </div>
+      </section>
+
+      <section>
+        <h3>Tip position</h3>
+        <p class="hint">Where coaching cards appear on screen.</p>
+        <div class="seg" id="tippos">
+          <button data-val="top-left">Top-left</button>
+          <button data-val="top-right">Top-right</button>
+          <button data-val="bottom-right">Bottom-right</button>
+        </div>
+      </section>
+
+      <section class="license">
+        <h3>License</h3>
+        <div class="kv"><span>Plan</span><b id="lic-plan">·</b></div>
+        <div class="kv"><span>Status</span><span id="lic-status" class="badge">·</span></div>
+        <div class="kv"><span>Expires</span><b id="lic-expiry">·</b></div>
+        <p id="lic-ended" class="lic-ended" hidden></p>
+      </section>
+
+      <section>
+        <h3>Hotkeys</h3>
+        <div class="kv"><span>Minimize panel</span><kbd>Ctrl+Shift+M</kbd></div>
+        <div class="kv"><span>Toggle overlay</span><kbd>Ctrl+Shift+C</kbd></div>
+        <div class="kv"><span>Force tip</span><kbd>Ctrl+Shift+X</kbd></div>
+        <div class="kv"><span>Pause / resume</span><kbd>Ctrl+Shift+P</kbd></div>
+        <div class="kv"><span>Tip history</span><kbd>Ctrl+Shift+H</kbd></div>
+        <div class="kv"><span>Settings</span><kbd>Ctrl+Shift+S</kbd></div>
+      </section>
+
+      <section class="wip">
+        <p class="wip-line">GhostCoach 2.0 is a work in progress.</p>
+        <p class="wip-line">Found a bug or have feedback? Email
+          <span id="support-email" class="wip-mail" title="Click to copy">ghostcoachsupport@gmail.com</span>
+        </p>
+      </section>
     </div>
 
-    <div id="settings-body">
-
-      <!-- ─── LICENSE ────────────────────────────────────────── -->
-      <div class="settings-section">
-        <div class="section-label">LICENSE</div>
-        <div class="license-row">
-          <span id="license-plan">—</span>
-          <span id="license-status-badge" class="license-badge hidden">ACTIVE</span>
-        </div>
-        <div id="license-expiry" class="key-hint hidden"></div>
+    <footer>
+      <button id="purchase" class="btn btn-ghost full">Manage subscription</button>
+      <div class="footer-actions">
+        <button id="logout" class="btn btn-danger">Log out</button>
+        <button id="quit" class="btn">Quit</button>
       </div>
-
-      <!-- ─── COACHING ───────────────────────────────────────── -->
-      <div class="settings-section">
-        <div class="section-label">COACHING</div>
-        <div id="status-row">
-          <span id="status-dot" class="sdot"></span>
-          <span id="status-text">Ready</span>
-        </div>
-        <div id="session-stats" class="hidden">
-          <span id="stat-tips">Tips: 0</span>
-          <span class="stat-sep">·</span>
-          <span id="stat-time">0m</span>
-        </div>
-        <div class="coaching-btns">
-          <button id="btn-coach" class="coach-btn">START COACHING</button>
-          <button id="btn-pause" class="icon-action-btn hidden" title="Pause/Resume (Ctrl+Shift+P)">⏸</button>
-          <button id="btn-force" class="icon-action-btn" title="Force capture now (Ctrl+Shift+S)">⚡</button>
-        </div>
-      </div>
-
-      <!-- ─── POSITIONS ──────────────────────────────────────── -->
-      <div class="settings-section">
-        <div class="section-label">SETTINGS</div>
-
-        <div class="row">
-          <span class="label">PERF</span>
-          <div class="select-wrap">
-            <select id="perf-select">
-              <option value="quality">Quality (10s)</option>
-              <option value="balanced">Balanced (15s)</option>
-              <option value="lightweight">Lite (25s)</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="row">
-          <span class="label">OVERLAY POS</span>
-          <div class="pos-grid corner-grid">
-            <button class="overlay-pos-btn" data-pos="top-left">TL</button>
-            <button class="overlay-pos-btn" data-pos="top-right">TR</button>
-            <button class="overlay-pos-btn" data-pos="bottom-left">BL</button>
-            <button class="overlay-pos-btn" data-pos="bottom-right">BR</button>
-          </div>
-        </div>
-
-        <div class="row">
-          <span class="label">TIP POS</span>
-          <div class="pos-grid corner-grid">
-            <button class="tip-pos-btn" data-pos="top-left">TL</button>
-            <button class="tip-pos-btn" data-pos="top-right">TR</button>
-            <button class="tip-pos-btn" data-pos="bottom-left">BL</button>
-            <button class="tip-pos-btn" data-pos="bottom-right">BR</button>
-          </div>
-        </div>
-
-      </div>
-
-      <!-- ─── HOTKEYS ────────────────────────────────────────── -->
-      <div class="settings-section">
-        <div class="section-label">HOTKEYS</div>
-        <div class="hotkeys-grid">
-          <div class="hk-row"><span class="hk-keys"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>G</kbd></span><span class="hk-desc">Toggle overlay</span></div>
-          <div class="hk-row"><span class="hk-keys"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>P</kbd></span><span class="hk-desc">Pause/Resume</span></div>
-          <div class="hk-row"><span class="hk-keys"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>S</kbd></span><span class="hk-desc">Force scan</span></div>
-          <div class="hk-row"><span class="hk-keys"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>T</kbd></span><span class="hk-desc">Request tip now</span></div>
-          <div class="hk-row"><span class="hk-keys"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>Q</kbd></span><span class="hk-desc">Open settings</span></div>
-          <div class="hk-row"><span class="hk-keys"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>X</kbd></span><span class="hk-desc">Quit</span></div>
-        </div>
-      </div>
-
-      <!-- ─── VANGUARD SAFE ──────────────────────────────────── -->
-      <div class="settings-section safety-section">
-        <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12" style="color:var(--success)"><path d="M8 1L2 3.5v5C2 12 5 14.5 8 15c3-0.5 6-3 6-6.5v-5L8 1zm-.3 9.7l-2.4-2.4 1-1 1.4 1.4 3-3 1 1-4 4z"/></svg>
-        <span style="color:var(--success);font-weight:700;font-size:11px;">100% VANGUARD SAFE</span>
-        <p style="color:var(--text2);font-size:10px;margin-top:4px;line-height:1.5">GhostCoach only takes screenshots — it never reads game memory or injects code.</p>
-      </div>
-
-    </div>
-
-    <button id="btn-quit" class="quit-btn">Quit GhostCoach</button>
+    </footer>
   </div>
+
   <script src="settings.js"></script>
 </body>
 </html>

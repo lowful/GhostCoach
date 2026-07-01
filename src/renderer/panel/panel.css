@@ -1,0 +1,108 @@
+html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; }
+
+.panel {
+  position: relative;
+  margin: 6px;
+  /* height is auto so the card fits its content; the window resizes to match
+     (see ResizeObserver in panel.js), avoids an invisible click-catching strip */
+  border-radius: 16px;
+  padding: 13px 15px 14px;
+  display: flex; flex-direction: column; gap: 11px;
+  overflow: hidden;
+}
+/* brand accent line along the top edge */
+.accent {
+  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, var(--red), #ff7a85 40%, var(--cyan));
+  opacity: 0.9;
+}
+
+.head { display: flex; align-items: center; justify-content: space-between; height: 24px; }
+.brand { display: flex; align-items: center; gap: 9px; }
+.mark { filter: drop-shadow(0 2px 5px rgba(255,70,85,0.45)); }
+.name { font-weight: 700; font-size: 14.5px; letter-spacing: -0.2px; }
+.head-actions { display: flex; gap: 2px; }
+
+/* Agent check "chat bubble" under the ghost mark */
+.agent-bubble {
+  position: relative;
+  background: rgba(0, 240, 255, 0.07);
+  border: 1px solid rgba(0, 240, 255, 0.22);
+  border-radius: 10px; padding: 9px 11px;
+  animation: bubbleIn 200ms var(--ease) both;
+}
+.agent-bubble::before {                 /* tail pointing up to the ghost icon */
+  content: ''; position: absolute; top: -5px; left: 16px;
+  width: 9px; height: 9px; background: rgba(13, 27, 38, 0.98);
+  border-left: 1px solid rgba(0, 240, 255, 0.22); border-top: 1px solid rgba(0, 240, 255, 0.22);
+  transform: rotate(45deg);
+}
+@keyframes bubbleIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+.ab-row { display: flex; align-items: center; gap: 10px; }
+.ab-q { flex: 1; font-size: 12.5px; color: var(--text); line-height: 1.3; }
+.ab-q b { color: var(--cyan); font-weight: 700; }
+
+.ab-btns { display: flex; gap: 8px; flex: none; }
+.ab-btn {
+  height: 28px; min-width: 32px; padding: 0 10px; border-radius: 8px; flex: none;
+  font-size: 13px; font-weight: 700; font-family: var(--font); cursor: pointer; color: var(--text);
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.06); border: 1px solid var(--glass-border);
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.ab-btn.ok { color: var(--cyan); }
+.ab-btn.no { color: var(--red); }
+.ab-btn.ok:hover { background: rgba(0, 240, 255, 0.16); border-color: rgba(0,240,255,0.45); }
+.ab-btn.no:hover { background: rgba(255, 70, 85, 0.16); border-color: rgba(255,70,85,0.45); }
+
+.ab-input {
+  flex: 1; min-width: 0; height: 28px; padding: 0 10px; border-radius: 8px;
+  font-family: var(--font); font-size: 12.5px; color: var(--text);
+  background: rgba(0,0,0,0.30); border: 1px solid var(--glass-border); outline: none;
+}
+.ab-input::placeholder { color: var(--text-mute); }
+.ab-input:focus { border-color: rgba(0,240,255,0.5); box-shadow: 0 0 0 2px rgba(0,240,255,0.15); }
+.ab-input.bad { border-color: var(--red); box-shadow: 0 0 0 2px rgba(255,70,85,0.18); }
+
+.ab-spin {
+  width: 12px; height: 12px; flex: none; border-radius: 50%;
+  border: 2px solid rgba(0,240,255,0.25); border-top-color: var(--cyan);
+  animation: abspin 0.7s linear infinite;
+}
+@keyframes abspin { to { transform: rotate(360deg); } }
+
+.statusline { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-dim); }
+.statusline .sep { color: var(--text-mute); }
+.statusline .muted { color: var(--text-mute); }
+#status-text { font-weight: 600; color: var(--text); }
+#status-text.ended { color: var(--red); }
+
+.controls { display: flex; gap: 9px; align-items: stretch; }
+.toggle { flex: 1; height: 44px; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.toggle .t-ico { font-size: 11px; }
+.toggle.active { background: rgba(255,255,255,0.07); border: 1px solid var(--glass-border); color: var(--text); }
+.toggle.active:hover { box-shadow: none; filter: none; background: rgba(255,255,255,0.11); }
+.toggle.active .t-ico { color: var(--red); }
+.toggle:disabled { opacity: 0.55; cursor: default; filter: grayscale(0.35); }
+.toggle:disabled:hover { box-shadow: none; filter: grayscale(0.35); }
+
+.icon-btn.lg { width: 44px; height: 44px; font-size: 17px; border: 1px solid var(--glass-border); background: var(--glass-fill-2); }
+.icon-btn[disabled] { opacity: 0.3; cursor: default; pointer-events: none; }
+
+.last-tip {
+  display: flex; align-items: flex-start; gap: 9px; width: 100%; text-align: left;
+  font-family: var(--font); font-size: 12.5px; color: var(--text-dim); line-height: 1.42;
+  background: rgba(0,0,0,0.22); border: 1px solid var(--glass-border);
+  border-radius: 10px; padding: 10px 12px; cursor: pointer;
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.last-tip:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.14); }
+.lt-dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 5px; background: var(--text-mute); flex: none; transition: background var(--t-med) var(--ease); }
+.last-tip.ai .lt-dot      { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+.last-tip.system .lt-dot  { background: var(--red); box-shadow: 0 0 8px var(--red); }
+/* show the full tip (up to 3 lines holds any tip we send) instead of cutting it off */
+.lt-text { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.last-tip.has-tip .lt-text { color: var(--text); }
+.last-tip.flash { animation: ltflash 0.5s var(--ease); }
+@keyframes ltflash { 0% { background: rgba(0,240,255,0.14); } 100% { background: rgba(0,0,0,0.22); } }

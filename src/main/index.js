@@ -1,577 +1,452 @@
-require('dotenv').config();
+'use strict';
 
-const { app, ipcMain, BrowserWindow, shell, globalShortcut } = require('electron');
-const path   = require('path');
-const fs     = require('fs');
+const { app, globalShortcut } = require('electron');
+const path = require('path');
+const fs   = require('fs');
 
-// ─── File logger — main-process console.log is invisible in installed builds ──
-// Tee everything to %APPDATA%\ghostcoach\debug.log so we can debug production.
-let debugLogPath = null;
-function setupFileLogger() {
-  try {
-    debugLogPath = path.join(app.getPath('userData'), 'debug.log');
-    // Truncate on each launch so the log doesn't grow forever
-    try { fs.writeFileSync(debugLogPath, '=== GhostCoach session started ' + new Date().toISOString() + ' ===\n'); } catch {}
-    const origLog  = console.log.bind(console);
-    const origWarn = console.warn.bind(console);
-    const origErr  = console.error.bind(console);
-    const tee = (level, fn) => (...args) => {
-      try {
-        const line = '[' + new Date().toISOString() + '] [' + level + '] ' +
-          args.map(a => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ') + '\n';
-        fs.appendFileSync(debugLogPath, line);
-      } catch {}
-      fn(...args);
-    };
-    console.log   = tee('log',   origLog);
-    console.warn  = tee('warn',  origWarn);
-    console.error = tee('error', origErr);
-  } catch {}
-}
-const https  = require('https');
-const http   = require('http');
-const os     = require('os');
-const crypto = require('crypto');
-const store = require('./store');
-const {
-  createOverlayWindow,
-  createTray,
-  updateTrayMenu,
-  toggleOverlay,
-  showOverlay,
-  sendToOverlay,
-  getOverlayWindow
-} = require('./overlay');
-const { createSettingsWindow, sendToSettings } = require('./settings-window');
-const { captureScreenshot } = require('./capture');
+// ── Distinct app identity (GhostCoach 2.0) ───────────────────────────────────
+// MUST run before electron-store / the logger are required below, so config and
+// debug.log live in their own %APPDATA%\GhostCoach 2.0 folder and never mix with
+// the original GhostCoach install's data. Same machine = same deviceId, so the
+// license just needs activating once in this build.
+app.setName('GhostCoach 2.0');
+app.setPath('userData', path.join(app.getPath('appData'), 'GhostCoach 2.0'));
 
-const { registerHotkeys, unregisterHotkeys } = require('./hotkeys');
-const CoachingEngine = require('./coaching-engine');
+const logger   = require('./logger');
+const store    = require('./services/store');
+const capture  = require('./services/capture');
+const CoachingEngine = require('./services/coaching-engine');
+const registry = require('./windows/registry');
+const overlayWindow    = require('./windows/overlay-window');
+const panelWindow      = require('./windows/panel-window');
+const settingsWindow   = require('./windows/settings-window');
+const historyWindow    = require('./windows/history-window');
+const dockWindow       = require('./windows/dock-window');
+const activationWindow = require('./windows/activation-window');
+const tray     = require('./tray');
+const hotkeys  = require('./hotkeys');
+const registerIpc = require('./ipc/register-ipc');
+const licenseService = require('./services/license-service');
+const C = require('../shared/channels');
 
-// ─── Session State ─────────────────────────────────────────────────────────────
-let activationWindow = null;
-let isCoaching       = false;
-let isPaused         = false;
-let setupWindow      = null;
-let tipHistory       = [];   // all tips this session
-let roundSummaries   = [];   // round summaries this session
-let sessionStartTime = null;
-let engine           = null; // CoachingEngine instance
-
-// ─── Setup Window ─────────────────────────────────────────────────────────────
-function createSetupWindow() {
-  setupWindow = new BrowserWindow({
-    width: 500,
-    height: 440,
-    frame: false,
-    transparent: false,
-    resizable: false,
-    center: true,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      preload: path.join(__dirname, 'preload-setup.js')
-    },
-    backgroundColor: '#0F1923'
-  });
-
-  setupWindow.loadFile(path.join(__dirname, '../renderer/setup/index.html'));
-  setupWindow.on('closed', () => { setupWindow = null; });
-}
-
-// ─── Activation Window ────────────────────────────────────────────────────────
-function createActivationWindow() {
-  activationWindow = new BrowserWindow({
-    width: 500,
-    height: 480,
-    frame: false,
-    transparent: false,
-    resizable: false,
-    center: true,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      preload: path.join(__dirname, 'preload-activate.js')
-    },
-    backgroundColor: '#0F1923'
-  });
-
-  activationWindow.loadFile(path.join(__dirname, '../renderer/activate/index.html'));
-  activationWindow.on('closed', () => { activationWindow = null; });
-}
-
-// ─── Device ID ───────────────────────────────────────────────────────────────
-function getDeviceId() {
-  const raw = `${os.hostname()}::${os.userInfo().username}::${process.platform}`;
-  return crypto.createHash('sha256').update(raw).digest('hex');
-}
-
-function getDeviceName() {
-  return os.hostname() || 'Unknown Device';
-}
-
-// ─── HTTP helper ─────────────────────────────────────────────────────────────
-function serverPost(endpoint, body) {
-  return new Promise((resolve, reject) => {
-    const serverUrl = store.get('serverUrl') || 'https://ghostcoach-production.up.railway.app/api';
-    const payload = JSON.stringify(body);
-    const url = new URL(`${serverUrl}${endpoint}`);
-    const transport = url.protocol === 'https:' ? https : http;
-
-    const options = {
-      hostname: url.hostname,
-      port: url.port || (url.protocol === 'https:' ? 443 : 80),
-      path: url.pathname,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) }
-    };
-
-    const req = transport.request(options, (res) => {
-      let data = '';
-      res.on('data', chunk => { data += chunk; });
-      res.on('end', () => {
-        try { resolve(JSON.parse(data)); }
-        catch { reject(new Error('Invalid JSON response from server')); }
-      });
-    });
-
-    req.on('error', reject);
-    req.setTimeout(10000, () => { req.destroy(); reject(new Error('Request timed out')); });
-    req.write(payload);
-    req.end();
-  });
-}
-
-// ─── License helpers ─────────────────────────────────────────────────────────
-function activateLicenseWithServer(key) {
-  return serverPost('/license/activate', {
-    key,
-    device_id:   getDeviceId(),
-    device_name: getDeviceName(),
-  });
-}
-
-function validateLicenseWithServer(key) {
-  return serverPost('/license/validate', {
-    key,
-    device_id: getDeviceId(),
-  });
-}
-
-// Maps non-active license states to user-facing overlay messages
-const LICENSE_STATE_MESSAGES = {
-  expired:        'Your license has expired. Visit ghostcoachai.com to renew.',
-  cancelled:      'Your subscription was cancelled. Visit ghostcoachai.com to resubscribe.',
-  payment_failed: 'Payment failed. Please update your payment method at ghostcoachai.com.',
-  device_mismatch:'This key is activated on another device. Log in at ghostcoachai.com to deactivate it first.',
+// ── Session state ────────────────────────────────────────────────────────────
+const state = {
+  isCoaching: false,
+  isPaused:   false,
+  status:     'idle',   // idle | coaching | paused | stopped
+  tips:       [],       // recent tips this session (newest first)
+  agent:      { agent: null, confirmed: false, role: null }, // detected/confirmed agent
+  licenseActive: true,  // false once the subscription ends (locks coaching)
+  licenseReason: '',    // why it ended (expired | cancelled | payment_failed | ...)
 };
 
-function handleInvalidLicenseState(result) {
-  const reason  = result.reason || result.status || 'unknown';
-  const message = LICENSE_STATE_MESSAGES[reason] || 'Your license is no longer valid. Visit ghostcoachai.com.';
-
-  // Stop coaching immediately
-  if (isCoaching) stopCoaching();
-
-  // Show overlay notification
-  sendToOverlay('show-tip', {
-    text:   message,
-    source: 'system',
-    time:   Date.now(),
-  });
-
-  // Clear stored license so activation screen shows on next launch
-  store.set('licenseKey',    '');
-  store.set('licenseStatus', '');
-  store.set('licensePlan',   '');
-  store.set('licenseExpiry', '');
-
-  console.warn(`[license] Invalid state: ${reason} — coaching stopped, license cleared`);
-}
-
-// ─── Coaching Loop ─────────────────────────────────────────────────────────────
-function startCoaching() {
-  if (isCoaching) return;
-  isCoaching       = true;
-  isPaused         = false;
-  sessionStartTime = Date.now();
-  tipHistory       = [];
-
-  // Strip trailing /api from stored URL so engine can append its own paths
-  const rawUrl = store.get('serverUrl') || 'https://ghostcoach-production.up.railway.app/api';
-  const baseUrl = rawUrl.replace(/\/api\/?$/, '');
-
-  engine = new CoachingEngine({
-    serverUrl:       baseUrl,
-    licenseKey:      store.get('licenseKey') || '',
-    captureFunction: captureScreenshot,
-  });
-
-  engine.on('tip', (tipData) => {
-    tipHistory.unshift(tipData);
-    if (tipHistory.length > 40) tipHistory.pop();
-    sendToOverlay('show-tip', tipData);
-    sendToOverlay('coach:state', buildState());
-    sendToSettings('settings:state', buildState());
-  });
-
-  engine.on('status', (status) => {
-    sendToOverlay('coach:status', { status });
-    sendToSettings('settings:status', { status });
-  });
-
-  engine.on('match-review', (review) => {
-    const data = { review, game: 'Valorant', timestamp: Date.now(), tipsCount: tipHistory.length };
-    saveMatchSummary(data);
-    sendToOverlay('coach:matchReview', data);
-  });
-
-  engine.start();
-
-  updateTrayMenu(true);
-  const state = buildState();
-  sendToOverlay('coach:state', state);
-  sendToSettings('settings:state', state);
-  console.log('[coach] Started');
-}
-
-function stopCoaching() {
-  if (!isCoaching) return;
-  isCoaching = false;
-  isPaused   = false;
-
-  if (engine) {
-    engine.stop();
-    engine = null;
-  }
-
-  sendToOverlay('coach:sessionOver', {
-    tipsCount: tipHistory.length,
-    sessionStart: sessionStartTime
-  });
-
-  sessionStartTime = null;
-
-  saveSession();
-  updateTrayMenu(false);
-  const state = buildState();
-  sendToOverlay('coach:state', state);
-  sendToOverlay('coach:status', { status: 'stopped' });
-  sendToSettings('settings:state', state);
-  sendToSettings('settings:status', { status: 'stopped' });
-  console.log('[coach] Stopped');
-}
-
-function pauseResumeCoaching() {
-  if (!isCoaching) return;
-  isPaused = !isPaused;
-
-  if (isPaused) {
-    sendToOverlay('coach:status', { status: 'paused' });
-    sendToSettings('settings:status', { status: 'paused' });
-  } else {
-    sendToOverlay('coach:status', { status: 'coaching' });
-    sendToSettings('settings:status', { status: 'coaching' });
-    if (engine) engine.requestTip();
-  }
-
-  sendToOverlay('coach:pauseState', { paused: isPaused });
-  const state = buildState();
-  sendToOverlay('coach:state', state);
-  sendToSettings('settings:state', state);
-  console.log('[coach]', isPaused ? 'Paused' : 'Resumed');
-}
+let mainLaunched = false;
 
 function buildState() {
   return {
-    isCoaching,
-    isPaused,
-    game:                'Valorant',
-    tipPos:              store.get('tipPosition'),
-    overlayPosition:     store.get('overlayPosition'),
-    performanceMode:     store.get('performanceMode'),
-    onboardingCompleted: store.get('onboardingCompleted'),
-    history:             tipHistory,
-    summaries:           roundSummaries,
-    sessionStart:        sessionStartTime,
-    tipCount:            tipHistory.length,
-    panelMinimized:      store.get('panelMinimized'),
-    licensePlan:         store.get('licensePlan'),
-    licenseStatus:       store.get('licenseStatus'),
-    licenseExpiry:       store.get('licenseExpiry'),
+    isCoaching: state.isCoaching,
+    isPaused:   state.isPaused,
+    status:     state.status,
+    game:       'Valorant',
+    tips:       state.tips.slice(0, 50),
+    tipCount:   state.tips.length,
+    tipMix:     engine ? engine.getMix() : { ai: 0, library: 0, aiShare: 0 },
+    agent:      state.agent,
+    licenseActive: state.licenseActive,
+    licenseReason: state.licenseReason,
+    tipPosition:     store.get('tipPosition'),
+    overlayPosition: store.get('overlayPosition'),
+    performanceMode: store.get('performanceMode'),
+    licensePlan:     store.get('licensePlan'),
+    licenseStatus:   store.get('licenseStatus'),
+    licenseExpiry:   store.get('licenseExpiry'),
   };
 }
 
-// ─── Persistence ───────────────────────────────────────────────────────────────
-function saveSession() {
-  if (roundSummaries.length === 0 && tipHistory.length === 0) return;
-  try {
-    const dir = path.join(app.getPath('userData'), 'sessions');
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    const ts   = new Date().toISOString().replace(/[:.]/g, '-');
-    const file = path.join(dir, `session-${ts}.json`);
-    fs.writeFileSync(file, JSON.stringify({
-      timestamp: new Date().toISOString(),
-      game: 'Valorant',
-      tipHistory,
-      roundSummaries
-    }, null, 2));
-    console.log('[session] Saved to', file);
-  } catch (err) {
-    console.error('[session] Save failed:', err.message);
-  }
+function pushTip(tip) {
+  const full = { text: tip.text, source: tip.source || 'system', time: tip.time || Date.now() };
+  state.tips.unshift(full);
+  if (state.tips.length > 50) state.tips.pop();
+  registry.broadcast(C.PUSH_TIP, full);
+  registry.broadcast(C.PUSH_STATE, buildState());
 }
+
+function setStatus(status) {
+  state.status = status;
+  registry.broadcast(C.PUSH_STATUS, { status });
+  registry.broadcast(C.PUSH_STATE, buildState());
+  tray.update(state.isCoaching, trayActions);
+}
+
+// ── Coaching controller ──────────────────────────────────────────────────────
+// Owns the CoachingEngine instance and forwards its events onto the IPC bus.
+let engine = null;
+
+const controller = {
+  start() {
+    if (state.isCoaching) return;
+    if (!state.licenseActive) {
+      // Subscription ended: refuse to coach, remind the user, and re-check in
+      // case they just renewed.
+      pushTip({ text: 'Your subscription has ended. Renew in Settings to start coaching.', source: 'system' });
+      revalidateNow();
+      return;
+    }
+
+    engine = new CoachingEngine({
+      licenseKey:      store.get('licenseKey'),
+      captureFunction: capture.captureScreenshot,
+      performanceMode: store.get('performanceMode'),
+    });
+    engine.on('tip',    (tip) => pushTip(tip));
+    engine.on('status', (status) => {
+      state.isPaused = status === 'paused';
+      setStatus(status);
+    });
+    engine.on('match-review', (review) => {
+      const data = { review, game: 'Valorant', timestamp: Date.now(), tipsCount: state.tips.length };
+      registry.broadcast(C.PUSH_MATCH_REVIEW, data);
+      saveMatchSummary(data);
+    });
+    engine.on('agent', (info) => {
+      state.agent = info || { agent: null, confirmed: false, role: null };
+      registry.broadcast(C.PUSH_AGENT, state.agent);
+      registry.broadcast(C.PUSH_STATE, buildState());
+    });
+    // The server rejected our license key (401/403), confirm with an immediate
+    // re-validation so a genuinely ended subscription locks fast (and a transient
+    // server error does not, since revalidate is authoritative).
+    engine.on('auth-suspect', () => revalidateNow());
+
+    state.isCoaching = true;
+    state.isPaused   = false;
+    state.agent      = { agent: null, confirmed: false, role: null };
+    engine.start();
+    setStatus('coaching');
+    console.log('[coach] started');
+  },
+  stop() {
+    if (!state.isCoaching) return;
+    state.isCoaching = false;
+    state.isPaused   = false;
+    if (engine) { engine.stop(); engine = null; }
+    state.agent = { agent: null, confirmed: false, role: null };
+    registry.broadcast(C.PUSH_AGENT, state.agent); // hide the panel bubble/chip
+    setStatus('stopped');
+    console.log('[coach] stopped');
+  },
+  pauseResume() {
+    if (!state.isCoaching || !engine) return;
+    if (state.isPaused) { engine.resume(); engine.requestTip(); }
+    else                { engine.pause(); }
+    // state.isPaused + status pushes are driven by the engine 'status' event.
+  },
+  async forceTip() {
+    if (engine) await engine.requestTip();
+  },
+  confirmAgent() { if (engine) engine.confirmAgent(); },
+  resizePanel(h) { if (typeof h === 'number') panelWindow.setContentHeight(h); },
+  setAgent(name) {
+    if (!engine) return { ok: false, error: 'not coaching' };
+    return engine.setAgent(name);
+  },
+  getState() { return buildState(); },
+  toggleOverlay() { overlayWindow.toggleVisible(); },
+  toggleMinimizePanel() {
+    const willMinimize = !panelWindow.isMinimized();
+    if (willMinimize) {
+      const anchor = panelWindow.getDockAnchor(dockWindow.SIZE); // capture before hiding
+      panelWindow.setMinimized(true);
+      dockWindow.showAt(anchor);
+    } else {
+      dockWindow.hide();
+      panelWindow.setMinimized(false);
+    }
+    tray.update(state.isCoaching, trayActions);
+    return panelWindow.isMinimized();
+  },
+  openSettings()  { settingsWindow.open(); },
+  openHistory()   { historyWindow.open(); },
+  logout() {
+    logoutToActivation('You have been logged out. Enter a license key to sign back in.');
+  },
+  onConfigChanged() {
+    if (engine) engine.setPerformanceMode(store.get('performanceMode'));
+    registry.broadcast(C.PUSH_STATE, buildState());
+  },
+  quit() { cleanupAndQuit(); },
+};
 
 function saveMatchSummary(data) {
   try {
     const dir = path.join(app.getPath('userData'), 'match-summaries');
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    const ts   = new Date().toISOString().replace(/[:.]/g, '-');
-    const file = path.join(dir, `match-${ts}.json`);
-    fs.writeFileSync(file, JSON.stringify(data, null, 2));
-    console.log('[match] Summary saved to', file);
+    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+    fs.writeFileSync(path.join(dir, `match-${ts}.json`), JSON.stringify(data, null, 2));
+    console.log('[match] summary saved');
   } catch (err) {
-    console.error('[match] Save failed:', err.message);
+    console.error('[match] save failed:', err.message);
   }
 }
 
-// ─── Cleanup ───────────────────────────────────────────────────────────────────
-function cleanup() {
-  try {
-    if (isCoaching) stopCoaching();
-    unregisterHotkeys();
-    saveSession();
-  } catch (err) {
-    console.error('[cleanup] Error:', err.message);
-  }
-}
-
-// ─── IPC Handlers ─────────────────────────────────────────────────────────────
-
-// Overlay handlers (minimal — overlay is display-only)
-ipcMain.on('overlay:completeOnboarding', () => {
-  store.set('onboardingCompleted', true);
-  const state = buildState();
-  sendToOverlay('coach:state', state);
-  sendToSettings('settings:state', state);
-});
-
-ipcMain.on('overlay:resetOnboarding', () => {
-  store.set('onboardingCompleted', false);
-  const state = buildState();
-  sendToOverlay('coach:state', state);
-  sendToSettings('settings:state', state);
-});
-
-// Fix 2: close is handled in renderer; main just quits
-ipcMain.on('overlay:doClose', () => {
-  cleanup();
-  app.quit();
-});
-
-// ─── Settings window IPC handlers ─────────────────────────────────────────────
-ipcMain.on('settings:startCoaching',  () => startCoaching());
-ipcMain.on('settings:stopCoaching',   () => stopCoaching());
-ipcMain.on('settings:pauseResume',    () => pauseResumeCoaching());
-ipcMain.on('settings:forceCapture',   () => { if (engine) engine.requestTip(); });
-
-ipcMain.on('settings:quit', () => {
-  cleanup();
-  app.quit();
-});
-
-ipcMain.on('settings:save', (_, settings) => {
-  if (settings.tipPos)              store.set('tipPosition',       settings.tipPos);
-  if (settings.overlayPosition)     store.set('overlayPosition',   settings.overlayPosition);
-  if (settings.performanceMode)     store.set('performanceMode',   settings.performanceMode);
-
-  const state = buildState();
-  sendToOverlay('coach:state', state);
-  sendToSettings('settings:state', state);
-});
-
-ipcMain.on('overlay:setInteractive', (_, v) => {
-  const overlayWin = getOverlayWindow();
-  if (overlayWin) overlayWin.setIgnoreMouseEvents(!v, { forward: true });
-});
-
-// Setup window
-ipcMain.on('setup:openExternal', (_, url) => {
-  shell.openExternal(url);
-});
-
-// ─── Activation IPC handlers ──────────────────────────────────────────────────
-
-ipcMain.handle('activate:validateKey', async (_, key) => {
-  try {
-    // Use /activate endpoint — handles device locking on first activation
-    const result = await activateLicenseWithServer(key);
-
+// ── License (real service) ───────────────────────────────────────────────────
+// Thin adapter over license-service that also drives the window transitions
+// (close activation + launch the app) on a successful activation.
+const license = {
+  async activate(key) {
+    const result = await licenseService.activate(key);
     if (result.valid) {
-      store.set('licenseKey',    key.trim().toUpperCase());
-      store.set('licenseStatus', result.status   || 'active');
-      store.set('licensePlan',   result.plan     || '');
-      store.set('licenseExpiry', result.expiresAt || '');
-      store.set('deviceId',      getDeviceId());
-
-      if (activationWindow && !activationWindow.isDestroyed()) activationWindow.close();
+      state.licenseActive = true;   // clear any prior "ended" lock
+      state.licenseReason = '';
+      activationWindow.close();
       launchMainApp();
     }
-
-    // Return friendly message for known invalid states
-    if (!result.valid && result.reason) {
-      result.error = LICENSE_STATE_MESSAGES[result.reason] || result.error;
-    }
-
     return result;
+  },
+  getCached() { return licenseService.getCached(); },
+};
+
+// ── Subscription lifecycle (soft lock) ───────────────────────────────────────
+// When the subscription ends we DON'T force the user out; we stop all coaching
+// (no AI and no library tips) and surface the ended state in the panel + Settings
+// so they can renew. Coaching stays disabled until a re-validation says active.
+function enterLicenseEnded(reason) {
+  state.licenseReason = reason || state.licenseReason || 'expired';
+  if (!state.licenseActive) { registry.broadcast(C.PUSH_STATE, buildState()); return; }
+  state.licenseActive = false;
+  console.warn('[license] subscription ended:', state.licenseReason);
+  if (state.isCoaching) controller.stop();   // kills the engine: no more tips at all
+  const msg = licenseService.messageForStatus(state.licenseReason) ||
+    'Your GhostCoach subscription has ended. Renew to keep coaching.';
+  pushTip({ text: msg, source: 'system' });  // one notice explaining why tips stopped
+  registry.broadcast(C.PUSH_STATE, buildState());
+}
+
+function exitLicenseEnded() {
+  if (state.licenseActive) return;
+  state.licenseActive = true;
+  state.licenseReason = '';
+  console.log('[license] subscription active again');
+  registry.broadcast(C.PUSH_STATE, buildState());
+}
+
+// Authoritative check: only the license endpoint decides active vs ended.
+function revalidateNow() {
+  licenseService.revalidate()
+    .then((r) => {
+      if (r.valid === false) enterLicenseEnded(r.status);
+      else if (r.valid)      exitLicenseEnded();
+    })
+    .catch(() => {});
+}
+
+// Tear down the running session (windows, engine, tray, hotkeys) WITHOUT quitting
+// the app, so we can return to the activation window.
+function teardownSession() {
+  try { if (engine) { engine.stop(); engine = null; } } catch (e) {}
+  try { hotkeys.unregister(); } catch (e) {}
+  try { tray.destroy(); } catch (e) {}
+  try { capture.disposeWorker(); } catch (e) {}
+  for (const name of ['dock', 'history', 'settings', 'overlay', 'panel']) {
+    const w = registry.get(name);
+    if (w && !w.isDestroyed()) w.destroy();
+  }
+  state.isCoaching = false;
+  state.isPaused   = false;
+  state.status     = 'idle';
+  state.tips       = [];
+  state.agent      = { agent: null, confirmed: false, role: null };
+}
+
+// Log the user out: clear the cached license, tear the session down, and show the
+// activation window. Stays logged out until a new key is activated.
+function logoutToActivation(reason) {
+  stopLicenseWatch();
+  licenseService.clear();
+  teardownSession();
+  mainLaunched = false;
+  console.log('[license] logged out', reason ? `(${reason})` : '(manual)');
+  activationWindow.create(reason);
+}
+
+// ── License watchdog ─────────────────────────────────────────────────────────
+// Every minute: an offline-safe expiry check (the cached expiry date passing).
+// Every ~10 minutes: a server re-validation, and a state broadcast so the open
+// Settings window always reflects the current plan/status/expiry.
+let licenseWatch = null;
+let licenseTick  = 0;
+function startLicenseWatch() {
+  stopLicenseWatch();
+  licenseTick = 0;
+  licenseWatch = setInterval(() => {
+    if (!mainLaunched) return;
+    // Offline-safe: the cached expiry date has passed. (Doesn't return early, so
+    // the server re-check below can still detect a renewal.)
+    if (state.licenseActive && !licenseService.isLocallyValid()) {
+      const status = store.get('licenseStatus');
+      enterLicenseEnded(status && status !== 'active' ? status : 'expired');
+    }
+    // Server re-check every ~3 minutes: catches a server-side end AND a renewal,
+    // and keeps the open Settings window's license block fresh.
+    if (++licenseTick % 3 === 0 && store.get('licenseKey')) {
+      licenseService.revalidate()
+        .then((r) => {
+          if (r.valid === false) enterLicenseEnded(r.status);
+          else if (r.valid)      exitLicenseEnded();
+          registry.broadcast(C.PUSH_STATE, buildState());
+        })
+        .catch(() => {});
+    }
+  }, 60 * 1000);
+}
+function stopLicenseWatch() {
+  if (licenseWatch) { clearInterval(licenseWatch); licenseWatch = null; }
+}
+
+// ── Tray / hotkey action maps ────────────────────────────────────────────────
+const trayActions = {
+  start:          () => controller.start(),
+  stop:           () => controller.stop(),
+  toggleOverlay:  () => controller.toggleOverlay(),
+  toggleMinimize: () => controller.toggleMinimizePanel(),
+  isMinimized:    () => panelWindow.isMinimized(),
+  openSettings:   () => controller.openSettings(),
+  openHistory:    () => controller.openHistory(),
+  quit:           () => controller.quit(),
+};
+
+const hotkeyActions = {
+  toggleOverlay:  () => controller.toggleOverlay(),
+  forceTip:       () => controller.forceTip(),
+  pauseResume:    () => controller.pauseResume(),
+  minimizePanel:  () => controller.toggleMinimizePanel(),
+  openSettings:   () => controller.openSettings(),
+  openHistory:    () => controller.openHistory(),
+};
+
+// ── Launch ───────────────────────────────────────────────────────────────────
+function launchMainApp() {
+  if (mainLaunched) return;
+  mainLaunched = true;
+
+  overlayWindow.create();
+  panelWindow.create();
+  tray.create(trayActions);
+  hotkeys.register(hotkeyActions);
+
+  // Send an initial state snapshot once the panel has loaded.
+  const panel = panelWindow.get();
+  if (panel) {
+    panel.webContents.once('did-finish-load', () => {
+      setTimeout(() => registry.broadcast(C.PUSH_STATE, buildState()), 200);
+    });
+  }
+  startLicenseWatch(); // detect expiry / revocation mid-session and keep Settings fresh
+  console.log('[main] Main app launched');
+}
+
+function cleanupAndQuit() {
+  try {
+    if (engine) { engine.stop(); engine = null; }
+    capture.disposeWorker();
+    hotkeys.unregister();
+    globalShortcut.unregisterAll();
+    tray.destroy();
   } catch (err) {
-    console.error('[activate] Validation error:', err.message);
+    console.error('[cleanup]', err.message);
+  }
+  app.quit();
+}
 
-    // Offline grace: allow entry if cached key matches and hasn't expired
-    const cachedKey    = store.get('licenseKey');
-    const cachedStatus = store.get('licenseStatus');
-    const cachedExpiry = store.get('licenseExpiry');
-    const cachedDevice = store.get('deviceId');
+// ── App lifecycle ────────────────────────────────────────────────────────────
+app.setAppUserModelId('com.ghostcoach.app2');
 
-    if (cachedKey && cachedKey.toUpperCase() === key.trim().toUpperCase() &&
-        cachedStatus === 'active' && cachedDevice === getDeviceId()) {
-      const expired = cachedExpiry ? new Date(cachedExpiry) < new Date() : false;
-      if (!expired) {
-        console.log('[activate] Server unreachable — using cached license');
-        if (activationWindow && !activationWindow.isDestroyed()) activationWindow.close();
+// Single instance, focus existing rather than launching a second copy.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    const win = registry.get('panel') || registry.get('activation');
+    if (win) { if (win.isMinimized()) win.restore(); win.focus(); }
+  });
+
+  app.whenReady().then(() => {
+    logger.init(app);
+    console.log('[main] Ready. Debug log:', logger.getLogPath());
+
+    registerIpc({ controller, license });
+
+    // Dev-only self-test (never runs in normal use): bypasses the license server
+    // and exercises launch → IPC round-trip, writing results to debug.log.
+    if (process.env.GHOST_DEV_AUTOLAUNCH === '1') {
+      setTimeout(() => {
+        console.log('[dev] auto-launch (license bypassed) for self-test');
         launchMainApp();
-        return { valid: true, plan: store.get('licensePlan'), status: 'active', expiresAt: cachedExpiry };
-      }
+        controller.start();
+        if (process.env.GHOST_DEV_OPEN_SETTINGS === '1') settingsWindow.open();
+        if (process.env.GHOST_DEV_FAKE_MIX === '1' && engine) {
+          ['Pre-aim the angle before you swing, do not react after.',
+           'Trade your teammate, swing right as they take the duel.',
+           'Reposition after the kill, never repeek the same spot.',
+           'Use util before peeking, flash or smoke the angle first.',
+           'Check your minimap, rotate early on solid info.'].forEach((t) => engine.emitTip(t, 'ai'));
+          engine.emitTip('Reset your mental, the next round is a fresh start.', 'library');
+          engine.emitTip('Default first, take map control, then commit as five.', 'library');
+        }
+        if (process.env.GHOST_DEV_OPEN_HISTORY === '1') historyWindow.open();
+        if (process.env.GHOST_DEV_MINIMIZE === '1') setTimeout(() => controller.toggleMinimizePanel(), 1200);
+        const panel = panelWindow.get();
+        if (panel) {
+          panel.webContents.once('did-finish-load', () =>
+            setTimeout(() => controller.forceTip(), 800));
+        }
+        if (process.env.GHOST_DEV_NOQUIT !== '1') {
+          setTimeout(() => { console.log('[dev] self-test: forcing quit'); cleanupAndQuit(); }, 4000);
+        }
+      }, 800);
+      return;
     }
 
-    return { valid: false, error: 'Could not connect to server. Check your internet connection.' };
-  }
-});
+    // Dev-only: drive the REAL license path (service → live server → persist →
+    // launch) with a key from the env. Lets us verify activation from the CLI.
+    if (process.env.GHOST_DEV_ACTIVATE_KEY) {
+      if (!licenseService.isLocallyValid()) activationWindow.create();
+      license.activate(process.env.GHOST_DEV_ACTIVATE_KEY).then((r) => {
+        console.log('[dev] activate result:', JSON.stringify(r));
+        if (!r.valid && process.env.GHOST_DEV_NOQUIT !== '1') {
+          setTimeout(() => { console.log('[dev] quitting after failed activation'); cleanupAndQuit(); }, 1500);
+        }
+      });
+      return;
+    }
 
-ipcMain.on('activate:openPurchase', () => {
-  shell.openExternal('https://ghostcoachai.com');
-});
-
-ipcMain.on('activate:quit', () => {
-  cleanup();
-  app.quit();
-});
-
-// ─── App Launch ───────────────────────────────────────────────────────────────
-function launchMainApp() {
-  createOverlayWindow();
-  createTray();
-
-  const overlayWin = getOverlayWindow();
-  overlayWin.webContents.once('did-finish-load', () => {
-    setTimeout(() => {
-      const state = buildState();
-      sendToOverlay('coach:state', state);
-    }, 300);
+    // Trust-cache, re-activate in background: if a locally-valid license is
+    // cached, launch instantly and silently re-check; only sign out on an
+    // explicit valid:false. Otherwise show the activation window.
+    if (licenseService.isLocallyValid()) {
+      launchMainApp();
+      licenseService.revalidate()
+        .then((r) => { if (r.valid === false) enterLicenseEnded(r.status); })
+        .catch((err) => console.warn('[license] revalidate failed:', err.message));
+    } else {
+      activationWindow.create();
+    }
   });
 
-  // Send initial minimized state to overlay after load
-  overlayWin.webContents.once('did-finish-load', () => {
-    setTimeout(() => {
-      const minimized = store.get('panelMinimized') || false;
-      if (minimized) sendToOverlay('overlay:minimize', { minimized: true });
-    }, 350);
+  app.on('window-all-closed', () => {
+    // Tray keeps the app alive; quit only via explicit action.
   });
 
-  registerHotkeys({
-    toggleOverlay:   () => toggleOverlay(),
-    forceCapture:    () => {
-      if (engine) engine.requestTip();
-      sendToOverlay('overlay:miniToast', { text: 'Scanning...' });
-    },
-    requestTip:      () => {
-      if (engine) engine.requestTip();
-      sendToOverlay('overlay:miniToast', { text: 'Scanning...' });
-    },
-    pauseResume:     () => {
-      pauseResumeCoaching();
-      sendToOverlay('overlay:miniToast', { text: isPaused ? 'Resumed' : 'Paused' });
-    },
-    openSettings:    () => createSettingsWindow(buildState()),
-    minimizeOverlay: () => {
-      const nowMinimized = !store.get('panelMinimized');
-      store.set('panelMinimized', nowMinimized);
-      sendToOverlay('overlay:minimize', { minimized: nowMinimized });
-    },
-    toggleHistory:   () => { sendToOverlay('overlay:toggleHistory', {}); },
-    quit:            () => { cleanup(); app.quit(); }
+  app.on('will-quit', () => {
+    hotkeys.unregister();
+    globalShortcut.unregisterAll();
   });
 }
 
-// ─── App Events ───────────────────────────────────────────────────────────────
-app.setAppUserModelId('com.ghostcoach.app');
-
-app.whenReady().then(async () => {
-  setupFileLogger();
-  console.log('[main] App ready, debug log at:', debugLogPath);
-
-  // DevTools hotkey — opens detached devtools on the overlay window any time
-  globalShortcut.register('Ctrl+Shift+D', () => {
-    const w = getOverlayWindow();
-    if (w && !w.isDestroyed()) {
-      w.webContents.openDevTools({ mode: 'detach' });
-      console.log('[main] DevTools opened via Ctrl+Shift+D');
-    }
-  });
-
-  const licenseKey    = store.get('licenseKey');
-  const licenseStatus = store.get('licenseStatus');
-  const licenseExpiry = store.get('licenseExpiry');
-
-  // Local validity check (fast path — no network)
-  const locallyValid = licenseKey &&
-    licenseStatus === 'active' &&
-    (!licenseExpiry || new Date(licenseExpiry) > new Date());
-
-  if (!locallyValid) {
-    createActivationWindow();
-    return;
-  }
-
-  // POLISH 4: Launch immediately for fast startup, validate server in background
-  launchMainApp();
-
-  validateLicenseWithServer(licenseKey).then(result => {
-    if (!result.valid) {
-      const reason = result.reason || result.status || 'unknown';
-      console.warn(`[startup] License invalid on server: ${reason}`);
-      // Stop coaching and clear license — user will see warning tip
-      handleInvalidLicenseState(result);
-    } else {
-      store.set('licenseStatus', result.status   || 'active');
-      store.set('licensePlan',   result.plan     || store.get('licensePlan'));
-      store.set('licenseExpiry', result.expiresAt || licenseExpiry);
-    }
-  }).catch(err => {
-    console.warn('[startup] Server unreachable, using cached license:', err.message);
-  });
-});
-
-app.on('window-all-closed', () => {
-  // Don't quit on window-all-closed — tray keeps the app alive
-  // Only quit explicitly
-});
-
-app.on('will-quit', () => {
-  unregisterHotkeys();
-  if (isCoaching) saveSession();
-});
-
-// ─── Crash Handlers ────────────────────────────────────────────────────────────
+// ── Crash safety ─────────────────────────────────────────────────────────────
 process.on('uncaughtException', (err) => {
-  console.error('[crash] Uncaught exception:', err.stack || err.message);
-  try {
-    const logFile = path.join(app.getPath('userData'), 'crash.log');
-    fs.appendFileSync(logFile, `[${new Date().toISOString()}] ${err.stack || err.message}\n`);
-  } catch (_) {}
-  try { cleanup(); } catch (_) {}
+  console.error('[crash] uncaughtException:', err.stack || err.message);
 });
-
 process.on('unhandledRejection', (reason) => {
-  console.error('[crash] Unhandled promise rejection:', reason);
+  console.error('[crash] unhandledRejection:', reason);
 });

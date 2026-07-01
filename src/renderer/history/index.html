@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';" />
+  <title>GhostCoach History</title>
+  <link rel="stylesheet" href="../shared/theme.css" />
+  <link rel="stylesheet" href="../shared/ui.css" />
+  <link rel="stylesheet" href="history.css" />
+</head>
+<body>
+  <div class="sheet glass">
+    <header class="drag">
+      <div class="h-brand">
+        <img src="../../../assets/logo-ghost.svg" alt="" width="16" height="19" />
+        <h2>Tip History</h2>
+        <span id="count" class="count">0</span>
+      </div>
+      <button id="close" class="icon-btn no-drag" title="Close">✕</button>
+    </header>
+
+    <div class="mixbar">
+      <div class="mix-text">
+        <span><span class="sw cyan"></span>AI <b id="mix-ai">0%</b></span>
+        <span><span class="sw mute"></span>Library <b id="mix-lib">0%</b></span>
+      </div>
+      <div class="mix-track"><div class="mix-fill" id="mix-fill"></div></div>
+    </div>
+
+    <div class="body" id="list">
+      <div class="empty" id="empty">No tips yet this session.</div>
+    </div>
+  </div>
+
+  <script src="history.js"></script>
+</body>
+</html>

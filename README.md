@@ -1,70 +1,76 @@
 # GhostCoach
 
-Real-time AI gaming coach overlay powered by Claude — sits transparently on top of any game and gives you live tactical tips.
+Real-time **Valorant** AI coaching overlay. GhostCoach sits on top of the game in
+borderless-windowed mode, periodically captures the screen, sends it to the
+GhostCoach server for AI analysis, and shows concise coaching tips on a
+glassmorphism HUD. Players unlock the app with a license key.
 
-## Prerequisites
+> This repository is the **Electron desktop client**. The AI/vision/licensing
+> backend is a separate service at `https://ghostcoach-production.up.railway.app`.
 
-- **Node.js 18+** — [Download here](https://nodejs.org/en/download)
-- An **Anthropic API key** — [Get one at console.anthropic.com](https://console.anthropic.com)
-
-## Quick Start
+## Quick start
 
 ```bash
-# 1. Install dependencies
-cd ghostcoach
 npm install
-
-# 2. Run the app
-npm start
+npm start          # or: npm run dev
 ```
 
-On first launch, you'll see a setup screen — paste your Anthropic API key and click **Launch GhostCoach**.
+On first launch you'll see the **activation screen** — paste your license key.
+After that, GhostCoach launches straight to the overlay + control panel.
 
 ## Hotkeys
 
 | Hotkey | Action |
 |--------|--------|
 | `Ctrl+Shift+C` | Toggle overlay visibility |
-| `Ctrl+Shift+X` | Force immediate screenshot + analysis |
-
-## Controls
-
-- **Drag** the panel by its title bar to reposition it
-- **▲/▼** collapses/expands the control panel
-- **⚙** opens settings (capture interval)
-- **⚡** forces an immediate capture
-- **Game selector** switches between Valorant and League of Legends system prompts
-
-## Supported Games
-
-- **Valorant** — round economy, positioning, callout advice
-- **League of Legends** — macro play, items, minimap, lane state
+| `Ctrl+Shift+X` | Force an immediate tip |
+| `Ctrl+Shift+P` | Pause / resume coaching |
+| `Ctrl+Shift+S` | Open settings |
 
 ## Architecture
 
 ```
 src/
-├── main/
-│   ├── index.js          # App entry point, coaching loop, IPC hub
-│   ├── overlay.js        # BrowserWindow management (overlay + panel)
-│   ├── capture.js        # Screen capture via hidden renderer window
-│   ├── api.js            # Anthropic Claude API calls
-│   ├── hotkeys.js        # Global shortcut registration
-│   ├── store.js          # electron-store config persistence
-│   ├── preload-overlay.js
-│   ├── preload-panel.js
-│   ├── preload-setup.js
-│   └── preload-capture.js (handled via nodeIntegration)
-└── renderer/
-    ├── overlay/          # Transparent HUD tip display
-    ├── panel/            # Draggable control panel
-    ├── setup/            # First-run API key setup
-    └── capture/          # Hidden window for desktopCapturer
+├─ shared/
+│  ├─ channels.js          # single source of truth for all IPC channel names
+│  └─ config.js            # server URL, timings, brand, store defaults
+├─ main/
+│  ├─ index.js             # app lifecycle, coaching controller, event→IPC fan-out
+│  ├─ logger.js            # tees console + renderer consoles → debug.log
+│  ├─ tray.js · hotkeys.js
+│  ├─ windows/             # overlay · panel · settings · activation (+ registry)
+│  ├─ ipc/register-ipc.js  # every ipcMain handler, one place
+│  └─ services/
+│     ├─ api-client.js     # POST + X-License-Key + timeout
+│     ├─ license-service.js
+│     ├─ coaching-engine.js# capture→analyze loop + tip guardrails
+│     ├─ tip-library.js    # situation-aware offline fallback tips
+│     ├─ capture.js        # worker-thread manager
+│     └─ capture-worker.js # PowerShell screen capture (Worker Thread)
+├─ preload/                # one contextIsolated bridge per window
+└─ renderer/               # overlay · panel · settings · activation + shared CSS
+```
+
+**Key design points**
+
+- **Single-source-of-truth IPC** — main and every preload import `shared/channels.js`,
+  so channel names can never drift out of sync.
+- **`contextIsolation: true`, `nodeIntegration: false`** on every window; preloads
+  expose a minimal `window.ghost` API. Renderer consoles are teed into `debug.log`
+  so a broken bridge can never fail silently.
+- **Capture runs in a Worker Thread** (PowerShell `Graphics.CopyFromScreen`) so the
+  game never stalls on a screenshot.
+- **License-based** — no API keys. The client only talks to the GhostCoach backend.
+
+## Build (Windows)
+
+```bash
+npm run dist:win        # NSIS installer in dist/
 ```
 
 ## Notes
 
-- The API key is stored locally via `electron-store` (not in `.env`)
-- Rate limiting: minimum 5-second gap between API calls
-- Model: `claude-haiku-4-5-20251001` (fast, cheap) — change to `claude-sonnet-4-20250514` in `src/main/api.js` when ready
-- The overlay is fully click-through — your mouse clicks pass directly to the game
+- Config + license cache live in `electron-store` under `%APPDATA%\ghostcoach\`.
+- A session log is written to `%APPDATA%\ghostcoach\debug.log` (truncated each run).
+- If Windows Defender ever flags the screen-capture step, add a folder exclusion for
+  the install directory (screen capture is a normal `.NET` API but can trip heuristics).

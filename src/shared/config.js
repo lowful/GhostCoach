@@ -1,0 +1,92 @@
+'use strict';
+
+/**
+ * App-wide constants and store defaults. Plain values only (required by both
+ * main and renderer-side code), no Electron imports here.
+ */
+
+// ── Backend (documented contract, do not change) ───────────────────────────
+const SERVER_BASE_URL = 'https://ghostcoach-production.up.railway.app';
+
+const API = {
+  ACTIVATE:     '/api/license/activate',
+  ANALYZE:      '/api/coach/analyze',
+  DETECT_AGENT: '/api/coach/detect-agent',
+  MATCH_REVIEW: '/api/coach/match-review',
+};
+
+const PURCHASE_URL = 'https://ghostcoachai.com';
+
+// ── Brand ───────────────────────────────────────────────────────────────────
+const BRAND = {
+  red:  '#FF4655',
+  cyan: '#00F0FF',
+  bg:   '#0F1923',
+};
+
+// ── Capture ─────────────────────────────────────────────────────────────────
+const CAPTURE = {
+  targetW: 854,
+  targetH: 480,
+  jpegQuality: 50,
+  timeoutMs: 6000,
+};
+
+// ── Engine timing (ms) ──────────────────────────────────────────────────────
+const TIMING = {
+  welcomeDelay:        2000,
+  agentDetectFirst:    3000,   // detect early so the agent bubble fills in fast
+  agentDetectRetry:    30000,
+  firstAnalyze:        14000,
+  analyzeInterval:     12000,  // overridden by performanceMode
+  tipCooldown:         18000,
+  librarySilence:      25000,
+  serverTimeout:       8000,
+};
+
+// Screenshot/analyze frequency tiers (ms between captures).
+//   performance = "Very often"  ·  balanced = "Default"  ·  battery = "Barely"
+const PERFORMANCE_INTERVALS = {
+  performance: 6000,   // very often
+  balanced:    12000,  // default
+  battery:     28000,  // barely
+};
+
+// Tip mix: AI tips must stay the majority. Fallback library tips that fire while
+// the AI IS available are suppressed if they'd push AI's share below this floor.
+// (Hard failures, server/capture down, ignore this, since AI isn't an option.)
+const COACHING = {
+  aiMinShare: 0.65,
+  // Allow this many library tips before the ratio governor kicks in, so the
+  // overlay isn't dead-air early while the AI is still ramping up.
+  bootstrapLibrary: 2,
+};
+
+// ── electron-store schema defaults ──────────────────────────────────────────
+const STORE_DEFAULTS = {
+  // license
+  licenseKey:    '',
+  licensePlan:   '',
+  licenseStatus: '',
+  licenseExpiry: '',
+  deviceId:      '',
+  // preferences
+  performanceMode: 'balanced',   // battery | balanced | performance
+  overlayPosition: 'top-right',  // tip card anchor
+  tipPosition:     'top-right',
+  panelBounds:     null,         // { x, y } remembered position of the control panel
+  panelMinimized:  false,
+  onboardingCompleted: false,
+};
+
+module.exports = {
+  SERVER_BASE_URL,
+  API,
+  PURCHASE_URL,
+  BRAND,
+  CAPTURE,
+  TIMING,
+  PERFORMANCE_INTERVALS,
+  COACHING,
+  STORE_DEFAULTS,
+};

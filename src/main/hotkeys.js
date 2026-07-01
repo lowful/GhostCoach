@@ -1,36 +1,36 @@
+'use strict';
+
 const { globalShortcut } = require('electron');
 
 /**
- * Registers global hotkeys.
- * @param {{ toggleOverlay, forceCapture, pauseResume, openSettings, minimizeOverlay, quit }} handlers
+ * Global hotkeys. `actions` injects handlers. Registration failures (e.g. a key
+ * already grabbed by another app) are logged, never thrown.
  */
-function registerHotkeys({ toggleOverlay, forceCapture, requestTip, pauseResume, openSettings, minimizeOverlay, toggleHistory, quit }) {
-  const keys = [
-    ['CommandOrControl+Shift+G', toggleOverlay,   'Ctrl+Shift+G (toggle overlay)'],
-    ['CommandOrControl+Shift+P', pauseResume,      'Ctrl+Shift+P (pause/resume)'],
-    ['CommandOrControl+Shift+S', forceCapture,     'Ctrl+Shift+S (force capture)'],
-    ['CommandOrControl+Shift+T', requestTip,       'Ctrl+Shift+T (request tip now)'],
-    ['CommandOrControl+Shift+C', toggleOverlay,    'Ctrl+Shift+C (toggle — legacy)'],
-    ['CommandOrControl+Shift+Q', openSettings,     'Ctrl+Shift+Q (open settings)'],
-    ['CommandOrControl+Shift+M', minimizeOverlay,  'Ctrl+Shift+M (minimize panel)'],
-    ['CommandOrControl+Shift+H', toggleHistory,    'Ctrl+Shift+H (tip history)'],
-    ['CommandOrControl+Shift+X', quit,             'Ctrl+Shift+X (quit)'],
-  ];
+const BINDINGS = {
+  'CommandOrControl+Shift+C': 'toggleOverlay',
+  'CommandOrControl+Shift+X': 'forceTip',
+  'CommandOrControl+Shift+P': 'pauseResume',
+  'CommandOrControl+Shift+M': 'minimizePanel',
+  'CommandOrControl+Shift+H': 'openHistory',
+  'CommandOrControl+Shift+S': 'openSettings',
+};
 
-  for (const [accelerator, handler, label] of keys) {
-    if (!handler) continue;
+function register(actions) {
+  for (const [accel, action] of Object.entries(BINDINGS)) {
     try {
-      const ok = globalShortcut.register(accelerator, handler);
-      if (ok) console.log(`[hotkeys] Registered: ${label}`);
-      else    console.warn(`[hotkeys] Failed to register: ${label} (key may be in use)`);
+      const ok = globalShortcut.register(accel, () => {
+        try { actions[action]?.(); }
+        catch (err) { console.error(`[hotkeys] ${action} failed:`, err.message); }
+      });
+      if (!ok) console.warn(`[hotkeys] Failed to register ${accel}`);
     } catch (err) {
-      console.warn(`[hotkeys] Error registering ${label}:`, err.message);
+      console.warn(`[hotkeys] Error registering ${accel}:`, err.message);
     }
   }
 }
 
-function unregisterHotkeys() {
+function unregister() {
   globalShortcut.unregisterAll();
 }
 
-module.exports = { registerHotkeys, unregisterHotkeys };
+module.exports = { register, unregister, BINDINGS };
