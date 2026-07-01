@@ -37,6 +37,64 @@ function sanitize(t) {
 // ─── Direct Gemini REST call — tries primary model, falls back if 404 ─────────
 const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash-001', 'gemini-1.5-flash-latest'];
 
+// ─── AI provider (OpenAI-compatible) ──────────────────────────────────────────
+// Set AI_API_KEY to switch off Gemini onto ANY OpenAI-compatible endpoint
+// (OpenRouter, Alibaba DashScope, OpenAI, Together, etc). Default target is
+// OpenRouter + Qwen3-VL, which reads game HUDs well and is cheap. Until
+// AI_API_KEY is set, the legacy Gemini path is used, so deploying changes nothing.
+const AI = {
+  provider:    (process.env.AI_PROVIDER || (process.env.AI_API_KEY ? 'openai' : 'gemini')).toLowerCase(),
+  baseUrl:     (process.env.AI_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/+$/, ''),
+  apiKey:      process.env.AI_API_KEY || '',
+  visionModel: process.env.AI_VISION_MODEL || 'qwen/qwen3-vl-30b-a3b-instruct',
+  textModel:   process.env.AI_TEXT_MODEL   || process.env.AI_VISION_MODEL || 'qwen/qwen3-vl-30b-a3b-instruct',
+};
+
+// One OpenAI-style chat call. `imageB64` present => multimodal (vision) request.
+async function chatCall({ prompt, imageB64, maxTokens, temperature }) {
+  const content = imageB64
+    ? [
+        { type: 'text', text: prompt },
+        { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageB64}` } },
+      ]
+    : prompt;
+
+  const resp = await fetch(`${AI.baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': `Bearer ${AI.apiKey}`,
+      'HTTP-Referer':  'https://ghostcoachai.com', // OpenRouter attribution (ignored elsewhere)
+      'X-Title':       'GhostCoach',
+    },
+    body: JSON.stringify({
+      model:       imageB64 ? AI.visionModel : AI.textModel,
+      messages:    [{ role: 'user', content }],
+      max_tokens:  maxTokens || 100,
+      temperature: temperature == null ? 0.7 : temperature,
+    }),
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text();
+    console.error(`[coach] AI error (${resp.status}):`, text.slice(0, 200));
+    throw new Error(`AI ${resp.status}`);
+  }
+  const data = await resp.json();
+  return (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+}
+
+// Unified entry points the routes call: dispatch to the configured provider.
+async function visionInfer(imageB64, prompt, maxTokens, jsonMode) {
+  if (AI.provider === 'gemini') return geminiCall(imageB64, prompt, maxTokens, jsonMode);
+  const text = await chatCall({ imageB64, prompt, maxTokens, temperature: 0.7 });
+  return jsonMode ? text : sanitize(text);
+}
+async function textInfer(prompt, maxTokens) {
+  if (AI.provider === 'gemini') return geminiTextCall(prompt, maxTokens);
+  return sanitize(await chatCall({ prompt, maxTokens, temperature: 0.5 }));
+}
+
 // Strict schema for /analyze responses — Gemini requires UPPERCASE type names
 const ANALYZE_SCHEMA = {
   type: 'OBJECT',
@@ -152,226 +210,65 @@ async function geminiTextCall(prompt, maxTokens) {
 }
 
 function buildContextPrompt(context) {
-  const ctx    = context || {};
-  const recent = (ctx.lastTipsGiven || []).map((t, i) => `${i + 1}. ${t}`).join('\n') || '  (none yet, give any appropriate tip)';
-  const topics = Array.isArray(ctx.recentTopics) && ctx.recentTopics.length ? ctx.recentTopics.join(', ') : 'none yet';
+  const ctx        = context || {};
+  const recentList = ctx.recentTips || ctx.lastTipsGiven || [];
+  const recent     = recentList.length ? recentList.map((t, i) => (i + 1) + '. ' + t).join('\n') : '(none yet)';
+  const topics     = (Array.isArray(ctx.recentTopics) && ctx.recentTopics.length) ? ctx.recentTopics.join(', ') : 'none yet';
+  const buyClear   = ctx.buyInfoClear !== false;
+  const buyNote    = buyClear ? '' : ' Right now credits or round are NOT clearly visible, so give a tactical tip, not a buy tip.';
+  const focusLine  = ctx.focus ? ('This frame, lean toward: ' + ctx.focus + '.\n\n') : '';
 
-  const agentSection = ctx.agent
-    ? `PLAYER'S AGENT IS ${String(ctx.agent).toUpperCase()}. THIS IS LOCKED AND CONFIRMED.
-The player is playing ${ctx.agent}. Their abilities are ${ctx.agent}'s abilities. Do NOT suggest abilities from any other agent.
+  const agentRule = ctx.agent
+    ? ('The player is ' + ctx.agent + '. This is confirmed. Only ever suggest ' + ctx.agent + "'s own abilities, never another agent's. Before naming an ability, make sure it belongs to " + ctx.agent + '; if not, give a positioning, economy, or aim tip with no ability name.')
+    : "The player's agent is not known yet. Do NOT name any agent or any specific ability. Give general advice only: positioning, crosshair placement, economy, rotation, or game sense.";
 
-When suggesting an ability for the player to use, ONLY suggest ${ctx.agent}'s abilities. Their teammates may have other agents but the PLAYER is ${ctx.agent}.
+  return `You are a Radiant-level Valorant coach watching a live match through the player's screen. Give ONE short, specific, useful tip, or the single word SKIP. Nothing else.
 
-If you are about to write a tip with an ability name, verify it belongs to ${ctx.agent}. If it does not, rewrite the tip to use ${ctx.agent}'s actual abilities or give a non-ability tip about positioning, economy, or aim instead.`
-    : `PLAYER'S AGENT: Not yet identified.
-Do NOT mention any specific agent abilities. Give general advice about positioning, crosshair placement, economy, rotation, or game sense. Do not name any agent in your tip.`;
+WHO THE PLAYER IS
+The player is whoever the first-person view belongs to. Their agent is the one whose 4 ability icons sit at the BOTTOM-CENTER, just above the HP and shield bar. Never guess the player's agent from the scoreboard (top), the kill feed (top-right), or the minimap (top-left); those show all ten players. If the player is dead or spectating, coach what THEY did wrong before dying, not the spectated player.
 
-  // Backwards-compat alias used elsewhere in this template literal
-  const agentLine = agentSection;
+${agentRule}
 
-  return `You are a Radiant-level Valorant coach watching a live match. You have memory of the match so far.
+READ THE HUD
+- Round and score: top-center, plus the round timer and whether it is buy phase.
+- Credits: shown in buy phase; use them for economy advice.
+- Bottom-center: the player's 4 abilities. Bright means ready, dim or greyed means used or not bought, so never tell them to use a greyed ability.
+- Minimap (top-left): the player's position, teammates, and the spike.
+- Center: crosshair placement and the angle being held.
+- Kill feed (top-right): recent kills and trades.
 
-${agentLine}
+ECONOMY (only when credits AND round are clearly visible).${buyNote}
+- Round 1 or 13 pistol (~800): light shields plus one ability, or a Ghost. Nothing more.
+- Under 2000: full save, buy nothing.
+- 2000 to 3900: force buy, Spectre with light shields.
+- 3900 or more: full buy, Vandal or Phantom with full shields and util.
+- If the team is saving, save with them.
 
-HOW TO IDENTIFY THE PLAYER (CRITICAL):
+WHEN TO SPEAK vs SKIP
+Give a tip when you can see something genuinely useful: a bad position, unused utility, an economy call, a post-plant or retake read, a crosshair or aim fix, a death mistake, or a clear opportunity.
+Reply with exactly SKIP when the screen is a menu, agent select, or loading screen, when nothing has changed since your last tip, or when the only thing you could say repeats the recent tips below. A helpful tip on most gameplay frames is expected, but never pad with obvious filler.
 
-The PLAYER is the person whose perspective the screenshot is from. To identify their agent, look ONLY at these locations:
+${focusLine}CURRENT MATCH STATE (trust this, do not re-derive it every frame):
+- Agent: ${ctx.agent || 'Unknown'} | Map: ${ctx.map || 'Unknown'} | Side: ${ctx.side || 'Unknown'}
+- Round: ${ctx.roundNumber || 'Unknown'} | Score: ${ctx.teamScore || 0}-${ctx.enemyScore || 0} | Phase: ${ctx.phase || 'Unknown'}
+- Credits: ${ctx.playerCredits == null ? 'Unknown' : ctx.playerCredits} | Alive: ${ctx.playerAlive === false ? 'No' : 'Yes'} | Deaths in a row: ${ctx.consecutiveDeaths || 0}
 
-1. ABILITY ICONS at the BOTTOM-CENTER of the screen. The player has 4 ability icons in a row, just above their HP/shield bar. These are THE PLAYER'S abilities. Count the icons and match them to an agent.
-2. The player's AGENT PORTRAIT in the BOTTOM-LEFT corner (small circle showing the agent's face).
-3. The first-person view itself: if you can see hands, weapons, or first-person perspective, those are the player's.
-
-DO NOT identify the agent from:
-- The scoreboard at the top of the screen (those are all 10 players).
-- The kill feed in the top-right (those are recent kills involving anyone).
-- The minimap in the top-left (those dots are teammates).
-- Any teammate's agent portrait visible in the team panel.
-- Spectator views if the player is dead (in that case, focus on what the player did wrong before dying, not the spectated agent's gameplay).
-
-THE PLAYER'S AGENT = the agent whose 4 abilities are shown at the bottom-center. NOTHING ELSE.
-
-If you cannot clearly see the bottom-center ability bar, set agent to null and give general advice that does not mention any specific abilities.
-
-CRITICAL: Before suggesting any agent-specific ability, verify by checking the bottom-center ability icons. If the icons show smokes and a dash, the player is Jett (or possibly Omen depending on which smokes). If the icons show a knife, traps, and a camera, the player is Cypher. Match the EXACT icons to the EXACT agent. If the screenshot is a death/spectator screen and the player's ability bar is not visible, do NOT guess the agent — give general death advice without naming abilities.
-
-TIP FRAMING RULES:
-- When advising the player to use their own abilities: "Use your X" or "Your X can clear this corner".
-- When advising about a teammate's ability: "Ask your [Agent] teammate to X" or "Your [Agent] teammate's X would be useful here".
-- If you mention an agent name, ALWAYS specify if it is "your" agent (the player's) or "your teammate's" agent.
-- If you are not sure who has which agent, give general advice without agent names.
-
-NEVER suggest an ability unless you are 100 percent certain the player has it. When in doubt, give general advice (positioning, economy, crosshair placement) instead of agent-specific advice. Better to be vague than wrong.
-
-COMPLETE AGENT ABILITY LIST (memorize):
-- Jett: Cloudburst (smoke), Updraft (jump), Tailwind (dash), Blade Storm (knife ult). NO walls. NO flashes. NO traps.
-- Reyna: Leer (blind eye), Devour (heal), Dismiss (escape), Empress (ult). NO smokes. NO walls.
-- Phoenix: Curveball (flash), Hot Hands (molly), Blaze (fire wall), Run It Back (respawn ult).
-- Raze: Boom Bot, Blast Pack (satchel), Paint Shells (nade), Showstopper (rocket ult).
-- Neon: Fast Lane (walls), Relay Bolt (stun), High Gear (sprint), Overdrive (beam ult).
-- Iso: Undercut (debuff), Double Tap (shield), Contingency (wall), Kill Contract (ult).
-- Yoru: Fakeout (decoy), Blindside (flash), Gatecrash (teleport), Dimensional Drift (ult).
-- Sova: Owl Drone, Shock Bolt, Recon Bolt, Hunter's Fury (wallbang ult).
-- Breach: Flashpoint, Fault Line (stun), Aftershock, Rolling Thunder (ult).
-- Skye: Trailblazer (dog), Guiding Light (flash bird), Regrowth (heal), Seekers (ult).
-- KAY/O: FLASH/drive, ZERO/point (suppress knife), FRAG/ment (molly), NULL/cmd (suppress ult).
-- Fade: Prowler, Seize (tether), Haunt (eye), Nightfall (ult).
-- Gekko: Wingman, Dizzy, Mosh Pit, Thrash (ult).
-- Tejo: only mention abilities if visible on screen.
-- Omen: Shrouded Step (teleport), Paranoia (blind), Dark Cover (smokes), From The Shadows (ult).
-- Brimstone: Stim Beacon, Incendiary (molly), Sky Smoke (smokes), Orbital Strike (ult).
-- Viper: Snake Bite (molly), Poison Cloud (smoke orb), Toxic Screen (wall), Viper's Pit (ult).
-- Astra: Gravity Well, Nova Pulse, Nebula (smoke), Cosmic Divide (ult).
-- Harbor: Cove (bubble), High Tide (water wall), Cascade, Reckoning (ult).
-- Clove: Pick-Me-Up, Meddle, Ruse (smokes can cast dead), Not Dead Yet (self-revive ult).
-- Sage: Slow Orb, Healing Orb, Barrier (wall), Resurrection (ult).
-- Killjoy: Nanoswarm, Alarmbot, Turret, Lockdown (ult).
-- Cypher: Trapwire, Cyber Cage (smoke), Spycam, Neural Theft (ult).
-- Chamber: Trademark (slow trap), Headhunter (sheriff), Rendezvous (teleport), Tour De Force (op ult).
-- Deadlock: GravNet, Sonic Sensor, Barrier Mesh (wall), Annihilation (ult).
-- Vyse: Arc Rose, Shear, Razorvine, Steel Garden.
-- Waylay: only mention abilities if visible on screen.
-
-If you cannot see all 4 ability icons clearly, give general advice instead of agent-specific advice.
-
-CURRENT MATCH STATE (carry this forward, do not re-detect from scratch every frame):
-- Agent: ${ctx.agent || 'Unknown'}
-- Map: ${ctx.map || 'Unknown'}
-- Side: ${ctx.side || 'Unknown'}
-- Round: ${ctx.roundNumber || 'Unknown'}
-- Score: ${ctx.teamScore || 0} to ${ctx.enemyScore || 0}
-- Phase: ${ctx.phase || 'Unknown'}
-- Player credits: ${ctx.playerCredits == null ? 'Unknown' : ctx.playerCredits}
-- Player alive: ${ctx.playerAlive === false ? 'No' : 'Yes'}
-- Consecutive deaths: ${ctx.consecutiveDeaths || 0}
-
-YOUR TASK:
-Analyze the screenshot and give ONE specific coaching tip if there is something useful to say. Otherwise respond with SKIP.
-
-AGENT KNOWLEDGE (only suggest abilities the player's agent actually has):
-- Jett: Cloudburst smoke, Updraft jump, Tailwind dash, Blade Storm ult. NO walls, NO flashes.
-- Reyna: Leer blind eye, Devour heal, Dismiss escape, Empress ult. NO smokes.
-- Phoenix: Curveball flash, Hot Hands molly, Blaze fire wall, Run It Back ult.
-- Raze: Boom Bot, Blast Pack satchel, Paint Shells nade, Showstopper rocket.
-- Sova: Owl Drone, Shock Bolt, Recon Bolt, Hunter's Fury wallbang.
-- Omen: Shrouded Step teleport, Paranoia blind, Dark Cover smokes, From The Shadows.
-- Brimstone: Stim Beacon, Incendiary molly, Sky Smoke, Orbital Strike ult.
-- Viper: Snake Bite molly, Poison Cloud, Toxic Screen wall, Viper's Pit ult.
-- Killjoy: Nanoswarm, Alarmbot, Turret, Lockdown ult.
-- Sage: Slow Orb, Healing Orb, Barrier wall, Resurrection ult.
-- Cypher: Trapwire, Cyber Cage, Spycam, Neural Theft.
-- Chamber: Trademark trap, Headhunter pistol, Rendezvous teleport, Tour De Force op.
-- Skye: Trailblazer dog, Guiding Light flash bird, Regrowth heal, Seekers ult.
-- KAY/O: FLASH/drive, ZERO/point knife, FRAG/ment molly, NULL/cmd suppress ult.
-- Breach: Flashpoint, Fault Line stun, Aftershock, Rolling Thunder ult.
-- Astra: Gravity Well, Nova Pulse, Nebula smoke, Cosmic Divide wall.
-- Yoru: Fakeout, Blindside flash, Gatecrash teleport, Dimensional Drift.
-- Fade: Prowler, Seize tether, Haunt eye, Nightfall ult.
-- Gekko: Wingman, Dizzy, Mosh Pit, Thrash ult.
-- Neon: Fast Lane walls, Relay Bolt stun, High Gear sprint, Overdrive beam.
-- Harbor: Cove bubble, High Tide wall, Cascade wave, Reckoning ult.
-- Iso: Undercut, Double Tap shield, Contingency wall, Kill Contract.
-- Deadlock: GravNet, Sonic Sensor, Barrier Mesh, Annihilation ult.
-- Clove: Pick-Me-Up, Meddle, Ruse smokes (can cast dead), Not Dead Yet.
-- Vyse: Arc Rose, Shear, Razorvine, Steel Garden.
-- Tejo / Waylay / others: only reference abilities visibly shown on screen, do not invent.
-
-ECONOMY RULES:
-- Round 1 or 13 (pistol): only Ghost or light shields plus abilities.
-- Under 2000 credits: full save.
-- 2000 to 3900: force buy Spectre with light shields.
-- 3900+: full buy Vandal or Phantom with full shields and abilities.
-- If team is saving, save with them.
-
-WHEN TO STAY SILENT (respond with SKIP):
-- Player is just walking with nothing notable happening.
-- Nothing visible has changed since the last tip.
-- You would just repeat what you already said.
-- The screen shows a menu, lobby, agent select, or loading screen.
-- You cannot identify a specific actionable tip.
-
-WHEN TO GIVE A TIP:
-- Buy phase: economy advice based on visible credits.
-- Player is in bad position: suggest reposition.
-- Player just died: explain what happened.
-- Spike planted: post-plant or retake advice.
-- Player has utility unused that should be used.
-- Player about to make obvious mistake.
-
-CRITICAL RULES:
-- Tip MUST be a complete sentence ending in a period.
-- Tip MUST be 6 to 14 words.
-- Never use em-dashes or long dashes. Use commas and periods.
-- Never suggest abilities the player's agent does not have.
-- Never repeat tips from the recent tips list above.
-- When in doubt, respond with SKIP. Quality over quantity.
-
-TIP LENGTH RULES (STRICT):
-- Maximum 14 words. NEVER more than 14 words.
-- Minimum 6 words.
-- Must be a complete sentence ending with a period.
-- Be concise. A real coach speaks in short, punchy commands.
-
-Bad (too long): "Consider how Breach might have used his utility to initiate that engagement and adapt your positioning."
-Good (concise): "Your Breach should flash, then you push the angle."
-
-Bad (too long): "After dying, analyze how Clove's abilities might have helped you survive that engagement."
-Good (concise): "Your Clove can smoke before you peek next time."
-
-If you cannot fit your thought in 14 words, simplify the advice.
-
-CRITICAL TIP REQUIREMENTS: Never end with conjunctions (and, or, but), prepositions (to, with, for, of, in, at), articles (the, a, an), or possessives (Jett's, the player's, your). Always finish your thought before the period.
-
-COMPLETE-SENTENCE RULE: If your tip mentions an ability, name it specifically.
-- BAD: "Use Jett's." (incomplete — Jett's what?)
-- BAD: "You should rotate to the." (truncated)
-- BAD: "Push hard and." (ends with conjunction)
-- GOOD: "Use Jett's Tailwind dash to escape after that kill."
-- GOOD: "Rotate A through spawn before the timer ends."
-
-SKIP RULES:
-Only respond with SKIP if you see:
-1. The Valorant main menu.
-2. Agent select screen.
-3. Loading screen.
-4. Black screen or no game visible.
-
-EVERY OTHER FRAME deserves a tip. Even if "nothing seems to be happening," give:
-- Positioning advice based on where the player is.
-- Crosshair placement reminder.
-- Economy comment.
-- Awareness check (minimap, sound).
-- Mental game tip.
-
-The player is paying for tips. Give tips. SKIP is for when there is literally no game visible.
-
-A real coach speaks every 10-15 seconds. Be that coach.
-
-RECENT TIPS YOU GAVE (DO NOT REPEAT OR REPHRASE):
+DO NOT REPEAT these recent tips, and do not rephrase the same idea a different way:
 ${recent}
+Recent topics: ${topics}. Cover a different one this time (economy, positioning, utility, aim, rotation, spike, teamwork, mental).
 
-CRITICAL ANTI-REPETITION RULES:
-- Do NOT repeat any tip from the list above.
-- Do NOT rephrase the same idea differently. If you said "use utility before peeking," do NOT later say "throw a flash before you peek."
-- Do NOT focus on the same topic twice in a row. If your last tip was about positioning, this one should be about utility, economy, or aim.
-- Vary your topics: economy, positioning, utility, aim, communication, mental game, rotation, post-plant, eco vs full buy, agent abilities.
-- If you cannot think of something genuinely new to say, respond with SKIP. Never repeat yourself.
+ABILITY REFERENCE (only ever suggest the player's own; plain words like smoke, flash, molly, wall, recon are fine):
+Jett: smokes, updraft, dash. Reyna: blind, heal, dismiss. Phoenix: flash, molly, wall. Raze: boombot, satchel, nade. Neon: walls, stun, sprint. Iso: shield, wall. Yoru: decoy, flash, teleport. Sova: drone, recon dart, shock. Breach: flash, stun, aftershock. Skye: flash, dog, heal. KAY/O: flash, suppress knife, molly. Fade: recon, tether, prowler. Gekko: flash, wingman, molly. Omen: smokes, flash, teleport. Brimstone: smokes, molly, stim. Viper: wall, smoke, molly. Astra: smokes, stun, wall. Harbor: walls, bubble. Clove: smokes, decay. Sage: wall, slow, heal. Killjoy: turret, molly, alarmbot. Cypher: tripwire, camera, cage. Chamber: trap, teleport, sheriff. Deadlock: wall, sensor, net. Vyse, Tejo, Waylay: only reference abilities you can actually see on screen.
 
-TOPIC VARIETY:
-Recent tips covered these topics: ${topics}.
-Cover a DIFFERENT topic this time. Cycle through: economy, positioning, utility, aim, rotation, spike play, teamwork, mental game, death analysis. Do not focus on the same topic twice in a row.
+OUTPUT
+Reply with ONLY the tip: one plain sentence, 6 to 16 words, ending with a period. No quotes, no "Tip:", no JSON, no markdown, no preamble. Use commas and periods, never dashes. Always finish the sentence; never end on a preposition, article, conjunction, or possessive. If there is genuinely nothing worth saying, reply with exactly SKIP.
 
-RESPONSE FORMAT (CRITICAL — READ THIS LAST):
-Respond with ONE plain text coaching tip in 6 to 14 words ending with a period. Just the tip, nothing else.
-
-Example responses:
-Use your Tailwind to escape after that kill.
-Force buy with Spectre and light shields this round.
+Good examples:
+Force buy Spectre with light shields, you cannot afford a rifle.
 Your crosshair is too low, aim at head height.
-
-If you see a main menu or non-gameplay screen, respond with only:
-SKIP
-
-Do not include "Tip:" or quotes or any preamble. Do not wrap in JSON. Do not use code fences. Just the tip text or the word SKIP.`;
+Play an off-angle here, they pre-aim the default spot.
+Use your smoke before the team pushes through mid.
+SKIP`;
 }
 
 const SMART_PROMPT = `You are a Radiant-level Valorant coach analyzing a live gameplay screenshot. Give one coaching tip that is 8 to 20 words long. Your tip must be a complete, specific, actionable sentence.
@@ -542,7 +439,7 @@ router.post('/analyze', async (req, res) => {
   const t0 = Date.now();
   try {
     const raw = await Promise.race([
-      geminiCall(image, prompt, 250, false),
+      visionInfer(image, prompt, 250, false),
       new Promise((_, rej) => setTimeout(() => rej(new Error('Gemini timeout')), 10000)),
     ]);
     trackCall(licenseKey);
@@ -636,7 +533,7 @@ router.post('/summary/round', async (req, res) => {
   if (!req.body || !req.body.length) return res.status(400).json({ error: 'No image data' });
   try {
     const text = await Promise.race([
-      geminiCall(req.body.toString('base64'), ROUND_SUMMARY_PROMPT, 400),
+      visionInfer(req.body.toString('base64'), ROUND_SUMMARY_PROMPT, 400),
       new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 12000)),
     ]);
     trackCall(licenseKey);
@@ -663,7 +560,7 @@ router.post('/summary/match', async (req, res) => {
 
   try {
     const text = await Promise.race([
-      geminiTextCall(sysPrompt, 600),
+      textInfer(sysPrompt, 600),
       new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 12000)),
     ]);
     trackCall(licenseKey);
@@ -685,7 +582,7 @@ router.post('/recap', async (req, res) => {
 
   try {
     const recap = await Promise.race([
-      geminiTextCall(prompt, 100),
+      textInfer(prompt, 100),
       new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 10000)),
     ]);
     trackCall(licenseKey);
@@ -742,7 +639,7 @@ router.post('/match-review', async (req, res) => {
     const prompt = `Here are coaching tips from a Valorant match:\n${tips.join('\n')}\n\nWrite a 3-sentence match review. Sentence 1: what the player did well. Sentence 2: their most common mistake. Sentence 3: what to focus on next match. Do not use dashes. End each sentence with a period.`;
 
     const review = await Promise.race([
-      geminiTextCall(prompt, 200),
+      textInfer(prompt, 200),
       new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 12000)),
     ]);
     trackCall(licenseKey);
@@ -800,7 +697,7 @@ Respond with ONLY the agent name. Just one word. No explanation. No punctuation.
 If you cannot clearly see all 4 ability icons or are not 100% sure, respond with: UNKNOWN`;
 
     const text = await Promise.race([
-      geminiCall(image, prompt, 20, false),
+      visionInfer(image, prompt, 20, false),
       new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000)),
     ]);
     trackCall(licenseKey);
@@ -843,7 +740,7 @@ ${availableTips.map((t, i) => `${i + 1}. ${t}`).join('\n')}
 Return only the exact tip text. No quotes, no formatting, no explanation.`;
 
     const text = await Promise.race([
-      geminiTextCall(prompt, 100),
+      textInfer(prompt, 100),
       new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000)),
     ]);
     trackCall(licenseKey);
