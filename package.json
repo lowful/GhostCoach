@@ -14,6 +14,7 @@
   "build": {
     "appId": "com.ghostcoach.app2",
     "productName": "GhostCoach 2.0",
+    "artifactName": "GhostCoach 2.0 Setup.${ext}",
     "copyright": "Copyright © 2025 GhostCoach",
     "files": [
       "src/**/*",

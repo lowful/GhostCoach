@@ -43,6 +43,7 @@ class CoachingEngine extends EventEmitter {
 
     this.enemyHistory  = [];      // recent enemy spots/angles the AI reported
     this.lastWarnedSpot = null;   // de-dupe the "they keep peeking X" warning
+    this.recentAbilities = [];    // recent ability words in AI tips (anti-fixation)
     this.focusIndex     = -1;     // rotates analysis emphasis (map/enemies/eco/…)
 
     this.timers = [];
@@ -64,6 +65,7 @@ class CoachingEngine extends EventEmitter {
     this.warnedCapture = false;
     this.enemyHistory = [];
     this.lastWarnedSpot = null;
+    this.recentAbilities = [];
     this.emit('status', 'coaching');
 
     this.timers.push(setTimeout(() =>
@@ -403,8 +405,19 @@ class CoachingEngine extends EventEmitter {
 
     if (!this.validateTipForAgent(cleaned)) { console.log('[engine] reject: wrong-agent ability'); return; }
 
+    // Anti-fixation: don't suggest the same ability (e.g. Updraft) in back-to-back
+    // tips. Forces variety even if the model repeats itself.
+    const abilityWord = abilityWordIn(cleaned);
+    if (abilityWord && this.recentAbilities.slice(-2).includes(abilityWord)) {
+      console.log('[engine] reject: ability fixation (' + abilityWord + ')');
+      return;
+    }
+
     this.skipCount = 0;
-    this.emitTip(cleaned, 'ai');
+    if (this.emitTip(cleaned, 'ai') && abilityWord) {
+      this.recentAbilities.push(abilityWord);
+      if (this.recentAbilities.length > 6) this.recentAbilities.shift();
+    }
   }
 
   /**
@@ -611,6 +624,16 @@ function prettySpot(spot) {
 
 // AI refusals / placeholders that are never a real coaching tip.
 const NONSENSE = /\b(i cannot|i can.?t|i.?m sorry|as an ai|i am unable|unable to|no tip|not applicable|n\/a|cannot determine|undefined|null)\b/i;
+
+// Ability keywords used to stop the coach fixating on one ability across tips.
+const ABILITY_WORDS = ['updraft', 'dash', 'satchel', 'sprint', 'smoke', 'flash', 'molly',
+  'wall', 'recon', 'drone', 'camera', 'tripwire', 'trap', 'dart', 'stun', 'blind',
+  'teleport', 'heal', 'turret', 'sensor', 'decoy', 'shock', 'bubble'];
+function abilityWordIn(text) {
+  const l = String(text || '').toLowerCase();
+  for (const w of ABILITY_WORDS) if (new RegExp('\\b' + w + '\\b').test(l)) return w;
+  return null;
+}
 
 function countOf(str, ch) {
   let n = 0;
