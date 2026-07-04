@@ -44,6 +44,7 @@ class CoachingEngine extends EventEmitter {
     this.enemyHistory  = [];      // recent enemy spots/angles the AI reported
     this.lastWarnedSpot = null;   // de-dupe the "they keep peeking X" warning
     this.recentAbilities = [];    // recent ability words in AI tips (anti-fixation)
+    this.lastPhaseChange = null;  // { from, to, at }: round-transition awareness
     this.focusIndex     = -1;     // rotates analysis emphasis (map/enemies/eco/…)
 
     this.timers = [];
@@ -66,6 +67,7 @@ class CoachingEngine extends EventEmitter {
     this.enemyHistory = [];
     this.lastWarnedSpot = null;
     this.recentAbilities = [];
+    this.lastPhaseChange = null;
     this.emit('status', 'coaching');
 
     this.timers.push(setTimeout(() =>
@@ -316,6 +318,7 @@ class CoachingEngine extends EventEmitter {
       recentTopics,
       recentTips,
       enemyHistory: this.enemyHistory.slice(-6),
+      phaseTransition: this.recentPhaseTransition(),
       agentRole:    agentData.getRole(this.matchContext.agent),
       teammates:    this.matchContext.teammates || null, // passthrough if the server reports the comp
       buyInfoClear: tipLibrary.buyInfoClear(this.matchContext), // don't advise a buy on unclear numbers
@@ -329,6 +332,12 @@ class CoachingEngine extends EventEmitter {
         onlyAvailableAbilities: true,  // don't suggest greyed-out / unbought abilities
       },
     };
+  }
+
+  /** "buy->active" while a phase flip is fresh (~10s), else null. */
+  recentPhaseTransition() {
+    const pc = this.lastPhaseChange;
+    return pc && Date.now() - pc.at < 10000 ? `${pc.from}->${pc.to}` : null;
   }
 
   nextFocus() {
@@ -385,16 +394,22 @@ class CoachingEngine extends EventEmitter {
 
     if (tip.toUpperCase() === 'SKIP' || tip.length < 20) {         // skip / too short
       this.skipCount++;
-      if (this.skipCount >= 3 && Date.now() - this.lastTipTime > TIMING.librarySilence) {
+      if (this.skipCount >= 2 && Date.now() - this.lastTipTime > TIMING.librarySilence) {
         this.skipCount = 0;
-        this.emitLibraryTip();
+        // The AI has nothing to say and the overlay has been quiet a while:
+        // dead air is worse than bending the AI-majority ratio, so let the
+        // library speak regardless of the mix.
+        this.emitLibraryTip({ ignoreRatio: true });
       }
       return;
     }
     if (TRUNCATION.some((re) => re.test(tip))) { console.log('[engine] reject: truncated'); return; }
     if (!/[.!?"]$/.test(tip))                  { console.log('[engine] reject: incomplete'); return; }
     if (tip.split(/\s+/).length > 24)          { console.log('[engine] reject: too long'); return; }
-    if (Date.now() - this.lastTipTime < TIMING.tipCooldown) { console.log('[engine] reject: cooldown'); return; }
+    // A fresh phase flip (round start, spike planted) opens a short window where
+    // a timely tip beats the normal pacing, so the cooldown relaxes to 6s.
+    const cooldown = this.recentPhaseTransition() ? 6000 : TIMING.tipCooldown;
+    if (Date.now() - this.lastTipTime < cooldown) { console.log('[engine] reject: cooldown'); return; }
 
     const cleaned = agentData.genericizeAbilities(cleanTip(tip));
     if (this.isSimilarToRecent(cleaned)) { console.log('[engine] reject: similar'); return; }
@@ -549,6 +564,11 @@ class CoachingEngine extends EventEmitter {
 
     if (typeof updates.roundNumber === 'number' && updates.roundNumber > prevRound) {
       this.matchContext.roundsPlayed++;
+    }
+    // Round-transition awareness: note phase flips (buy -> active -> postplant …)
+    // so the next request coaches the NEW phase and the cooldown briefly relaxes.
+    if (updates.phase && updates.phase !== prevPhase) {
+      this.lastPhaseChange = { from: prevPhase, to: updates.phase, at: Date.now() };
     }
     if (updates.phase === 'dead' && prevPhase !== 'dead') {
       this.matchContext.consecutiveDeaths++;

@@ -23,10 +23,12 @@ const settingsWindow   = require('./windows/settings-window');
 const historyWindow    = require('./windows/history-window');
 const dockWindow       = require('./windows/dock-window');
 const activationWindow = require('./windows/activation-window');
+const onboardingWindow = require('./windows/onboarding-window');
 const tray     = require('./tray');
 const hotkeys  = require('./hotkeys');
 const registerIpc = require('./ipc/register-ipc');
 const licenseService = require('./services/license-service');
+const agentData = require('./services/agent-data');
 const C = require('../shared/channels');
 
 // ── Session state ────────────────────────────────────────────────────────────
@@ -122,6 +124,10 @@ const controller = {
     state.isPaused   = false;
     state.agent      = { agent: null, confirmed: false, role: null };
     engine.start();
+    if (state.pendingAgent) {           // player typed their agent before starting
+      engine.setAgent(state.pendingAgent);
+      state.pendingAgent = null;
+    }
     setStatus('coaching');
     console.log('[coach] started');
   },
@@ -147,8 +153,15 @@ const controller = {
   confirmAgent() { if (engine) engine.confirmAgent(); },
   resizePanel(h) { if (typeof h === 'number') panelWindow.setContentHeight(h); },
   setAgent(name) {
-    if (!engine) return { ok: false, error: 'not coaching' };
-    return engine.setAgent(name);
+    if (engine) return engine.setAgent(name);
+    // Not coaching yet: remember the choice and apply it when the engine starts,
+    // so typing an agent never bounces with a confusing "not found".
+    const canonical = agentData.resolveName(name);
+    if (!canonical) return { ok: false, error: 'unknown agent' };
+    state.pendingAgent = canonical;
+    state.agent = { agent: canonical, confirmed: true, role: agentData.getRole(canonical) };
+    registry.broadcast(C.PUSH_AGENT, state.agent);
+    return { ok: true, ...state.agent };
   },
   getState() { return buildState(); },
   toggleOverlay() { overlayWindow.toggleVisible(); },
@@ -169,6 +182,10 @@ const controller = {
   openHistory()   { historyWindow.open(); },
   logout() {
     logoutToActivation('You have been logged out. Enter a license key to sign back in.');
+  },
+  finishOnboarding() {
+    store.set('onboardingCompleted', true);
+    onboardingWindow.close();
   },
   onConfigChanged() {
     if (engine) engine.setPerformanceMode(store.get('performanceMode'));
@@ -342,6 +359,10 @@ function launchMainApp() {
     });
   }
   startLicenseWatch(); // detect expiry / revocation mid-session and keep Settings fresh
+
+  // First launch after activation: show the one-time welcome card (hotkey tour).
+  if (!store.get('onboardingCompleted')) onboardingWindow.create();
+
   console.log('[main] Main app launched');
 }
 

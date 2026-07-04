@@ -48,6 +48,11 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* The hidden attribute must ALWAYS win, even over display:flex/grid rules.
+   Without this, any styled element with `hidden` still renders (the exact bug
+   that made all agent-bubble states show at once). */
+[hidden] { display: none !important; }
+
 html, body {
   font-family: var(--font);
   color: var(--text);

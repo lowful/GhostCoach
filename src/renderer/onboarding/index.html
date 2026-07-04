@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';" />
+  <title>Welcome to GhostCoach</title>
+  <link rel="stylesheet" href="../shared/theme.css" />
+  <link rel="stylesheet" href="../shared/ui.css" />
+  <link rel="stylesheet" href="onboarding.css" />
+</head>
+<body>
+  <div class="bg-grad"></div>
+
+  <main class="card glass">
+    <button id="close" class="icon-btn x" title="Close">✕</button>
+
+    <div class="hero">
+      <img class="ghost" src="../../../assets/logo-ghost.svg" alt="" width="56" height="65" />
+      <h1>You're in.</h1>
+      <p class="sub">Here's the 20-second tour.</p>
+    </div>
+
+    <ol class="steps">
+      <li><span class="n">1</span><div><b>Start coaching</b><span>Hit the red button on the panel when you're in a match.</span></div></li>
+      <li><span class="n">2</span><div><b>Confirm your agent</b><span>A small bubble asks who you're playing. Tap ✓ or type it.</span></div></li>
+      <li><span class="n">3</span><div><b>Play your game</b><span>Tips appear on your overlay. Your mouse never gets blocked.</span></div></li>
+    </ol>
+
+    <div class="keys">
+      <div class="k"><span>Minimize panel</span><kbd>Ctrl+Shift+M</kbd></div>
+      <div class="k"><span>Toggle overlay</span><kbd>Ctrl+Shift+C</kbd></div>
+      <div class="k"><span>Force a tip</span><kbd>Ctrl+Shift+X</kbd></div>
+      <div class="k"><span>Pause / resume</span><kbd>Ctrl+Shift+P</kbd></div>
+      <div class="k"><span>Tip history</span><kbd>Ctrl+Shift+H</kbd></div>
+      <div class="k"><span>Settings</span><kbd>Ctrl+Shift+S</kbd></div>
+    </div>
+
+    <button id="go" class="btn btn-primary full">Let's go</button>
+  </main>
+
+  <script src="onboarding.js"></script>
+</body>
+</html>

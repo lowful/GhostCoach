@@ -35,6 +35,7 @@ const CHANNELS = {
   OPEN_HISTORY:    'window:openHistory',
   OPEN_PURCHASE:   'window:openPurchase',
   LICENSE_LOGOUT:  'license:logout',      // clear license + return to activation screen
+  ONBOARDING_DONE: 'onboarding:done',     // close the welcome card + never show again
   APP_QUIT:        'app:quit',
 
   // ── main → renderer pushes (webContents.send ⇄ ipcRenderer.on) ────────────

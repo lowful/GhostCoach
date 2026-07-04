@@ -54,6 +54,7 @@ function registerIpc(deps) {
   ipcMain.on(C.OPEN_HISTORY,   () => guard('history',  () => controller.openHistory()));
   ipcMain.on(C.OPEN_PURCHASE,  () => guard('purchase', () => shell.openExternal(PURCHASE_URL)));
   ipcMain.on(C.LICENSE_LOGOUT, () => guard('logout',   () => controller.logout()));
+  ipcMain.on(C.ONBOARDING_DONE,() => guard('onboarding', () => controller.finishOnboarding()));
   ipcMain.on(C.APP_QUIT,       () => guard('quit',     () => controller.quit()));
 }
 

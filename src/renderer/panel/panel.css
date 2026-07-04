@@ -23,17 +23,15 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
 .name { font-weight: 700; font-size: 14.5px; letter-spacing: -0.2px; }
 .head-actions { display: flex; gap: 2px; }
 
-/* Agent check "chat bubble": one clean row, no tail, no overlap */
+/* Agent check "chat bubble": exactly one visible row at a time */
 .agent-bubble {
+  display: block;
   background: rgba(0, 240, 255, 0.06);
   border: 1px solid rgba(0, 240, 255, 0.20);
   border-radius: 12px;
   padding: 10px 12px;
-  min-height: 50px;
-  display: flex; align-items: center;
   animation: bubbleIn 180ms var(--ease) both;
 }
-.agent-bubble > * { width: 100%; }
 @keyframes bubbleIn { from { opacity: 0; } to { opacity: 1; } }
 
 .ab-row { display: flex; align-items: center; gap: 12px; min-height: 30px; }
