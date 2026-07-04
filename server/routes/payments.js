@@ -19,7 +19,7 @@ const PLAN_MODES = {
 
 // POST /api/payments/create-checkout
 // Body: { plan, userId, email }
-// No JWT required — Supabase auth is handled client-side on the website.
+// No JWT required, Supabase auth is handled client-side on the website.
 router.post('/create-checkout', async (req, res) => {
   const { plan, userId, email } = req.body;
 

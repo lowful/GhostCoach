@@ -86,13 +86,13 @@ async function webhookHandler(req, res) {
         }
 
         if (!userId) {
-          console.error('[webhook] CRITICAL: userId is null — cannot create license. Session:', session.id);
+          console.error('[webhook] CRITICAL: userId is null, cannot create license. Session:', session.id);
           console.error('[webhook] client_reference_id was:', session.client_reference_id);
           console.error('[webhook] metadata was:', JSON.stringify(session.metadata));
           break;
         }
 
-        // Idempotency — skip if license already exists for this session
+        // Idempotency, skip if license already exists for this session
         console.log('[webhook] Checking for existing license for session:', session.id);
         const { data: existing, error: lookupError } = await supabase
           .from('licenses')

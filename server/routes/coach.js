@@ -217,6 +217,9 @@ function buildContextPrompt(context) {
   const buyClear   = ctx.buyInfoClear !== false;
   const buyNote    = buyClear ? '' : ' Right now credits or round are NOT clearly visible, so give a tactical tip, not a buy tip.';
   const focusLine  = ctx.focus ? ('This frame, lean toward: ' + ctx.focus + '.\n\n') : '';
+  const transLine  = ctx.phaseTransition
+    ? ('THE PHASE JUST CHANGED (' + ctx.phaseTransition + '). Coach the NEW phase first: buy advice as buy phase opens, setup or positioning as the round starts, post-plant or retake play the moment the spike is planted.\n\n')
+    : '';
   const side       = String(ctx.side || '').toLowerCase();
 
   const sideBlock = side.includes('att')
@@ -260,9 +263,9 @@ ECONOMY (only when credits AND round are clearly visible).${buyNote}
 - If the team is saving, save with them.
 
 WHEN TO SPEAK vs SKIP
-Speak when you can see a real mistake or a clear opportunity. Reply with exactly SKIP when the screen is a menu, agent select, or loading screen, when nothing has changed since your last tip, or when the only thing you could say repeats the recent tips below. Do not pad with generic ability suggestions.
+Most gameplay frames deserve one sharp, useful observation, so give it: a mistake, an opportunity, a read, an economy call, or a positioning fix. Reply with exactly SKIP only for menus, agent select, loading screens, or when the only honest thing you could say repeats the recent tips below. Never pad with generic ability suggestions.
 
-${focusLine}CURRENT MATCH STATE (trust this, do not re-derive it every frame):
+${transLine}${focusLine}CURRENT MATCH STATE (trust this, do not re-derive it every frame):
 - Agent: ${ctx.agent || 'Unknown'} | Map: ${ctx.map || 'Unknown'} | Side: ${ctx.side || 'Unknown'}
 - Round: ${ctx.roundNumber || 'Unknown'} | Score: ${ctx.teamScore || 0}-${ctx.enemyScore || 0} | Phase: ${ctx.phase || 'Unknown'}
 - Credits: ${ctx.playerCredits == null ? 'Unknown' : ctx.playerCredits} | Alive: ${ctx.playerAlive === false ? 'No' : 'Yes'} | Deaths in a row: ${ctx.consecutiveDeaths || 0}

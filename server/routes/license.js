@@ -44,7 +44,7 @@ router.post('/activate', async (req, res) => {
     });
   }
 
-  // First activation — lock to this device
+  // First activation, lock to this device
   if (!license.device_id) {
     await supabase
       .from('licenses')
@@ -60,7 +60,7 @@ router.post('/activate', async (req, res) => {
 });
 
 // POST /api/license/deactivate
-// Body: { userId } — called from account dashboard (Supabase userId).
+// Body: { userId }, called from account dashboard (Supabase userId).
 // Clears device lock. Max 3 deactivations per calendar month.
 router.post('/deactivate', async (req, res) => {
   const { userId } = req.body;
