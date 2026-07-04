@@ -120,13 +120,17 @@ const ABILITY_CUES = [
 // Categories the tip tells the PLAYER to personally deploy: an ability word
 // preceded (within a few words) by "your" or a deploy verb. "their smoke" or
 // "play off the smoke" won't trip it, only a personal instruction does.
+// Regexes precompiled once; this runs on every AI tip.
+const PERSONAL_CUES = ABILITY_CUES.map(([cat, re]) => {
+  const core = re.source.replace(/\\b/g, '');
+  return [cat, new RegExp(
+    '\\b(?:your|use|using|pop|throw|deploy|drop|put|place|cast|set up|line ?up)\\b[\\w\\s]{0,12}?' + core, 'i')];
+});
+
 function personalAbilityCues(text) {
   const l = String(text).toLowerCase();
   const out = [];
-  for (const [cat, re] of ABILITY_CUES) {
-    const core = re.source.replace(/\\b/g, '');
-    const near = new RegExp(
-      '\\b(?:your|use|using|pop|throw|deploy|drop|put|place|cast|set up|line ?up)\\b[\\w\\s]{0,12}?' + core, 'i');
+  for (const [cat, near] of PERSONAL_CUES) {
     if (near.test(l)) out.push(cat);
   }
   return out;
@@ -207,6 +211,9 @@ const ABILITY_GENERICS = [
 const AGENT_LOWER = new Set(Object.keys(AGENTS).map((n) => n.toLowerCase()));
 const AGENT_ALT   = [...AGENT_LOWER].map((n) => n.replace(/[/]/g, '\\/')).join('|');
 const GENERIC_ALT = 'recon dart|smoke|flash|molly|wall|recon|drone|camera';
+// Precompiled once, these run on every AI tip.
+const AGENT_BEFORE_GENERIC_RE = new RegExp(`\\b(?:${AGENT_ALT})\\s+(${GENERIC_ALT})\\b`, 'gi');
+const YOUR_AGENT_RE           = new RegExp(`\\byour\\s+(?:${AGENT_ALT})\\b`, 'gi');
 
 /**
  * Rewrite an AI tip into plain Valorant lingo: strip agent-name possessives,
@@ -227,8 +234,8 @@ function genericizeAbilities(text) {
   for (const [re, rep] of ABILITY_GENERICS) t = t.replace(re, rep);
   // Drop a leftover bare agent name sitting in front of a generic ability word
   // ("Viper wall" → "wall") or right after "your" ("your Sage" → "your").
-  t = t.replace(new RegExp(`\\b(?:${AGENT_ALT})\\s+(${GENERIC_ALT})\\b`, 'gi'), '$1');
-  t = t.replace(new RegExp(`\\byour\\s+(?:${AGENT_ALT})\\b`, 'gi'), 'your');
+  t = t.replace(AGENT_BEFORE_GENERIC_RE, '$1');
+  t = t.replace(YOUR_AGENT_RE, 'your');
   // Tidy any residue from the swaps.
   t = t.replace(/\byour['’]s\b/gi, 'your')
        .replace(/\byour(\s+your)+\b/gi, 'your')

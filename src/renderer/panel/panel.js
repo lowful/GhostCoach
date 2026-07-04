@@ -186,7 +186,7 @@ render();
 const panelEl = document.querySelector('.panel');
 let lastSentH = 0;
 function syncHeight() {
-  const h = Math.ceil(panelEl.getBoundingClientRect().height) + 12; // + 6px top/bottom margin
+  const h = Math.ceil(panelEl.getBoundingClientRect().height) + 20; // + 10px top/bottom margin
   if (Math.abs(h - lastSentH) > 1) { lastSentH = h; window.ghost.resizePanel(h); }
 }
 if (window.ResizeObserver) new ResizeObserver(syncHeight).observe(panelEl);

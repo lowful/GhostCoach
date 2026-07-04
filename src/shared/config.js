@@ -34,22 +34,22 @@ const CAPTURE = {
 
 // ── Engine timing (ms) ──────────────────────────────────────────────────────
 const TIMING = {
-  welcomeDelay:        2000,
+  welcomeDelay:        1500,
   agentDetectFirst:    3000,   // detect early so the agent bubble fills in fast
   agentDetectRetry:    30000,
-  firstAnalyze:        14000,
-  analyzeInterval:     12000,  // overridden by performanceMode
-  tipCooldown:         18000,
-  librarySilence:      25000,
+  firstAnalyze:        8000,   // first AI look comes fast after Start
+  analyzeInterval:     10000,  // overridden by performanceMode
+  tipCooldown:         12000,  // min gap between tips (readable but snappy)
+  librarySilence:      18000,  // library steps in sooner when the AI goes quiet
   serverTimeout:       8000,
 };
 
 // Screenshot/analyze frequency tiers (ms between captures).
 //   performance = "Very often"  ·  balanced = "Default"  ·  battery = "Barely"
 const PERFORMANCE_INTERVALS = {
-  performance: 6000,   // very often
-  balanced:    12000,  // default
-  battery:     28000,  // barely
+  performance: 5000,   // very often
+  balanced:    10000,  // default
+  battery:     24000,  // barely
 };
 
 // Tip mix: AI tips must stay the majority. Fallback library tips that fire while

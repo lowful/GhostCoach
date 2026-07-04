@@ -403,21 +403,30 @@ class CoachingEngine extends EventEmitter {
     const recent = this.tipHistory.slice(-3).map((t) => topicOf(t.text));
     if (recent.filter((t) => t === topic).length >= 2) { console.log('[engine] reject: topic cooldown'); return; }
 
-    if (!this.validateTipForAgent(cleaned)) { console.log('[engine] reject: wrong-agent ability'); return; }
+    if (!this.validateTipForAgent(cleaned)) {
+      console.log('[engine] reject: wrong-agent ability');
+      this.emitLibraryTip();   // swap in a solid general tip instead of silence
+      return;
+    }
 
     // Anti-fixation: don't suggest the same ability (e.g. Updraft) in back-to-back
     // tips. Forces variety even if the model repeats itself.
     const abilityWord = abilityWordIn(cleaned);
     if (abilityWord && this.recentAbilities.slice(-2).includes(abilityWord)) {
       console.log('[engine] reject: ability fixation (' + abilityWord + ')');
+      this.emitLibraryTip();
       return;
     }
 
     this.skipCount = 0;
-    if (this.emitTip(cleaned, 'ai') && abilityWord) {
+    const sent = this.emitTip(cleaned, 'ai');
+    if (sent && abilityWord) {
       this.recentAbilities.push(abilityWord);
       if (this.recentAbilities.length > 6) this.recentAbilities.shift();
     }
+    // Verify gate dropped it (cut-off, scenario mismatch, ability the player
+    // can't use, etc): cover the gap with a situation-appropriate library tip.
+    if (!sent) this.emitLibraryTip();
   }
 
   /**
@@ -626,12 +635,14 @@ function prettySpot(spot) {
 const NONSENSE = /\b(i cannot|i can.?t|i.?m sorry|as an ai|i am unable|unable to|no tip|not applicable|n\/a|cannot determine|undefined|null)\b/i;
 
 // Ability keywords used to stop the coach fixating on one ability across tips.
+// Precompiled into word-boundary regexes once; this runs on every AI tip.
 const ABILITY_WORDS = ['updraft', 'dash', 'satchel', 'sprint', 'smoke', 'flash', 'molly',
   'wall', 'recon', 'drone', 'camera', 'tripwire', 'trap', 'dart', 'stun', 'blind',
-  'teleport', 'heal', 'turret', 'sensor', 'decoy', 'shock', 'bubble'];
+  'teleport', 'heal', 'turret', 'sensor', 'decoy', 'shock', 'bubble']
+  .map((w) => [w, new RegExp('\\b' + w + '\\b')]);
 function abilityWordIn(text) {
   const l = String(text || '').toLowerCase();
-  for (const w of ABILITY_WORDS) if (new RegExp('\\b' + w + '\\b').test(l)) return w;
+  for (const [w, re] of ABILITY_WORDS) if (re.test(l)) return w;
   return null;
 }
 

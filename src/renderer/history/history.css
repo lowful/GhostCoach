@@ -1,6 +1,6 @@
 html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; }
 
-.sheet { margin: 8px; height: calc(100% - 16px); border-radius: 18px; display: flex; flex-direction: column; overflow: hidden; }
+.sheet { margin: 10px; height: calc(100% - 20px); border-radius: 18px; display: flex; flex-direction: column; overflow: hidden; }
 
 header { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-bottom: 1px solid var(--glass-border); }
 .h-brand { display: flex; align-items: center; gap: 9px; }

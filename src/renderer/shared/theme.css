@@ -25,7 +25,11 @@
   --glass-fill-2: rgba(24, 36, 48, 0.55);
   --glass-border: rgba(255, 255, 255, 0.08);
   --glass-blur:   18px;
+  /* --shadow is for full-bleed surfaces (overlay). Windowed surfaces use
+     --shadow-win, which fits inside their transparent margin so it never
+     gets hard-clipped at the window edge. */
   --shadow:       0 12px 40px rgba(0, 0, 0, 0.45);
+  --shadow-win:   0 2px 8px rgba(0, 0, 0, 0.55);
 
   /* Accent glows */
   --glow-cyan: 0 0 0 1px rgba(0, 240, 255, 0.45), 0 0 18px rgba(0, 240, 255, 0.25);
@@ -52,13 +56,13 @@ html, body {
   cursor: default;
 }
 
-/* Reusable glass surface */
+/* Reusable glass surface (windowed: panel, settings, history, activation) */
 .glass {
   background: var(--glass-fill);
   backdrop-filter: blur(var(--glass-blur)) saturate(140%);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%);
   border: 1px solid var(--glass-border);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-win);
 }
 
 .no-drag { -webkit-app-region: no-drag; }
