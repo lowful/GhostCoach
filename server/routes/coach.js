@@ -503,30 +503,64 @@ router.get('/player-stats', async (req, res) => {
   const username = req.query.username;
   if (!username || !username.includes('#')) return res.json({ error: 'No username or missing # tag' });
 
-  try {
-    const [name, tag] = username.split('#');
-    const url = `https://api.tracker.gg/api/v2/valorant/standard/profile/riot/${encodeURIComponent(name)}%23${encodeURIComponent(tag)}`;
+  const [name, tag] = username.split('#');
 
-    const response = await fetch(url, {
-      headers: { 'User-Agent': 'GhostCoach/1.0', 'TRN-Api-Key': process.env.TRACKER_API_KEY || '' }
-    });
+  // 1) Primary: tracker.gg (needs TRACKER_API_KEY; their edge sometimes blocks
+  //    datacenter IPs, so failures are reported precisely and we fall through).
+  if (process.env.TRACKER_API_KEY) {
+    try {
+      const url = `https://api.tracker.gg/api/v2/valorant/standard/profile/riot/${encodeURIComponent(name)}%23${encodeURIComponent(tag)}`;
+      const response = await fetch(url, {
+        headers: { 'User-Agent': 'GhostCoach/1.0', 'TRN-Api-Key': process.env.TRACKER_API_KEY },
+      });
+      const text = await response.text();
+      let data = null;
+      try { data = JSON.parse(text); } catch { /* Cloudflare HTML page etc. */ }
 
-    if (!response.ok) return res.json({ error: 'Player not found' });
-
-    const data = await response.json();
-    const stats = data?.data?.segments?.[0]?.stats;
-
-    res.json({
-      rank:         stats?.rank?.metadata?.tierName || 'Unknown',
-      kd:           stats?.kDRatio?.value           || 0,
-      winRate:      stats?.matchesWinPct?.value      || 0,
-      headshotPct:  stats?.headshotsPercentage?.value || 0,
-      topAgent:     data?.data?.segments?.[1]?.metadata?.name || 'Unknown',
-    });
-  } catch (e) {
-    console.error('[stats] Error:', e.message);
-    res.json({ error: 'Failed to fetch stats' });
+      if (response.ok && data) {
+        const stats = data?.data?.segments?.[0]?.stats;
+        if (stats) {
+          return res.json({
+            source:      'tracker.gg',
+            rank:        stats?.rank?.metadata?.tierName || 'Unknown',
+            kd:          stats?.kDRatio?.value            || 0,
+            winRate:     stats?.matchesWinPct?.value      || 0,
+            headshotPct: stats?.headshotsPercentage?.value || 0,
+            topAgent:    data?.data?.segments?.[1]?.metadata?.name || 'Unknown',
+          });
+        }
+      }
+      console.warn('[stats] tracker.gg said', response.status, String(text).slice(0, 120));
+    } catch (e) {
+      console.warn('[stats] tracker.gg unreachable:', e.message);
+    }
+  } else {
+    console.warn('[stats] TRACKER_API_KEY not set');
   }
+
+  // 2) Fallback: HenrikDev community API (HENRIKDEV_API_KEY), rank at minimum.
+  if (process.env.HENRIKDEV_API_KEY) {
+    for (const region of ['na', 'eu', 'ap', 'kr']) {
+      try {
+        const r = await fetch(
+          `https://api.henrikdev.xyz/valorant/v2/mmr/${region}/${encodeURIComponent(name)}/${encodeURIComponent(tag)}`,
+          { headers: { Authorization: process.env.HENRIKDEV_API_KEY } });
+        if (!r.ok) continue;
+        const d = await r.json();
+        const rank = d?.data?.current_data?.currenttierpatched;
+        if (rank) {
+          return res.json({ source: 'henrikdev', rank, kd: 0, winRate: 0, headshotPct: 0, topAgent: 'Unknown' });
+        }
+      } catch { /* try next region */ }
+    }
+    console.warn('[stats] henrikdev found no rank for', username);
+  }
+
+  // Precise reason so the client's Connect button can tell the user what to fix.
+  const reason = !process.env.TRACKER_API_KEY && !process.env.HENRIKDEV_API_KEY
+    ? 'No tracker API key is configured on the server.'
+    : 'Could not fetch stats for that Riot ID. Check the spelling (Name#TAG) and that the profile is public on tracker.gg.';
+  res.json({ error: reason });
 });
 
 // POST /api/coach/match-review, JSON body: { tips: string[] }
@@ -654,6 +688,22 @@ Return only the exact tip text. No quotes, no formatting, no explanation.`;
   }
 });
 
+// Chat reply hygiene: strip markdown/code artifacts, then verify the reply is
+// an actual coaching answer (not a refusal, JSON blob, or empty fragment).
+function cleanChatReply(raw) {
+  return sanitize(String(raw || ''))
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/[*_#>`]/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+function chatReplyOk(t) {
+  if (!t || t.length < 25) return false;
+  if (/\b(as an ai|i cannot assist|i can.?t help with|language model|i am unable to|no puedo)\b/i.test(t)) return false;
+  if (/^\s*[{[]/.test(t) || /"(tip|role|content|reply)"\s*:/.test(t)) return false;   // raw JSON
+  return true;
+}
+
 // POST /api/coach/chat, JSON body: { messages: [{role,content}], context: {...}, image? }
 // The "Ask Coach" conversation: post-match reviews, "what did I do wrong", etc.
 // Flattens the conversation into one prompt so it works on any provider, and
@@ -694,17 +744,30 @@ Conversation so far:
 ${messages.map((m) => m.role + ': ' + m.content).join('\n')}
 
 Reply as Coach to the player's last message. Rules:
+- Only discuss Valorant and the player's gaming performance. If asked about anything unrelated, steer back to their gameplay in one friendly sentence.
 - Be concrete: name the exact habit or mistake and the fix, not generalities.
 - 2 to 5 short sentences, under 120 words total. Plain text, no markdown, no lists.
 - Use commas and periods, never dashes.
 - If you genuinely lack the information to answer, say what you'd need to see.`;
 
-    const reply = await Promise.race([
-      image ? visionInfer(image, prompt, 350, false) : textInfer(prompt, 350),
+    const ask = (p) => Promise.race([
+      image ? visionInfer(image, p, 350, false) : textInfer(p, 350),
       new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 25000)),
     ]);
+
+    let reply = cleanChatReply(await ask(prompt));
     trackCall(licenseKey);
-    res.json({ reply: sanitize(String(reply || '')).slice(0, 1500) });
+    if (!chatReplyOk(reply)) {
+      // One retry with an explicit correction; never ship a broken answer.
+      console.warn('[chat] reply failed quality gate, retrying:', reply.slice(0, 80));
+      reply = cleanChatReply(await ask(prompt +
+        '\n\nYour previous reply was unusable. Answer plainly, in a few sentences, strictly about the player\'s Valorant gameplay.'));
+      trackCall(licenseKey);
+    }
+    if (!chatReplyOk(reply)) {
+      reply = 'Let\'s keep it on your gameplay. Ask me about a specific round, your aim, positioning, or economy and I\'ll break it down.';
+    }
+    res.json({ reply: reply.slice(0, 1500) });
   } catch (e) {
     console.error('[coach] chat error:', e.message);
     res.status(500).json({ error: 'Chat failed' });
