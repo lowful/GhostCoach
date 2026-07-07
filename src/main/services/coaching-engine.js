@@ -24,6 +24,7 @@ class CoachingEngine extends EventEmitter {
     // Tips the player rated as bad: never re-served from the library, and the
     // most recent ones are sent to the AI so it avoids similar advice.
     this.badTips = new Set(Array.isArray(opts.badTips) ? opts.badTips : []);
+    this.playerStats = null;   // tracker profile (rank/KD/HS%), set async after start
 
     this.matchContext = freshContext();
 
@@ -325,6 +326,7 @@ class CoachingEngine extends EventEmitter {
       enemyHistory: this.enemyHistory.slice(-6),
       phaseTransition: this.recentPhaseTransition(),
       badTips: [...this.badTips].slice(0, 6),
+      playerStats: this.playerStats,
       agentRole:    agentData.getRole(this.matchContext.agent),
       teammates:    this.matchContext.teammates || null, // passthrough if the server reports the comp
       buyInfoClear: tipLibrary.buyInfoClear(this.matchContext), // don't advise a buy on unclear numbers
@@ -494,6 +496,13 @@ class CoachingEngine extends EventEmitter {
 
     const { text } = tipLibrary.selectTip(this.matchContext, recentTexts);
     if (text) this.emitTip(text, 'library');
+  }
+
+  /** Tracker profile arrived: every subsequent analyze request carries it so
+   *  the AI calibrates advice to the player's actual rank and weaknesses. */
+  setPlayerStats(stats) {
+    this.playerStats = stats && !stats.error ? stats : null;
+    if (this.playerStats) console.log('[engine] player stats loaded:', this.playerStats.rank || 'unknown rank');
   }
 
   /** Player rated a tip as bad: blocklist it and avoid its topic for a while. */

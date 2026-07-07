@@ -136,6 +136,9 @@ const controller = {
       engine.setAgent(state.pendingAgent);
       state.pendingAgent = null;
     }
+    // Load the tracker profile in the background: once it lands, every live
+    // analyze request calibrates advice to the player's rank and weaknesses.
+    fetchTrackerStats().then((s) => { if (engine && s) engine.setPlayerStats(s); }).catch(() => {});
     setStatus('coaching');
     console.log('[coach] started');
   },
