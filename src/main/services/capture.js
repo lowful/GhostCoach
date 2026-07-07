@@ -3,11 +3,14 @@
 /**
  * Screen capture, two engines:
  *
- *   1. NATIVE (primary): Electron's desktopCapturer, straight through the OS
- *      capture API. No PowerShell, no temp files, nothing for antivirus
- *      heuristics to flag, and faster (no process spawn per shot).
- *   2. WORKER (fallback): the original PowerShell CopyFromScreen worker
- *      thread, kept for the rare system where desktopCapturer yields nothing.
+ *   1. WORKER (primary): PowerShell CopyFromScreen in a Worker Thread + child
+ *      process. All the heavy work happens OFF the main/render thread and off
+ *      the game's render path, so it never causes a capture hitch. This is the
+ *      method that plays clean in-game.
+ *   2. NATIVE (fallback only): Electron's desktopCapturer. Convenient but it
+ *      runs in-process and on Windows forces a framebuffer duplication that can
+ *      stutter a fullscreen game, so it is used ONLY if the worker path fails
+ *      (e.g. an antivirus blocks PowerShell on some machine).
  *
  * Both return a base64 JPEG at the requested quality profile.
  */
@@ -16,27 +19,11 @@ const { Worker } = require('worker_threads');
 const path = require('path');
 const { CAPTURE } = require('../../shared/config');
 
-// ── Native capture (primary) ─────────────────────────────────────────────────
-let nativeBroken = false;   // flips true after repeated native failures
-let nativeFails  = 0;
-
-async function captureNative(quality) {
-  const prof = (CAPTURE.profiles && CAPTURE.profiles[quality]) || CAPTURE.profiles.standard;
-  const primary = screen.getPrimaryDisplay();
-  const sources = await desktopCapturer.getSources({
-    types: ['screen'],
-    thumbnailSize: { width: prof.targetW, height: prof.targetH },
-  });
-  if (!sources || !sources.length) throw new Error('no screen sources');
-  const src = sources.find((s) => String(s.display_id) === String(primary.id)) || sources[0];
-  const img = src.thumbnail;
-  if (!img || img.isEmpty()) throw new Error('empty native capture');
-  return img.toJPEG(prof.jpegQuality).toString('base64');
-}
-
-// ── PowerShell worker (fallback) ─────────────────────────────────────────────
+// ── PowerShell worker (primary) ──────────────────────────────────────────────
 let worker  = null;
 let pending = null;
+let workerFails  = 0;
+let workerBroken = false;   // flips true only after repeated worker failures
 
 function getWorker() {
   if (worker) return worker;
@@ -78,23 +65,43 @@ function captureViaWorker(quality) {
   });
 }
 
+// ── Native capture (fallback) ────────────────────────────────────────────────
+async function captureNative(quality) {
+  const prof = (CAPTURE.profiles && CAPTURE.profiles[quality]) || CAPTURE.profiles.standard;
+  const primary = screen.getPrimaryDisplay();
+  const sources = await desktopCapturer.getSources({
+    types: ['screen'],
+    thumbnailSize: { width: prof.targetW, height: prof.targetH },
+  });
+  if (!sources || !sources.length) throw new Error('no screen sources');
+  const src = sources.find((s) => String(s.display_id) === String(primary.id)) || sources[0];
+  const img = src.thumbnail;
+  if (!img || img.isEmpty()) throw new Error('empty native capture');
+  return img.toJPEG(prof.jpegQuality).toString('base64');
+}
+
 // ── Public API ───────────────────────────────────────────────────────────────
 async function captureScreenshot(quality) {
-  if (!nativeBroken) {
+  if (!workerBroken) {
     try {
-      const shot = await captureNative(quality);
-      nativeFails = 0;
+      const shot = await captureViaWorker(quality);
+      workerFails = 0;
       return shot;
     } catch (e) {
-      nativeFails++;
-      console.warn(`[capture] native capture failed (${nativeFails}):`, e.message);
-      if (nativeFails >= 3) {
-        nativeBroken = true;    // stop retrying a path that clearly doesn't work here
-        console.warn('[capture] switching to PowerShell fallback for this session');
+      // "already in progress" is a caller-side race, not a worker failure.
+      if (!/already in progress/i.test(e.message)) {
+        workerFails++;
+        console.warn(`[capture] PowerShell capture failed (${workerFails}):`, e.message);
+        if (workerFails >= 3) {
+          workerBroken = true;
+          console.warn('[capture] PowerShell blocked, falling back to native capturer (may hitch in-game)');
+        }
+      } else {
+        throw e;
       }
     }
   }
-  return captureViaWorker(quality);
+  return captureNative(quality);
 }
 
 function disposeWorker() {
