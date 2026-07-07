@@ -233,7 +233,11 @@ Coach at a Radiant level: hold off-angles instead of the spot they pre-aim, alwa
   const s = ctx.playerStats;
   const profileBlock = s && !s.error
     ? `PLAYER PROFILE (career tracker stats): rank ${s.rank || 'unknown'}, K/D ${s.kd || '?'}, headshot ${s.headshotPct || '?'}%, win rate ${s.winRate || '?'}%, top agent ${s.topAgent || 'unknown'}.
-Calibrate every tip to this player. Lower ranks (Iron to Gold): favor fundamentals, crosshair placement, positioning, economy, trading. Higher ranks (Plat and up): favor utility timings, off-angles, tempo and info plays. If headshot percent is under 20, weave in aim and crosshair fixes. If K/D is under 1.0, emphasize positioning, patience, and trade discipline over aggression.
+Use these stats to decide WHAT to prioritise, then combine that with what the screenshot actually shows this frame. The strongest tip is a career weakness that also shows up on screen right now. Never give a stat-based tip the frame does not support.
+Aim read: 20% headshots and up is good, do not nitpick it; below 20% means aim needs work, so when you see whiffs, low crosshair, or spraying at range, coach crosshair placement and aim.
+K/D read: under 1.0 means they trade themselves too often, favor positioning, patience, and trading; 1.3 and up means they frag well, push impact, round wins, and playing for the team.
+Rank read: lower ranks (Iron to Gold) want fundamentals; higher ranks (Plat and up) want utility timing, off-angles, tempo, and info.
+Aim and game sense matter together: if their aim is fine, coach the tactical mistake you see instead.
 
 `
     : '';
@@ -770,7 +774,7 @@ router.post('/chat', async (req, res) => {
     const image = typeof body.image === 'string' && body.image.length > 100 ? body.image : null;
 
     const statsLine = ctx.stats && !ctx.stats.error
-      ? `Their tracker profile: rank ${ctx.stats.rank || 'unknown'}, K/D ${ctx.stats.kd || '?'}, win rate ${ctx.stats.winRate || '?'}%, headshot ${ctx.stats.headshotPct || '?'}%, top agent ${ctx.stats.topAgent || 'unknown'}.`
+      ? `Their tracker profile: rank ${ctx.stats.rank || 'unknown'}, K/D ${ctx.stats.kd || '?'}, win rate ${ctx.stats.winRate || '?'}%, headshot ${ctx.stats.headshotPct || '?'}%, top agent ${ctx.stats.topAgent || 'unknown'}. Note: 20% headshots or higher is good; below 20% means aim training helps. Aim is only one part, weigh it against their game sense, positioning, and decisions too.`
       : 'No tracker stats available.';
     const tipsBlock = Array.isArray(ctx.sessionTips) && ctx.sessionTips.length
       ? 'Coaching tips given this session (newest first):\n' + ctx.sessionTips.slice(0, 20).map((t) => '- ' + String(t).slice(0, 140)).join('\n')
@@ -788,6 +792,7 @@ ${messages.map((m) => m.role + ': ' + m.content).join('\n')}
 
 Reply as Coach to the player's last message. Rules:
 - Only discuss Valorant and the player's gaming performance. If asked about anything unrelated, steer back to their gameplay in one friendly sentence.
+- Combine their career stats with what you can see (the screenshot and this session's tips). The best answer ties a stat to a concrete example, and covers both aim and game sense, not just headshot rate.
 - Be concrete: name the exact habit or mistake and the fix, not generalities.
 - 2 to 5 short sentences, under 120 words total. Plain text, no markdown, no lists.
 - Use commas and periods, never dashes.
