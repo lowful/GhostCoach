@@ -306,7 +306,7 @@ class CoachingEngine extends EventEmitter {
   onCaptureFailed(force = false) {
     if (!this.warnedCapture) {
       this.warnedCapture = true;
-      this.emitTip('Can’t grab the screen, add GhostCoach to your antivirus exclusions and restart coaching.', 'system');
+      this.emitTip('Windows blocked screen capture. Add GhostCoach to your antivirus exclusions (Windows Security, Virus and threat protection, Exclusions), then restart coaching.', 'system');
       if (!force) return;
     }
     this.emitLibraryTip({ force, ignoreRatio: true }); // capture down → ratio doesn't apply
