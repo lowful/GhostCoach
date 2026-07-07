@@ -319,15 +319,20 @@ class CoachingEngine extends EventEmitter {
   buildOutgoingContext() {
     const recentTopics = this.tipHistory.slice(-3).map((t) => topicOf(t.text));
     const recentTips   = this.tipHistory.slice(-4).map((t) => t.text);
+    // Only tell the server the agent once the PLAYER has confirmed it. On a mere
+    // detection guess we send agent:null so the AI stays general and never names
+    // an ability (no "use stim beacon" before they've confirmed Brimstone).
+    const confirmedAgent = this.matchContext.agentConfirmed ? this.matchContext.agent : null;
     return {
       ...this.matchContext,
+      agent:        confirmedAgent,
       recentTopics,
       recentTips,
       enemyHistory: this.enemyHistory.slice(-6),
       phaseTransition: this.recentPhaseTransition(),
       badTips: [...this.badTips].slice(0, 6),
       playerStats: this.playerStats,
-      agentRole:    agentData.getRole(this.matchContext.agent),
+      agentRole:    agentData.getRole(confirmedAgent),
       teammates:    this.matchContext.teammates || null, // passthrough if the server reports the comp
       buyInfoClear: tipLibrary.buyInfoClear(this.matchContext), // don't advise a buy on unclear numbers
       focus:        this.nextFocus(),
@@ -414,10 +419,10 @@ class CoachingEngine extends EventEmitter {
       this.skipCount++;
       if (this.skipCount >= 2 && Date.now() - this.lastTipTime > TIMING.librarySilence) {
         this.skipCount = 0;
-        // The AI has nothing to say and the overlay has been quiet a while:
-        // dead air is worse than bending the AI-majority ratio, so let the
-        // library speak regardless of the mix.
-        this.emitLibraryTip({ ignoreRatio: true });
+        // AI went quiet: fill in with a library tip, but keep it within the mix
+        // budget so library stays a minority (<=35%). The player wants majority
+        // AI, so we accept a little quiet over drowning it in filler.
+        this.emitLibraryTip();
       }
       return;
     }
@@ -775,7 +780,15 @@ function scenarioFits(text, source, ctx) {
   // Don't tell the player to use an ability their agent can't (e.g. "recon
   // dart" on Reyna). With no confirmed agent, hold back ability-specific tips
   // until we know what they're on, this is the core "verify before tipping".
-  if (source === 'ai' && agentData.tipMisusesAbility(text, ctx.agent)) return false;
+  // Treat the agent as unknown until the player CONFIRMS it, so a detection
+  // guess never lets an ability-specific tip through.
+  const gateAgent = ctx.agentConfirmed ? ctx.agent : null;
+  if (source === 'ai') {
+    // Before confirmation, block ANY named ability (e.g. "stim beacon"), not
+    // just generic ones, so nothing agent-specific slips out on a guess.
+    if (!gateAgent && agentData.mentionsSpecificAbility(text)) return false;
+    if (agentData.tipMisusesAbility(text, gateAgent)) return false;
+  }
 
   // A dead player can only watch / comm, don't tell them to peek or shoot.
   if (ctx.phase === 'dead'

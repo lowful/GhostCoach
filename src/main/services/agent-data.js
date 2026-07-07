@@ -150,6 +150,26 @@ function tipMisusesAbility(text, agentName) {
   return cues.some((c) => !kit.includes(c));
 }
 
+// Every distinctive agent ability NAME (multi-word, slash, or 6+ chars, so we
+// skip common words). Used to block ANY named ability before the agent is
+// confirmed, e.g. "stim beacon", "recon bolt", "dark cover".
+const ALL_ABILITY_NAMES = (() => {
+  const set = new Set();
+  for (const n of Object.keys(AGENTS)) {
+    for (const ab of AGENTS[n].abilities) {
+      if (ab.includes(' ') || ab.includes('/') || ab.length >= 6) set.add(ab);
+    }
+  }
+  return [...set];
+})();
+const ALL_ABILITY_RE = new RegExp(
+  '\\b(' + ALL_ABILITY_NAMES.map((a) => a.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')).join('|') + ')\\b', 'i');
+
+/** Does the tip name any specific agent ability (used to gate on confirmation)? */
+function mentionsSpecificAbility(text) {
+  return ALL_ABILITY_RE.test(String(text || '').toLowerCase());
+}
+
 /** Resolve free-typed user input to a canonical agent name, or null. */
 function resolveName(input) {
   if (!input) return null;
@@ -246,5 +266,5 @@ function genericizeAbilities(text) {
 
 module.exports = {
   AGENTS, getAgent, getAbilities, getRole, getAgentTip, roleTip, allNames,
-  genericizeAbilities, agentKit, tipMisusesAbility, resolveName,
+  genericizeAbilities, agentKit, tipMisusesAbility, mentionsSpecificAbility, resolveName,
 };
