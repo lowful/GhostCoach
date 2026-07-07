@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('ghost', {
   setConfig:    (partial) => ipcRenderer.invoke(C.CONFIG_SET, partial),
   getLicense:   () => ipcRenderer.invoke(C.LICENSE_GET),
   getState:     () => ipcRenderer.invoke(C.STATE_GET),
+  testTracker:  () => ipcRenderer.invoke(C.STATS_TEST),
   openPurchase: () => ipcRenderer.send(C.OPEN_PURCHASE),
   logout:       () => ipcRenderer.send(C.LICENSE_LOGOUT),
   quit:         () => ipcRenderer.send(C.APP_QUIT),

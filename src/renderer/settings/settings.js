@@ -32,6 +32,39 @@ riotEl.addEventListener('input', () => {
   riotTimer = setTimeout(() => window.ghost.setConfig({ riotId: riotEl.value.trim() }).catch(() => {}), 500);
 });
 
+// Connect: save the ID, test the tracker link live, show exactly what happened.
+const trkBtn = document.getElementById('trk-connect');
+const trkStatus = document.getElementById('trk-status');
+function showTrk(ok, msg) {
+  trkStatus.className = `trk-status ${ok ? 'ok' : 'err'}`;
+  trkStatus.textContent = msg;
+  trkStatus.hidden = false;
+}
+trkBtn.addEventListener('click', async () => {
+  trkBtn.classList.add('busy');
+  trkBtn.textContent = 'Connecting';
+  showTrk(true, 'Checking your tracker profile...');
+  trkStatus.className = 'trk-status';
+  try {
+    await window.ghost.setConfig({ riotId: riotEl.value.trim() });
+    const res = await window.ghost.testTracker();
+    if (res && res.ok && res.stats) {
+      const s = res.stats;
+      const bits = [`rank ${s.rank || 'unknown'}`];
+      if (s.kd) bits.push(`K/D ${s.kd}`);
+      if (s.headshotPct) bits.push(`HS ${s.headshotPct}%`);
+      showTrk(true, `Connected. ${bits.join(', ')}. Your coach now uses these stats.`);
+    } else {
+      showTrk(false, (res && res.error) || 'Could not connect. Try again in a minute.');
+    }
+  } catch {
+    showTrk(false, 'Could not connect. Try again in a minute.');
+  } finally {
+    trkBtn.classList.remove('busy');
+    trkBtn.textContent = 'Connect';
+  }
+});
+
 // Render the license block. Accepts either a getLicense() result or a state
 // snapshot (both carry licensePlan / licenseStatus / licenseExpiry).
 const ENDED_MESSAGES = {

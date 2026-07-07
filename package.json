@@ -51,7 +51,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "GhostCoach 2.0"
+      "shortcutName": "GhostCoach 2.0",
+      "uninstallDisplayName": "GhostCoach 2.0"
     },
     "directories": {
       "output": "dist",

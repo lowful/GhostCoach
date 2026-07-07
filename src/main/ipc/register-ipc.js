@@ -44,6 +44,8 @@ function registerIpc(deps) {
 
   safeHandle(C.CHAT_SEND, async (_e, messages, opts) => controller.chat(messages, opts));
 
+  safeHandle(C.STATS_TEST, async () => controller.testTracker());
+
   // ── fire-and-forget commands ──────────────────────────────────────────────
   ipcMain.on(C.COACH_START,    () => guard('start',    () => controller.start()));
   ipcMain.on(C.COACH_STOP,     () => guard('stop',     () => controller.stop()));

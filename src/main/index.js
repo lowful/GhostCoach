@@ -218,6 +218,21 @@ const controller = {
     }
   },
 
+  /** Settings "Connect" button: test the tracker link right now, and if it
+   *  works, push the stats into the running engine + chat immediately. */
+  async testTracker() {
+    const riotId = (store.get('riotId') || '').trim();
+    if (!riotId || !riotId.includes('#')) {
+      return { ok: false, error: 'Enter your Riot ID as Name#TAG first.' };
+    }
+    const stats = await fetchTrackerStats(true);
+    if (stats) {
+      if (engine) engine.setPlayerStats(stats);
+      return { ok: true, stats };
+    }
+    return { ok: false, error: statsCache.lastError || 'Could not reach the stats service. Try again in a minute.' };
+  },
+
   /** Player rated a tip in history. Bad tips feed the avoidance loop. */
   rateTip(payload) {
     const text   = payload && String(payload.text || '').trim();
@@ -254,16 +269,17 @@ const controller = {
 // Tracker.gg stats for the player's saved Riot ID, cached for 10 minutes so
 // chat turns don't hammer the endpoint. Returns null when unset/unavailable.
 let statsCache = { at: 0, riotId: '', data: null };
-async function fetchTrackerStats() {
+async function fetchTrackerStats(force) {
   const riotId = (store.get('riotId') || '').trim();
   if (!riotId || !riotId.includes('#')) return null;
-  if (statsCache.data && statsCache.riotId === riotId && Date.now() - statsCache.at < 10 * 60 * 1000) {
+  if (!force && statsCache.data && statsCache.riotId === riotId && Date.now() - statsCache.at < 10 * 60 * 1000) {
     return statsCache.data;
   }
   try {
-    const { ok, data } = await api.get('/api/coach/player-stats?username=' + encodeURIComponent(riotId), store.get('licenseKey'), 10000);
+    const { ok, data } = await api.get('/api/coach/player-stats?username=' + encodeURIComponent(riotId), store.get('licenseKey'), 15000);
     const stats = ok && data && !data.error ? data : null;
     statsCache = { at: Date.now(), riotId, data: stats };
+    if (!stats && data && data.error) statsCache.lastError = data.error;
     return stats;
   } catch {
     return null;

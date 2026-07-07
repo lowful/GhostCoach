@@ -41,9 +41,13 @@
 
       <section>
         <h3>Riot ID</h3>
-        <p class="hint">Name#TAG. Lets Ask Coach use your tracker stats (rank, K/D, headshot %) in its advice.</p>
-        <input id="riotid" class="input riot-input" type="text" placeholder="PlayerName#TAG"
-               maxlength="40" autocomplete="off" spellcheck="false" />
+        <p class="hint">Name#TAG. Lets your coach use tracker stats (rank, K/D, headshot %) in live tips and chat.</p>
+        <div class="riot-row">
+          <input id="riotid" class="input riot-input" type="text" placeholder="PlayerName#TAG"
+                 maxlength="40" autocomplete="off" spellcheck="false" />
+          <button id="trk-connect" class="btn trk-btn">Connect</button>
+        </div>
+        <p id="trk-status" class="trk-status" hidden></p>
       </section>
 
       <section>

@@ -29,7 +29,13 @@ section h3 { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
 .seg button:hover { color: var(--text); background: rgba(255,255,255,0.05); }
 .seg button.active { background: linear-gradient(135deg, var(--red), var(--red-2)); color: #fff; box-shadow: var(--glow-red); }
 
-.riot-input { font-size: 13px; letter-spacing: 0.4px; padding: 10px 12px; text-align: left; }
+.riot-row { display: flex; gap: 8px; align-items: stretch; }
+.riot-input { flex: 1; min-width: 0; font-size: 13px; letter-spacing: 0.4px; padding: 10px 12px; text-align: left; }
+.trk-btn { flex: none; padding: 0 16px; font-weight: 700; }
+.trk-btn.busy { opacity: 0.6; pointer-events: none; }
+.trk-status { margin-top: 9px; font-size: 12px; line-height: 1.45; border-radius: 9px; padding: 8px 11px; }
+.trk-status.ok  { color: #4fd394; background: rgba(79,211,148,0.10); border: 1px solid rgba(79,211,148,0.3); }
+.trk-status.err { color: #ff9aa3; background: rgba(255,70,85,0.10);  border: 1px solid rgba(255,70,85,0.28); }
 
 .license { background: rgba(0,0,0,0.18); border: 1px solid var(--glass-border); border-radius: 12px; padding: 14px 16px; }
 .license h3 { margin-bottom: 8px; }
