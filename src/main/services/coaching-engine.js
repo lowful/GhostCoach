@@ -45,6 +45,7 @@ class CoachingEngine extends EventEmitter {
     this.lastWarnedSpot = null;   // de-dupe the "they keep peeking X" warning
     this.recentAbilities = [];    // recent ability words in AI tips (anti-fixation)
     this.lastPhaseChange = null;  // { from, to, at }: round-transition awareness
+    this.inLobby        = false;  // server saw a menu/lobby: silence ALL tips
     this.focusIndex     = -1;     // rotates analysis emphasis (map/enemies/eco/…)
 
     this.timers = [];
@@ -68,6 +69,7 @@ class CoachingEngine extends EventEmitter {
     this.lastWarnedSpot = null;
     this.recentAbilities = [];
     this.lastPhaseChange = null;
+    this.inLobby = false;
     this.emit('status', 'coaching');
 
     this.timers.push(setTimeout(() =>
@@ -392,6 +394,16 @@ class CoachingEngine extends EventEmitter {
 
     tip = tip.replace(/^["']/, '').replace(/["']$/, '').trim();
 
+    if (tip.toUpperCase() === 'LOBBY') {
+      // Not live gameplay (main menu / lobby / loading): total silence, no
+      // AI tips and no library filler, until real gameplay is seen again.
+      if (!this.inLobby) console.log('[engine] lobby detected, tips muted');
+      this.inLobby = true;
+      this.skipCount = 0;
+      return;
+    }
+    this.inLobby = false;   // any non-LOBBY answer means we are in gameplay
+
     if (tip.toUpperCase() === 'SKIP' || tip.length < 20) {         // skip / too short
       this.skipCount++;
       if (this.skipCount >= 2 && Date.now() - this.lastTipTime > TIMING.librarySilence) {
@@ -453,6 +465,7 @@ class CoachingEngine extends EventEmitter {
    */
   emitLibraryTip(opts = {}) {
     const { force = false, ignoreRatio = false } = (typeof opts === 'boolean' ? { force: opts } : opts);
+    if (this.inLobby && !force) return;   // in a menu/lobby: no filler tips at all
     if (!force && Date.now() - this.lastTipTime < TIMING.tipCooldown) return;
 
     // Keep AI the majority: while the AI is available, a "filler" library tip
@@ -465,8 +478,10 @@ class CoachingEngine extends EventEmitter {
 
     const recentTexts = this.tipHistory.slice(-16).map((t) => t.text);
 
-    // Occasionally drop an agent-specific reminder once the agent is locked.
-    const agentTip = agentData.getAgentTip(this.matchContext.agent);
+    // Occasionally drop an agent-specific reminder, but only once the player has
+    // CONFIRMED the agent; on a mere guess we stick to general tips.
+    const agentTip = this.matchContext.agentConfirmed
+      ? agentData.getAgentTip(this.matchContext.agent) : null;
     if (agentTip && !recentTexts.includes(agentTip) && Math.random() < 0.22) {
       this.emitTip(agentTip, 'library');
       return;

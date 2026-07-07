@@ -211,7 +211,11 @@ const LIBRARY = {
   ],
 };
 
-const TACTICAL = ['crosshair', 'trade', 'util', 'positioning', 'info', 'default', 'rotate', 'lurk', 'entry', 'clutch', 'general'];
+// Buckets safe on ANY side / unknown context. Side-specific buckets (entry,
+// default, lurk = attack; retake = defense) and situation-specific ones
+// (clutch: we can't detect a clutch, so never guess it) are only reachable
+// when the context actually supports them.
+const NEUTRAL = ['crosshair', 'trade', 'util', 'positioning', 'info', 'rotate', 'mental', 'general'];
 
 // Buy info is "clear" only when both the round and the credits are real numbers.
 function buyInfoClear(ctx) {
@@ -228,7 +232,9 @@ function chooseBucket(ctx) {
   if (ctx.phase === 'dead')       return 'dead';
 
   if (ctx.phase === 'postplant') {
-    return ctx.side === 'defense' ? 'retake' : 'postplant';
+    if (ctx.side === 'defense') return 'retake';
+    if (ctx.side === 'attack')  return 'postplant';
+    return pickTactical(ctx);   // side unknown: don't guess which way the plant went
   }
 
   if (ctx.phase === 'buy') {
@@ -244,13 +250,14 @@ function chooseBucket(ctx) {
   return pickTactical(ctx);
 }
 
-// Active-phase bucket, lightly weighted by situation.
+// Active-phase bucket, weighted by what we actually know. Attack-only ideas
+// (entry, default, lurk) never fire on defense or when the side is unknown.
 function pickTactical(ctx) {
-  let pool = TACTICAL;
+  let pool = NEUTRAL;
   if (ctx) {
     if (ctx.consecutiveDeaths >= 1)   pool = ['positioning', 'crosshair', 'trade', 'util', 'info'];
-    else if (ctx.side === 'attack')   pool = ['entry', 'util', 'default', 'trade', 'info', 'positioning'];
-    else if (ctx.side === 'defense')  pool = ['positioning', 'crosshair', 'info', 'rotate', 'lurk'];
+    else if (ctx.side === 'attack')   pool = ['entry', 'util', 'default', 'trade', 'info', 'positioning', 'lurk'];
+    else if (ctx.side === 'defense')  pool = ['positioning', 'crosshair', 'info', 'rotate', 'trade', 'util'];
   }
   return pool[Math.floor(Math.random() * pool.length)];
 }
