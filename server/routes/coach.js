@@ -274,6 +274,7 @@ ${transLine}${focusLine}CURRENT MATCH STATE (trust this, do not re-derive it eve
 
 DO NOT REPEAT these recent tips, and do not rephrase the same idea a different way:
 ${recent}
+${Array.isArray(ctx.badTips) && ctx.badTips.length ? 'The player marked these tips as unhelpful, avoid this advice and anything similar:\n' + ctx.badTips.slice(0, 6).map((t) => '- ' + t).join('\n') + '\n' : ''}
 Recent topics: ${topics}. Cover a DIFFERENT one this time (economy, positioning, utility, aim, rotation, spike, teamwork, mental).
 
 ABILITY REFERENCE (only ever suggest the player's own; plain words like smoke, flash, molly, wall, recon are fine):
@@ -642,6 +643,63 @@ Return only the exact tip text. No quotes, no formatting, no explanation.`;
   } catch (e) {
     console.error('[coach] suggest-library-tip error:', e.message);
     res.json({ tip: null });
+  }
+});
+
+// POST /api/coach/chat, JSON body: { messages: [{role,content}], context: {...}, image? }
+// The "Ask Coach" conversation: post-match reviews, "what did I do wrong", etc.
+// Flattens the conversation into one prompt so it works on any provider, and
+// attaches the player's screenshot when the client sends one.
+router.post('/chat', async (req, res) => {
+  try {
+    const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
+    if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+
+    const body     = req.body || {};
+    const messages = (Array.isArray(body.messages) ? body.messages : [])
+      .slice(-12)
+      .map((m) => ({
+        role:    m && m.role === 'assistant' ? 'Coach' : 'Player',
+        content: String((m && m.content) || '').slice(0, 1200),
+      }))
+      .filter((m) => m.content);
+    if (!messages.length) return res.status(400).json({ error: 'No messages' });
+
+    const ctx   = body.context || {};
+    const image = typeof body.image === 'string' && body.image.length > 100 ? body.image : null;
+
+    const statsLine = ctx.stats && !ctx.stats.error
+      ? `Their tracker profile: rank ${ctx.stats.rank || 'unknown'}, K/D ${ctx.stats.kd || '?'}, win rate ${ctx.stats.winRate || '?'}%, headshot ${ctx.stats.headshotPct || '?'}%, top agent ${ctx.stats.topAgent || 'unknown'}.`
+      : 'No tracker stats available.';
+    const tipsBlock = Array.isArray(ctx.sessionTips) && ctx.sessionTips.length
+      ? 'Coaching tips given this session (newest first):\n' + ctx.sessionTips.slice(0, 20).map((t) => '- ' + String(t).slice(0, 140)).join('\n')
+      : 'No tips recorded this session yet.';
+
+    const prompt = `You are GhostCoach, a Radiant-level Valorant coach talking directly with your player after (or during) a session. Be honest, specific, and encouraging, like a real coach in a VOD review. Casual tone, no fluff.
+
+${statsLine}
+Player's agent this session: ${ctx.agent || 'unknown'}.
+${tipsBlock}
+${image ? 'A screenshot of their current screen is attached. Read it (scoreboard, K/D/A, HUD, combat stats) and ground your answer in what it actually shows.' : ''}
+
+Conversation so far:
+${messages.map((m) => m.role + ': ' + m.content).join('\n')}
+
+Reply as Coach to the player's last message. Rules:
+- Be concrete: name the exact habit or mistake and the fix, not generalities.
+- 2 to 5 short sentences, under 120 words total. Plain text, no markdown, no lists.
+- Use commas and periods, never dashes.
+- If you genuinely lack the information to answer, say what you'd need to see.`;
+
+    const reply = await Promise.race([
+      image ? visionInfer(image, prompt, 350, false) : textInfer(prompt, 350),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 25000)),
+    ]);
+    trackCall(licenseKey);
+    res.json({ reply: sanitize(String(reply || '')).slice(0, 1500) });
+  } catch (e) {
+    console.error('[coach] chat error:', e.message);
+    res.status(500).json({ error: 'Chat failed' });
   }
 });
 
