@@ -107,6 +107,14 @@ async function load() {
       markSeg(tipposSeg, cfg.tipPosition);
       markSeg(capqSeg, cfg.captureQuality || 'standard');
       if (typeof cfg.riotId === 'string') riotEl.value = cfg.riotId;
+      // Already connected from a previous session? Show it, no reconnect needed.
+      if (cfg.playerStats && cfg.playerStats.rank) {
+        const s = cfg.playerStats;
+        const bits = [`rank ${s.rank}`];
+        if (s.kd) bits.push(`K/D ${s.kd}`);
+        if (s.headshotPct) bits.push(`HS ${s.headshotPct}%`);
+        showTrk(true, `Connected. ${bits.join(', ')}.`);
+      }
     }
     await refreshLicense();
   } catch (err) {

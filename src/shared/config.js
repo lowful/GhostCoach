@@ -82,6 +82,7 @@ const STORE_DEFAULTS = {
   performanceMode: 'balanced',   // battery | balanced | performance
   captureQuality:  'standard',   // standard | high (screenshot detail)
   riotId:          '',           // Name#TAG for tracker stats in Ask Coach
+  playerStats:     null,         // last good tracker profile (persists = always connected)
   badTips:         [],           // tip texts the player rated as bad (blocklist)
   overlayPosition: 'top-right',  // tip card anchor
   tipPosition:     'top-right',

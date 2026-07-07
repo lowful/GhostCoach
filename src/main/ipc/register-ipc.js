@@ -65,10 +65,12 @@ function registerIpc(deps) {
 }
 
 function snapshotConfig() {
+  const stats = store.get('playerStats');
   return {
     performanceMode: store.get('performanceMode'),
     captureQuality:  store.get('captureQuality'),
     riotId:          store.get('riotId'),
+    playerStats:     stats && stats._riotId === (store.get('riotId') || '').trim() ? stats : null,
     overlayPosition: store.get('overlayPosition'),
     tipPosition:     store.get('tipPosition'),
     panelMinimized:  store.get('panelMinimized'),

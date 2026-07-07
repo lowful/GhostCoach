@@ -266,9 +266,22 @@ const controller = {
   quit() { cleanupAndQuit(); },
 };
 
-// Tracker.gg stats for the player's saved Riot ID, cached for 10 minutes so
-// chat turns don't hammer the endpoint. Returns null when unset/unavailable.
-let statsCache = { at: 0, riotId: '', data: null };
+// Tracker stats for the player's saved Riot ID. Persisted to disk so the link
+// survives restarts ("always connected"): the last good profile is seeded from
+// the store on boot and returned instantly, while a background refresh updates
+// it. Returns the profile object or null.
+let statsCache = { at: 0, riotId: '', data: null, lastError: null };
+(function seedStatsFromDisk() {
+  try {
+    const savedId = (store.get('riotId') || '').trim();
+    const saved   = store.get('playerStats');
+    // Only reuse the saved profile if it belongs to the current Riot ID.
+    if (savedId && saved && saved._riotId === savedId) {
+      statsCache = { at: Date.now(), riotId: savedId, data: saved, lastError: null };
+    }
+  } catch {}
+})();
+
 async function fetchTrackerStats(force) {
   const riotId = (store.get('riotId') || '').trim();
   if (!riotId || !riotId.includes('#')) return null;
@@ -278,11 +291,17 @@ async function fetchTrackerStats(force) {
   try {
     const { ok, data } = await api.get('/api/coach/player-stats?username=' + encodeURIComponent(riotId), store.get('licenseKey'), 15000);
     const stats = ok && data && !data.error ? data : null;
-    statsCache = { at: Date.now(), riotId, data: stats };
-    if (!stats && data && data.error) statsCache.lastError = data.error;
-    return stats;
+    if (stats) {
+      statsCache = { at: Date.now(), riotId, data: stats, lastError: null };
+      store.set('playerStats', { ...stats, _riotId: riotId });   // persist = always connected
+    } else {
+      // Keep serving the last good profile on a transient failure; just note why.
+      statsCache.lastError = (data && data.error) || 'Could not reach the stats service.';
+      statsCache.riotId = riotId;
+    }
+    return stats || (statsCache.riotId === riotId ? statsCache.data : null);
   } catch {
-    return null;
+    return statsCache.riotId === riotId ? statsCache.data : null;
   }
 }
 
@@ -451,6 +470,12 @@ function launchMainApp() {
     });
   }
   startLicenseWatch(); // detect expiry / revocation mid-session and keep Settings fresh
+
+  // Stay connected to the tracker across restarts: refresh the saved profile in
+  // the background so live tips + chat have current stats without reconnecting.
+  if ((store.get('riotId') || '').trim()) {
+    fetchTrackerStats(true).then((s) => { if (s && engine) engine.setPlayerStats(s); }).catch(() => {});
+  }
 
   // First launch after activation: show the one-time welcome card (hotkey tour).
   if (!store.get('onboardingCompleted')) onboardingWindow.create();
