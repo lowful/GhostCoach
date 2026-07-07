@@ -495,72 +495,115 @@ router.post('/recap', async (req, res) => {
   }
 });
 
+// ─── Player stats providers ───────────────────────────────────────────────────
+async function henrikGet(pathPart) {
+  const r = await fetch('https://api.henrikdev.xyz' + pathPart, {
+    headers: { Authorization: process.env.HENRIKDEV_API_KEY, 'User-Agent': 'GhostCoach/2.0' },
+  });
+  const text = await r.text();
+  let json = null; try { json = JSON.parse(text); } catch {}
+  return { status: r.status, ok: r.ok, json };
+}
+
+// HenrikDev works from datacenter IPs (unlike tracker.gg). Resolve region from
+// the account, read the current rank, then aggregate recent competitive matches
+// for a rough K/D and headshot %. Returns { stats } or { fail: 'reason' }.
+async function henrikStats(name, tag) {
+  const enc = encodeURIComponent;
+  const acct = await henrikGet(`/valorant/v2/account/${enc(name)}/${enc(tag)}`);
+  if (acct.status === 401 || acct.status === 403) return { fail: 'HenrikDev key rejected (401/403). Check HENRIKDEV_API_KEY.' };
+  if (acct.status === 404) return { fail: 'HenrikDev could not find that Riot ID. Check Name#TAG is exact.' };
+  if (acct.status === 429) return { fail: 'HenrikDev rate limit hit. Wait a minute and try again.' };
+  const region = acct.json && acct.json.data && acct.json.data.region;
+  if (!region) return { fail: 'HenrikDev returned no region for that account (status ' + acct.status + ').' };
+
+  const mmr = await henrikGet(`/valorant/v2/mmr/${region}/${enc(name)}/${enc(tag)}`);
+  const rank = mmr.json && mmr.json.data && mmr.json.data.current_data && mmr.json.data.current_data.currenttierpatched;
+
+  let kd = 0, headshotPct = 0;
+  try {
+    const sm = await henrikGet(`/valorant/v1/stored-matches/${region}/${enc(name)}/${enc(tag)}?mode=competitive&size=8`);
+    const matches = (sm.json && Array.isArray(sm.json.data)) ? sm.json.data : [];
+    let k = 0, d = 0, head = 0, shots = 0, counted = 0;
+    for (const m of matches) {
+      const st = m && m.stats;
+      if (!st) continue;
+      k += st.kills || 0; d += st.deaths || 0;
+      const sh = st.shots || {};
+      const h = sh.head || 0, b = sh.body || 0, l = sh.leg || 0;
+      head += h; shots += h + b + l; counted++;
+    }
+    if (d > 0) kd = +(k / d).toFixed(2);
+    if (shots > 0) headshotPct = Math.round((head / shots) * 100);
+    if (!counted && !rank) return { fail: 'No recent competitive matches or rank found for that account.' };
+  } catch { /* rank-only is still useful */ }
+
+  if (!rank && !kd) return { fail: 'HenrikDev found the account but no rank or match data yet.' };
+  return { stats: { source: 'henrikdev', rank: rank || 'Unranked', kd, winRate: 0, headshotPct, topAgent: 'Unknown' } };
+}
+
+async function trackerStats(name, tag) {
+  try {
+    const url = `https://api.tracker.gg/api/v2/valorant/standard/profile/riot/${encodeURIComponent(name)}%23${encodeURIComponent(tag)}`;
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'GhostCoach/2.0', 'TRN-Api-Key': process.env.TRACKER_API_KEY },
+    });
+    const text = await response.text();
+    let data = null; try { data = JSON.parse(text); } catch {}
+    if (response.ok && data) {
+      const stats = data?.data?.segments?.[0]?.stats;
+      if (stats) {
+        return { stats: {
+          source:      'tracker.gg',
+          rank:        stats?.rank?.metadata?.tierName || 'Unknown',
+          kd:          stats?.kDRatio?.value             || 0,
+          winRate:     stats?.matchesWinPct?.value       || 0,
+          headshotPct: stats?.headshotsPercentage?.value || 0,
+          topAgent:    data?.data?.segments?.[1]?.metadata?.name || 'Unknown',
+        } };
+      }
+    }
+    // 403 with an HTML body is the tell-tale Cloudflare datacenter block.
+    const blocked = response.status === 403 || response.status === 429 || !data;
+    return { fail: blocked
+      ? 'tracker.gg blocked the server (status ' + response.status + '). This is expected on cloud hosts, use a HenrikDev key instead.'
+      : 'tracker.gg returned no stats (status ' + response.status + ').' };
+  } catch (e) {
+    return { fail: 'tracker.gg was unreachable: ' + e.message };
+  }
+}
+
 // GET /api/coach/player-stats?username=Name%23TAG
 router.get('/player-stats', async (req, res) => {
   const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
   if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
 
-  const username = req.query.username;
-  if (!username || !username.includes('#')) return res.json({ error: 'No username or missing # tag' });
+  const username = String(req.query.username || '');
+  if (!username.includes('#')) return res.json({ error: 'Enter your Riot ID as Name#TAG.' });
+  const [name, tag] = username.split('#').map((s) => s.trim());
+  if (!name || !tag) return res.json({ error: 'Enter your Riot ID as Name#TAG.' });
 
-  const [name, tag] = username.split('#');
+  const reasons = [];
 
-  // 1) Primary: tracker.gg (needs TRACKER_API_KEY; their edge sometimes blocks
-  //    datacenter IPs, so failures are reported precisely and we fall through).
-  if (process.env.TRACKER_API_KEY) {
-    try {
-      const url = `https://api.tracker.gg/api/v2/valorant/standard/profile/riot/${encodeURIComponent(name)}%23${encodeURIComponent(tag)}`;
-      const response = await fetch(url, {
-        headers: { 'User-Agent': 'GhostCoach/1.0', 'TRN-Api-Key': process.env.TRACKER_API_KEY },
-      });
-      const text = await response.text();
-      let data = null;
-      try { data = JSON.parse(text); } catch { /* Cloudflare HTML page etc. */ }
-
-      if (response.ok && data) {
-        const stats = data?.data?.segments?.[0]?.stats;
-        if (stats) {
-          return res.json({
-            source:      'tracker.gg',
-            rank:        stats?.rank?.metadata?.tierName || 'Unknown',
-            kd:          stats?.kDRatio?.value            || 0,
-            winRate:     stats?.matchesWinPct?.value      || 0,
-            headshotPct: stats?.headshotsPercentage?.value || 0,
-            topAgent:    data?.data?.segments?.[1]?.metadata?.name || 'Unknown',
-          });
-        }
-      }
-      console.warn('[stats] tracker.gg said', response.status, String(text).slice(0, 120));
-    } catch (e) {
-      console.warn('[stats] tracker.gg unreachable:', e.message);
-    }
-  } else {
-    console.warn('[stats] TRACKER_API_KEY not set');
-  }
-
-  // 2) Fallback: HenrikDev community API (HENRIKDEV_API_KEY), rank at minimum.
+  // 1) HenrikDev first: it actually works from Railway/cloud IPs.
   if (process.env.HENRIKDEV_API_KEY) {
-    for (const region of ['na', 'eu', 'ap', 'kr']) {
-      try {
-        const r = await fetch(
-          `https://api.henrikdev.xyz/valorant/v2/mmr/${region}/${encodeURIComponent(name)}/${encodeURIComponent(tag)}`,
-          { headers: { Authorization: process.env.HENRIKDEV_API_KEY } });
-        if (!r.ok) continue;
-        const d = await r.json();
-        const rank = d?.data?.current_data?.currenttierpatched;
-        if (rank) {
-          return res.json({ source: 'henrikdev', rank, kd: 0, winRate: 0, headshotPct: 0, topAgent: 'Unknown' });
-        }
-      } catch { /* try next region */ }
-    }
-    console.warn('[stats] henrikdev found no rank for', username);
+    const r = await henrikStats(name, tag).catch((e) => ({ fail: 'HenrikDev error: ' + e.message }));
+    if (r.stats) { console.log('[stats] henrikdev ok:', r.stats.rank); return res.json(r.stats); }
+    if (r.fail) reasons.push(r.fail);
   }
 
-  // Precise reason so the client's Connect button can tell the user what to fix.
-  const reason = !process.env.TRACKER_API_KEY && !process.env.HENRIKDEV_API_KEY
-    ? 'No tracker API key is configured on the server.'
-    : 'Could not fetch stats for that Riot ID. Check the spelling (Name#TAG) and that the profile is public on tracker.gg.';
-  res.json({ error: reason });
+  // 2) tracker.gg fallback (usually Cloudflare-blocked on cloud hosts).
+  if (process.env.TRACKER_API_KEY) {
+    const r = await trackerStats(name, tag).catch((e) => ({ fail: 'tracker.gg error: ' + e.message }));
+    if (r.stats) { console.log('[stats] tracker.gg ok:', r.stats.rank); return res.json(r.stats); }
+    if (r.fail) reasons.push(r.fail);
+  }
+
+  if (!process.env.HENRIKDEV_API_KEY && !process.env.TRACKER_API_KEY) {
+    return res.json({ error: 'No stats provider is configured on the server. Add HENRIKDEV_API_KEY in Railway.' });
+  }
+  console.warn('[stats] all providers failed for', username, '::', reasons.join(' | '));
+  res.json({ error: reasons[0] || 'Could not load that profile. Check the Riot ID is exact.' });
 });
 
 // POST /api/coach/match-review, JSON body: { tips: string[] }
