@@ -1,7 +1,7 @@
 'use strict';
 require('dotenv').config();
 
-// ─── Global crash guards — keep the server alive on bad responses ────────────
+// ─── Global crash guards, keep the server alive on bad responses ────────────
 process.on('uncaughtException', (err) => {
   console.error('[server] CRASH PREVENTED - uncaughtException:', err.message);
   console.error(err.stack);
@@ -44,10 +44,11 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: (origin, callback) => {
+    // No Origin header = native clients (the Electron app, curl); allowed.
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
     if (origin.endsWith('.lovable.app') || origin.endsWith('.lovable.dev')) return callback(null, true);
-    callback(null, true); // allow all during dev — tighten for full prod launch
+    callback(new Error('Not allowed by CORS')); // everything else is rejected
   },
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-License-Key', 'X-Prompt-Mode', 'X-Combat-Tip-Given', 'X-Recent-Tips', 'X-Admin-Password', 'X-Forced', 'X-Player-Stats'],
@@ -67,7 +68,21 @@ const checkoutLimiter = rateLimit({
   standardHeaders: true, legacyHeaders: false,
 });
 
-// ─── Raw body routes — MUST come before JSON parser ──────────────────────────
+// AI endpoints cost real money per call: cap them per IP so a leaked or shared
+// license key can't burn credits. Legit use peaks at ~12 analyzes/min plus
+// detect-agent and the odd chat turn, so these ceilings never touch real players.
+const coachLimiter = rateLimit({
+  windowMs: 60 * 1000, max: 40,
+  message: { error: 'Slow down. Too many coaching requests.' },
+  standardHeaders: true, legacyHeaders: false,
+});
+const chatLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, max: 25,
+  message: { error: 'Too many chat messages. Give it a few minutes.' },
+  standardHeaders: true, legacyHeaders: false,
+});
+
+// ─── Raw body routes, MUST come before JSON parser ──────────────────────────
 // Stripe webhook needs raw JSON; coach/summary/round needs raw binary JPEG
 app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), webhookHandler);
 app.post('/api/coach/summary/round', express.raw({ type: 'image/jpeg', limit: '500kb' }), (req, _, next) => { req._rawBody = req.body; next(); });
@@ -78,6 +93,8 @@ app.use(express.json({ limit: '2mb' }));
 // ─── Route-level rate limits ──────────────────────────────────────────────────
 app.use('/api/license/activate',        activationLimiter);
 app.use('/api/payments/create-checkout', checkoutLimiter);
+app.use('/api/coach/chat',               chatLimiter);
+app.use('/api/coach',                    coachLimiter);
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
 app.use('/api/payments', paymentRoutes);
@@ -104,7 +121,7 @@ app.listen(PORT, () => {
   console.log(`[server] Gemini: ${process.env.GEMINI_API_KEY ? 'configured' : '(GEMINI_API_KEY not set)'}`);
 });
 
-// ─── Memory logging — every 60s so we can spot leaks early ───────────────────
+// ─── Memory logging, every 60s so we can spot leaks early ───────────────────
 setInterval(() => {
   const used = process.memoryUsage();
   console.log('[server] Memory:', Math.round(used.heapUsed / 1024 / 1024), 'MB heap');

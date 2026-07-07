@@ -53,7 +53,7 @@ for (const sql of migrations) {
   try {
     db.exec(sql);
   } catch (_) {
-    // Column already exists — safe to ignore
+    // Column already exists, safe to ignore
   }
 }
 

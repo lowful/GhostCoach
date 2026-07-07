@@ -230,6 +230,14 @@ Coach at a Radiant level: gather info before committing, use util to clear or ta
 Coach at a Radiant level: hold off-angles instead of the spot they pre-aim, always set a crossfire so you have a trade, do not over-peek and give up your setup, use util to delay a push and buy rotation time, watch the minimap for rotates and flanks, and retake together not one by one. Catch and correct: over-peeking, no trade partner, predictable angles, dry retakes, and an unwatched flank.`
     : `SIDE UNKNOWN this frame. Keep advice fundamentals-first so it fits either side: trade, crossfires, util before peeking, minimap awareness, and economy discipline.`;
 
+  const s = ctx.playerStats;
+  const profileBlock = s && !s.error
+    ? `PLAYER PROFILE (career tracker stats): rank ${s.rank || 'unknown'}, K/D ${s.kd || '?'}, headshot ${s.headshotPct || '?'}%, win rate ${s.winRate || '?'}%, top agent ${s.topAgent || 'unknown'}.
+Calibrate every tip to this player. Lower ranks (Iron to Gold): favor fundamentals, crosshair placement, positioning, economy, trading. Higher ranks (Plat and up): favor utility timings, off-angles, tempo and info plays. If headshot percent is under 20, weave in aim and crosshair fixes. If K/D is under 1.0, emphasize positioning, patience, and trade discipline over aggression.
+
+`
+    : '';
+
   const agentRule = ctx.agent
     ? ('The player is ' + ctx.agent + '. This is confirmed. Only ever suggest ' + ctx.agent + "'s own abilities, never another agent's. Before naming an ability, make sure it belongs to " + ctx.agent + '; if not, give a positioning, economy, or aim tip with no ability name.')
     : "The player's agent is not known yet. Do NOT name any agent or any specific ability. Give general advice only: positioning, crosshair placement, economy, rotation, or game sense.";
@@ -241,7 +249,7 @@ The player is whoever the first-person view belongs to. Their agent is the one w
 
 ${agentRule}
 
-${sideBlock}
+${profileBlock}${sideBlock}
 
 COACH LIKE A RADIANT PRO
 Identify the single biggest thing the player is doing WRONG this frame, or the clearest opportunity, then give the fix. Prioritise what actually wins games at high elo: trading, crossfires, using util before peeking, crosshair placement, positioning and off-angles, timing, minimap and sound awareness, and economy discipline.
