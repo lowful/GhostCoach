@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';" />
+  <title>Ask Coach</title>
+  <link rel="stylesheet" href="../shared/theme.css" />
+  <link rel="stylesheet" href="../shared/ui.css" />
+  <link rel="stylesheet" href="chat.css" />
+</head>
+<body>
+  <div class="sheet glass">
+    <header class="drag">
+      <div class="h-brand">
+        <img src="../../../assets/logo-ghost.svg" alt="" width="16" height="19" />
+        <h2>Ask Coach</h2>
+        <span id="agent-chip" class="chip-agent" hidden></span>
+      </div>
+      <button id="close" class="icon-btn no-drag" title="Close">✕</button>
+    </header>
+
+    <div class="body" id="thread">
+      <div class="intro" id="intro">
+        <p class="intro-lead">Match over? Rough round? Let's break it down.</p>
+        <div class="starters">
+          <button class="starter" data-shot="1">
+            <span class="s-ico">📸</span>
+            <span>What did I do badly and what did I do well? <b>Reads your screen</b></span>
+          </button>
+          <button class="starter">
+            <span class="s-ico">🎯</span>
+            <span>What should I focus on to rank up?</span>
+          </button>
+          <button class="starter">
+            <span class="s-ico">💀</span>
+            <span>Why do I keep dying in the same spots?</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <form class="composer no-drag" id="composer">
+      <input id="input" type="text" placeholder="Ask your coach anything"
+             maxlength="500" autocomplete="off" spellcheck="false" />
+      <button id="send" class="send" type="submit" title="Send">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4Z"/></svg>
+      </button>
+    </form>
+  </div>
+
+  <script src="chat.js"></script>
+</body>
+</html>

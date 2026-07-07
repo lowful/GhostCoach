@@ -21,6 +21,9 @@ class CoachingEngine extends EventEmitter {
     this.licenseKey      = opts.licenseKey || '';
     this.captureFunction = opts.captureFunction || null;
     this.analyzeInterval = PERFORMANCE_INTERVALS[opts.performanceMode] || PERFORMANCE_INTERVALS.balanced;
+    // Tips the player rated as bad: never re-served from the library, and the
+    // most recent ones are sent to the AI so it avoids similar advice.
+    this.badTips = new Set(Array.isArray(opts.badTips) ? opts.badTips : []);
 
     this.matchContext = freshContext();
 
@@ -321,6 +324,7 @@ class CoachingEngine extends EventEmitter {
       recentTips,
       enemyHistory: this.enemyHistory.slice(-6),
       phaseTransition: this.recentPhaseTransition(),
+      badTips: [...this.badTips].slice(0, 6),
       agentRole:    agentData.getRole(this.matchContext.agent),
       teammates:    this.matchContext.teammates || null, // passthrough if the server reports the comp
       buyInfoClear: tipLibrary.buyInfoClear(this.matchContext), // don't advise a buy on unclear numbers
@@ -476,7 +480,8 @@ class CoachingEngine extends EventEmitter {
       return;
     }
 
-    const recentTexts = this.tipHistory.slice(-16).map((t) => t.text);
+    // Recently shown + player-rated-bad texts are both off the menu.
+    const recentTexts = [...this.tipHistory.slice(-16).map((t) => t.text), ...this.badTips];
 
     // Occasionally drop an agent-specific reminder, but only once the player has
     // CONFIRMED the agent; on a mere guess we stick to general tips.
@@ -489,6 +494,13 @@ class CoachingEngine extends EventEmitter {
 
     const { text } = tipLibrary.selectTip(this.matchContext, recentTexts);
     if (text) this.emitTip(text, 'library');
+  }
+
+  /** Player rated a tip as bad: blocklist it and avoid its topic for a while. */
+  noteBadTip(text) {
+    if (!text) return;
+    this.badTips.add(text);
+    console.log('[engine] bad-tip feedback:', topicOf(text), '|', String(text).slice(0, 50));
   }
 
   /** Current AI vs library coaching-tip mix this session. */

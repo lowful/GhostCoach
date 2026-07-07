@@ -21,6 +21,17 @@ function wireSeg(seg, key) {
 wireSeg(perfSeg, 'performanceMode');
 wireSeg(tipposSeg, 'tipPosition');
 
+const capqSeg = document.getElementById('capq');
+wireSeg(capqSeg, 'captureQuality');
+
+// Riot ID: save on change/blur (debounced enough for a text field).
+const riotEl = document.getElementById('riotid');
+let riotTimer = null;
+riotEl.addEventListener('input', () => {
+  clearTimeout(riotTimer);
+  riotTimer = setTimeout(() => window.ghost.setConfig({ riotId: riotEl.value.trim() }).catch(() => {}), 500);
+});
+
 // Render the license block. Accepts either a getLicense() result or a state
 // snapshot (both carry licensePlan / licenseStatus / licenseExpiry).
 const ENDED_MESSAGES = {
@@ -61,6 +72,8 @@ async function load() {
     if (cfg) {
       markSeg(perfSeg, cfg.performanceMode);
       markSeg(tipposSeg, cfg.tipPosition);
+      markSeg(capqSeg, cfg.captureQuality || 'standard');
+      if (typeof cfg.riotId === 'string') riotEl.value = cfg.riotId;
     }
     await refreshLicense();
   } catch (err) {

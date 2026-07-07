@@ -70,6 +70,7 @@ toggleBtn.addEventListener('click', () => {
 });
 pauseBtn.addEventListener('click', () => window.ghost.pauseResume());
 forceBtn.addEventListener('click', () => window.ghost.forceTip());
+document.getElementById('chat').addEventListener('click', () => window.ghost.openChat());
 document.getElementById('history').addEventListener('click', () => window.ghost.openHistory());
 document.getElementById('minimize').addEventListener('click', () => window.ghost.minimize());
 document.getElementById('settings').addEventListener('click', () => window.ghost.openSettings());

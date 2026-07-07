@@ -12,7 +12,8 @@ const os   = require('os');
 const fs   = require('fs');
 const { CAPTURE } = require('../../shared/config');
 
-function capture() {
+function capture(quality) {
+  const prof    = (CAPTURE.profiles && CAPTURE.profiles[quality]) || CAPTURE.profiles.standard;
   const stamp   = `${process.pid}_${Date.now()}`;
   const outPath = path.join(os.tmpdir(), `ghostcoach_${stamp}.jpg`);
   const psPath  = path.join(os.tmpdir(), `ghostcoach_${stamp}.ps1`);
@@ -27,10 +28,10 @@ function capture() {
     '$bmp = New-Object System.Drawing.Bitmap($s.Bounds.Width, $s.Bounds.Height)\n' +
     '$g = [System.Drawing.Graphics]::FromImage($bmp)\n' +
     '$g.CopyFromScreen($s.Bounds.Location, [System.Drawing.Point]::Empty, $s.Bounds.Size)\n' +
-    `$r = New-Object System.Drawing.Bitmap($bmp, ${CAPTURE.targetW}, ${CAPTURE.targetH})\n` +
+    `$r = New-Object System.Drawing.Bitmap($bmp, ${prof.targetW}, ${prof.targetH})\n` +
     "$enc = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq 'image/jpeg' }\n" +
     '$ep = New-Object System.Drawing.Imaging.EncoderParameters(1)\n' +
-    `$ep.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality, ${CAPTURE.jpegQuality})\n` +
+    `$ep.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality, ${prof.jpegQuality})\n` +
     `$r.Save('${outPath.replace(/\\/g, '\\\\')}', $enc, $ep)\n` +
     '$g.Dispose(); $bmp.Dispose(); $r.Dispose()\n';
 
@@ -55,9 +56,9 @@ function capture() {
   });
 }
 
-parentPort.on('message', async () => {
+parentPort.on('message', async (msg) => {
   try {
-    const data = await capture();
+    const data = await capture(msg && msg.quality);
     parentPort.postMessage({ success: true, data });
   } catch (e) {
     parentPort.postMessage({ success: false, error: e.message });

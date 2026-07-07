@@ -4,7 +4,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 const C = require('../shared/channels');
 
 /**
- * History bridge, pull the current tip list and stay live as new tips arrive.
+ * Ask Coach bridge: send a conversation turn (optionally with a screenshot of
+ * the current screen) and read session state for context chips.
  */
 function subscribe(channel, cb) {
   const handler = (_e, data) => cb(data);
@@ -13,8 +14,7 @@ function subscribe(channel, cb) {
 }
 
 contextBridge.exposeInMainWorld('ghost', {
+  sendChat: (messages, opts) => ipcRenderer.invoke(C.CHAT_SEND, messages, opts || {}),
   getState: () => ipcRenderer.invoke(C.STATE_GET),
-  rateTip:  (payload) => ipcRenderer.send(C.TIP_RATE, payload),
-  onTip:    (cb) => subscribe(C.PUSH_TIP, cb),
   onState:  (cb) => subscribe(C.PUSH_STATE, cb),
 });

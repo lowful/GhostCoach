@@ -37,7 +37,28 @@ header h2 { font-size: 15.5px; font-weight: 700; }
 @keyframes rowIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
 .row .col { flex: 1; min-width: 0; }
-.row .meta { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.row .meta { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.row .meta .time { margin-left: auto; }
+
+/* ── Tip rating (hover ✓ / ✗) ── */
+.rate { display: flex; gap: 6px; flex: none; align-self: center; opacity: 0; transition: opacity var(--t-fast) var(--ease); }
+.row:hover .rate { opacity: 1; }
+.rate-btn {
+  width: 26px; height: 26px; border-radius: 8px; cursor: pointer;
+  font-size: 13px; font-weight: 700; font-family: var(--font); line-height: 1;
+  display: grid; place-items: center;
+  background: rgba(255,255,255,0.06); border: 1px solid var(--glass-border);
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.rate-btn.good { color: #4fd394; }
+.rate-btn.bad  { color: var(--red); }
+.rate-btn.good:hover { background: rgba(79,211,148,0.16); border-color: rgba(79,211,148,0.45); }
+.rate-btn.bad:hover  { background: rgba(255,70,85,0.16); border-color: rgba(255,70,85,0.45); }
+
+.rate-badge { font-size: 10px; font-weight: 700; border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+.rate-badge.good { color: #4fd394; background: rgba(79,211,148,0.12); border: 1px solid rgba(79,211,148,0.3); }
+.rate-badge.bad  { color: #ff9aa3; background: rgba(255,70,85,0.12); border: 1px solid rgba(255,70,85,0.3); }
+.row.rated-bad .text { color: var(--text-mute); }
 .row .src { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 700; color: var(--text-dim); }
 .row.ai .src     { color: var(--cyan); }
 .row.system .src { color: var(--red); }

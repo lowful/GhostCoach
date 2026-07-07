@@ -24,6 +24,8 @@ const historyWindow    = require('./windows/history-window');
 const dockWindow       = require('./windows/dock-window');
 const activationWindow = require('./windows/activation-window');
 const onboardingWindow = require('./windows/onboarding-window');
+const chatWindow       = require('./windows/chat-window');
+const api              = require('./services/api-client');
 const tray     = require('./tray');
 const hotkeys  = require('./hotkeys');
 const registerIpc = require('./ipc/register-ipc');
@@ -38,6 +40,7 @@ const state = {
   status:     'idle',   // idle | coaching | paused | stopped
   tips:       [],       // recent tips this session (newest first)
   agent:      { agent: null, confirmed: false, role: null }, // detected/confirmed agent
+  tipRatings: {},       // text -> 'good' | 'bad' (session display state)
   licenseActive: true,  // false once the subscription ends (locks coaching)
   licenseReason: '',    // why it ended (expired | cancelled | payment_failed | ...)
 };
@@ -54,6 +57,7 @@ function buildState() {
     tipCount:   state.tips.length,
     tipMix:     engine ? engine.getMix() : { ai: 0, library: 0, aiShare: 0 },
     agent:      state.agent,
+    tipRatings: state.tipRatings,
     licenseActive: state.licenseActive,
     licenseReason: state.licenseReason,
     tipPosition:     store.get('tipPosition'),
@@ -97,8 +101,10 @@ const controller = {
 
     engine = new CoachingEngine({
       licenseKey:      store.get('licenseKey'),
-      captureFunction: capture.captureScreenshot,
+      // Read the quality setting at capture time so a settings change applies live.
+      captureFunction: () => capture.captureScreenshot(store.get('captureQuality')),
       performanceMode: store.get('performanceMode'),
+      badTips:         store.get('badTips'),
     });
     engine.on('tip',    (tip) => pushTip(tip));
     engine.on('status', (status) => {
@@ -109,6 +115,8 @@ const controller = {
       const data = { review, game: 'Valorant', timestamp: Date.now(), tipsCount: state.tips.length };
       registry.broadcast(C.PUSH_MATCH_REVIEW, data);
       saveMatchSummary(data);
+      // Natural moment to go deeper: nudge toward the Ask Coach chat.
+      pushTip({ text: 'Want the full breakdown? Open Ask Coach from the panel and ask what to fix.', source: 'system' });
     });
     engine.on('agent', (info) => {
       state.agent = info || { agent: null, confirmed: false, role: null };
@@ -180,6 +188,52 @@ const controller = {
   },
   openSettings()  { settingsWindow.open(); },
   openHistory()   { historyWindow.open(); },
+  openChat()      { chatWindow.open(); },
+
+  /** Ask Coach: one conversation turn, optionally with a live screenshot. */
+  async chat(messages, opts = {}) {
+    const licenseKey = store.get('licenseKey');
+    if (!licenseKey) return { ok: false, error: 'No license active.' };
+
+    let image = null;
+    if (opts && opts.withScreenshot) {
+      try { image = await capture.captureScreenshot(store.get('captureQuality')); }
+      catch (e) { console.warn('[chat] screenshot failed:', e.message); }
+    }
+    const context = {
+      agent:       state.agent && state.agent.agent,
+      sessionTips: state.tips.slice(0, 20).map((t) => t.text),
+      stats:       await fetchTrackerStats(),
+    };
+    try {
+      const { ok, data } = await api.post('/api/coach/chat', { messages, context, image }, licenseKey, 30000);
+      if (ok && data && data.reply) return { ok: true, reply: data.reply };
+      return { ok: false, error: (data && data.error) || 'The coach had no answer. Try again.' };
+    } catch (e) {
+      console.error('[chat] failed:', e.message);
+      return { ok: false, error: 'Could not reach the coach server.' };
+    }
+  },
+
+  /** Player rated a tip in history. Bad tips feed the avoidance loop. */
+  rateTip(payload) {
+    const text   = payload && String(payload.text || '').trim();
+    const rating = payload && payload.rating;
+    if (!text || (rating !== 'good' && rating !== 'bad')) return;
+    state.tipRatings[text] = rating;
+    if (rating === 'bad') {
+      const bad = store.get('badTips') || [];
+      if (!bad.includes(text)) {
+        bad.unshift(text);
+        store.set('badTips', bad.slice(0, 200));   // persistent blocklist
+      }
+      if (engine) engine.noteBadTip(text);
+      console.log('[tips] rated BAD:', text.slice(0, 60));
+    } else {
+      console.log('[tips] rated good:', text.slice(0, 60));
+    }
+    registry.broadcast(C.PUSH_STATE, buildState());
+  },
   logout() {
     logoutToActivation('You have been logged out. Enter a license key to sign back in.');
   },
@@ -193,6 +247,25 @@ const controller = {
   },
   quit() { cleanupAndQuit(); },
 };
+
+// Tracker.gg stats for the player's saved Riot ID, cached for 10 minutes so
+// chat turns don't hammer the endpoint. Returns null when unset/unavailable.
+let statsCache = { at: 0, riotId: '', data: null };
+async function fetchTrackerStats() {
+  const riotId = (store.get('riotId') || '').trim();
+  if (!riotId || !riotId.includes('#')) return null;
+  if (statsCache.data && statsCache.riotId === riotId && Date.now() - statsCache.at < 10 * 60 * 1000) {
+    return statsCache.data;
+  }
+  try {
+    const { ok, data } = await api.get('/api/coach/player-stats?username=' + encodeURIComponent(riotId), store.get('licenseKey'), 10000);
+    const stats = ok && data && !data.error ? data : null;
+    statsCache = { at: Date.now(), riotId, data: stats };
+    return stats;
+  } catch {
+    return null;
+  }
+}
 
 function saveMatchSummary(data) {
   try {

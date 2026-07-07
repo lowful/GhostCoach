@@ -25,11 +25,19 @@ const BRAND = {
 };
 
 // ── Capture ─────────────────────────────────────────────────────────────────
+// Two quality profiles: standard is plenty for HUD reading and uploads fast;
+// high sends a sharper frame (bigger upload + more image tokens per call, so
+// slightly slower replies, but zero effect on game FPS since capture runs in
+// a worker thread).
 const CAPTURE = {
   targetW: 854,
   targetH: 480,
   jpegQuality: 50,
   timeoutMs: 6000,
+  profiles: {
+    standard: { targetW: 854,  targetH: 480, jpegQuality: 50 },
+    high:     { targetW: 1280, targetH: 720, jpegQuality: 70 },
+  },
 };
 
 // ── Engine timing (ms) ──────────────────────────────────────────────────────
@@ -72,6 +80,9 @@ const STORE_DEFAULTS = {
   deviceId:      '',
   // preferences
   performanceMode: 'balanced',   // battery | balanced | performance
+  captureQuality:  'standard',   // standard | high (screenshot detail)
+  riotId:          '',           // Name#TAG for tracker stats in Ask Coach
+  badTips:         [],           // tip texts the player rated as bad (blocklist)
   overlayPosition: 'top-right',  // tip card anchor
   tipPosition:     'top-right',
   panelBounds:     null,         // { x, y } remembered position of the control panel

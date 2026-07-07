@@ -33,7 +33,7 @@ function getWorker() {
   return worker;
 }
 
-function captureScreenshot() {
+function captureScreenshot(quality) {
   return new Promise((resolve, reject) => {
     if (pending) { reject(new Error('Capture already in progress')); return; }
 
@@ -47,7 +47,7 @@ function captureScreenshot() {
       reject:  (e) => { clearTimeout(timer); reject(e); },
     };
 
-    w.postMessage('capture');
+    w.postMessage({ quality: quality || 'standard' });
   });
 }
 

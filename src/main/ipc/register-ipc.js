@@ -42,6 +42,8 @@ function registerIpc(deps) {
 
   safeHandle(C.AGENT_SET, async (_e, name) => controller.setAgent(name));
 
+  safeHandle(C.CHAT_SEND, async (_e, messages, opts) => controller.chat(messages, opts));
+
   // ── fire-and-forget commands ──────────────────────────────────────────────
   ipcMain.on(C.COACH_START,    () => guard('start',    () => controller.start()));
   ipcMain.on(C.COACH_STOP,     () => guard('stop',     () => controller.stop()));
@@ -52,6 +54,8 @@ function registerIpc(deps) {
   ipcMain.on(C.PANEL_MINIMIZE, () => guard('minimize', () => controller.toggleMinimizePanel()));
   ipcMain.on(C.OPEN_SETTINGS,  () => guard('settings', () => controller.openSettings()));
   ipcMain.on(C.OPEN_HISTORY,   () => guard('history',  () => controller.openHistory()));
+  ipcMain.on(C.OPEN_CHAT,      () => guard('chat',     () => controller.openChat()));
+  ipcMain.on(C.TIP_RATE,       (_e, payload) => guard('rateTip', () => controller.rateTip(payload)));
   ipcMain.on(C.OPEN_PURCHASE,  () => guard('purchase', () => shell.openExternal(PURCHASE_URL)));
   ipcMain.on(C.LICENSE_LOGOUT, () => guard('logout',   () => controller.logout()));
   ipcMain.on(C.ONBOARDING_DONE,() => guard('onboarding', () => controller.finishOnboarding()));
@@ -61,6 +65,8 @@ function registerIpc(deps) {
 function snapshotConfig() {
   return {
     performanceMode: store.get('performanceMode'),
+    captureQuality:  store.get('captureQuality'),
+    riotId:          store.get('riotId'),
     overlayPosition: store.get('overlayPosition'),
     tipPosition:     store.get('tipPosition'),
     panelMinimized:  store.get('panelMinimized'),

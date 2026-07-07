@@ -35,4 +35,22 @@ async function post(path, body, licenseKey, timeoutMs, extraHeaders) {
   }
 }
 
-module.exports = { post };
+/** GET helper (used for tracker player-stats). Same contract as post(). */
+async function get(path, licenseKey, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs || TIMING.serverTimeout);
+  try {
+    const res = await fetch(SERVER_BASE_URL + path, {
+      headers: { ...(licenseKey ? { 'X-License-Key': licenseKey } : {}) },
+      signal: controller.signal,
+    });
+    const text = await res.text().catch(() => '');
+    let data = {};
+    if (text) { try { data = JSON.parse(text); } catch { data = {}; } }
+    return { ok: res.ok, status: res.status, data };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+module.exports = { post, get };

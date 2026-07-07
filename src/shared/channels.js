@@ -22,6 +22,7 @@ const CHANNELS = {
   CONFIG_SET:       'config:set',        // (partial) → { ok }
   STATE_GET:        'state:get',         // () → current coaching state snapshot
   AGENT_SET:        'agent:set',         // (name) → { ok, agent, confirmed, role }
+  CHAT_SEND:        'chat:send',         // (messages, opts) → { ok, reply }
 
   // ── renderer → main commands (ipcRenderer.send ⇄ ipcMain.on) ──────────────
   COACH_START:     'coach:start',
@@ -33,6 +34,8 @@ const CHANNELS = {
   PANEL_MINIMIZE:  'panel:minimize',     // hide the interactive panel (anti-aim-interference)
   OPEN_SETTINGS:   'window:openSettings',
   OPEN_HISTORY:    'window:openHistory',
+  OPEN_CHAT:       'window:openChat',    // the Ask Coach chat window
+  TIP_RATE:        'tip:rate',           // ({ text, source, rating: good|bad })
   OPEN_PURCHASE:   'window:openPurchase',
   LICENSE_LOGOUT:  'license:logout',      // clear license + return to activation screen
   ONBOARDING_DONE: 'onboarding:done',     // close the welcome card + never show again

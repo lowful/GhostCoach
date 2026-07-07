@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('ghost', {
   minimize:      () => ipcRenderer.send(C.PANEL_MINIMIZE),
   openSettings:  () => ipcRenderer.send(C.OPEN_SETTINGS),
   openHistory:   () => ipcRenderer.send(C.OPEN_HISTORY),
+  openChat:      () => ipcRenderer.send(C.OPEN_CHAT),
   quit:          () => ipcRenderer.send(C.APP_QUIT),
   // request/response
   forceTip:      () => ipcRenderer.invoke(C.COACH_FORCE_TIP),
