@@ -262,8 +262,10 @@ ECONOMY (only when credits AND round are clearly visible).${buyNote}
 - 3900 or more: full buy, Vandal or Phantom with full shields and util.
 - If the team is saving, save with them.
 
-WHEN TO SPEAK vs SKIP
-Most gameplay frames deserve one sharp, useful observation, so give it: a mistake, an opportunity, a read, an economy call, or a positioning fix. Reply with exactly SKIP only for menus, agent select, loading screens, or when the only honest thing you could say repeats the recent tips below. Never pad with generic ability suggestions.
+WHEN TO SPEAK, SKIP, or LOBBY
+Most gameplay frames deserve one sharp, useful observation, so give it: a mistake, an opportunity, a read, an economy call, or a positioning fix.
+If the screen is NOT live gameplay (main menu, lobby, agent select, loading screen, career or collection page, range with no match), reply with exactly LOBBY.
+Reply with exactly SKIP only when it IS live gameplay but the only honest thing you could say repeats the recent tips below. Never pad with generic ability suggestions.
 
 ${transLine}${focusLine}CURRENT MATCH STATE (trust this, do not re-derive it every frame):
 - Agent: ${ctx.agent || 'Unknown'} | Map: ${ctx.map || 'Unknown'} | Side: ${ctx.side || 'Unknown'}
@@ -278,7 +280,7 @@ ABILITY REFERENCE (only ever suggest the player's own; plain words like smoke, f
 Jett: smokes, updraft, dash. Reyna: blind, heal, dismiss. Phoenix: flash, molly, wall. Raze: boombot, satchel, nade. Neon: walls, stun, sprint. Iso: shield, wall. Yoru: decoy, flash, teleport. Sova: drone, recon dart, shock. Breach: flash, stun, aftershock. Skye: flash, dog, heal. KAY/O: flash, suppress knife, molly. Fade: recon, tether, prowler. Gekko: flash, wingman, molly. Omen: smokes, flash, teleport. Brimstone: smokes, molly, stim. Viper: wall, smoke, molly. Astra: smokes, stun, wall. Harbor: walls, bubble. Clove: smokes, decay. Sage: wall, slow, heal. Killjoy: turret, molly, alarmbot. Cypher: tripwire, camera, cage. Chamber: trap, teleport, sheriff. Deadlock: wall, sensor, net. Vyse, Tejo, Waylay: only reference abilities you can actually see on screen.
 
 OUTPUT
-Reply with ONLY the tip: one plain sentence, 6 to 16 words, ending with a period. No quotes, no "Tip:", no JSON, no markdown, no preamble. Use commas and periods, never dashes. Always finish the sentence; never end on a preposition, article, conjunction, or possessive. If there is genuinely nothing worth saying, reply with exactly SKIP.
+Reply with ONLY the tip: one plain sentence, 6 to 16 words, ending with a period. No quotes, no "Tip:", no JSON, no markdown, no preamble. Use commas and periods, never dashes. Always finish the sentence; never end on a preposition, article, conjunction, or possessive. If it is live gameplay with nothing new to say, reply with exactly SKIP. If it is not live gameplay at all, reply with exactly LOBBY.
 
 Good examples (attack):
 Take map control mid before you commit, do not force site.
@@ -377,6 +379,9 @@ router.post('/analyze', async (req, res) => {
       if (plain.toUpperCase() === 'SKIP') {
         finalTip = 'SKIP';
         console.log('[coach] Plain SKIP response');
+      } else if (plain.toUpperCase() === 'LOBBY') {
+        finalTip = 'LOBBY';   // not live gameplay: client silences all tips
+        console.log('[coach] LOBBY response');
       } else if (plain.length >= 10 && plain.length <= 200) {
         finalTip = plain;
         console.log('[coach] Using plain text as tip:', finalTip);
@@ -392,7 +397,7 @@ router.post('/analyze', async (req, res) => {
     console.log('[coach] FINAL TIP:', tip.slice(0, 100));
 
     // Enforce complete sentence on the server before sending to client
-    if (tip && tip !== 'SKIP' && tip !== 'VICTORY' && tip !== 'DEFEAT') {
+    if (tip && tip !== 'SKIP' && tip !== 'LOBBY' && tip !== 'VICTORY' && tip !== 'DEFEAT') {
       const lastChar = tip.charAt(tip.length - 1);
       if (lastChar !== '.' && lastChar !== '!' && lastChar !== '?') {
         if (tip.length > 30) {
