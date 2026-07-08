@@ -220,6 +220,10 @@ function buildContextPrompt(context) {
   const transLine  = ctx.phaseTransition
     ? ('THE PHASE JUST CHANGED (' + ctx.phaseTransition + '). Coach the NEW phase first: buy advice as buy phase opens, setup or positioning as the round starts, post-plant or retake play the moment the spike is planted.\n\n')
     : '';
+  const memoryBlock = Array.isArray(ctx.matchMemory) && ctx.matchMemory.length
+    ? ('MATCH MEMORY (what has happened so far, use it for continuity, momentum reads, and patterns):\n'
+       + ctx.matchMemory.slice(-8).map((m) => '- ' + String(m).slice(0, 90)).join('\n') + '\n\n')
+    : '';
   const side       = String(ctx.side || '').toLowerCase();
 
   const sideBlock = side.includes('att')
@@ -260,10 +264,22 @@ Identify the single biggest thing the player is doing WRONG this frame, or the c
 Do NOT invent a positive reason for a bad habit. If you see a mistake, correct it, do not praise it.
 
 ABILITY AND WEAPON SANITY (critical):
+- BEFORE suggesting ANY ability, look at the bottom-center ability bar in THIS screenshot and confirm that exact ability icon is bright and available. Greyed, dim, or missing means it is unbought or already used, so suggest something else. On pistol rounds and ecos assume abilities are NOT bought unless you can clearly see them lit.
 - Match every ability to what it actually does. Updraft, Tailwind, High Gear, Satchel and Sprint are MOBILITY, they do not clear, check, or hold an angle or a flank. Never say "use Updraft to clear the flank" or similar nonsense.
 - Only suggest an ability when the situation genuinely calls for it and there is space or a clear reason (taking height or an off-angle, escaping, entering with a flash or smoke, denying a plant). If there is no clear use, coach positioning, aim, trading, or economy instead. Never suggest an ability just to mention one.
 - Holding the KNIFE out is only for running to position during the buy phase (barriers up) with no enemies near. Once the round is live (active or post-plant), an out knife is a MISTAKE because the player cannot shoot: tell them to switch to their gun. Never praise holding a knife in a live round.
-- Never tell a player to use an ability that is greyed out (already used or unbought) at the bottom of the screen.
+
+BE SPECIFIC, NEVER VAGUE
+Vague or contradictory advice is worthless and forbidden. Never produce filler like "do not enter from the open and get high ground". Every tip must name the concrete action: which angle to hold, where exactly to stand, when to rotate, what to buy, or which util to use and where. If you cannot be that specific from this frame, pick a different topic you CAN be specific about, or SKIP.
+
+PROVEN HIGH-ELO HABITS (distilled from Radiant, Immortal, and pro play; prefer these over generic advice):
+- Take fights with a trade partner in view; a solo pick is only worth it on real info.
+- Clear angles in slices from cover; never wide-swing into multiple uncleared angles at once.
+- Use util to take space, then HOLD the space you took; never re-peek a fight you already won.
+- Attack: default for info first, then commit as five behind util; always keep one smoke or flash for post-plant.
+- Defense: play an off-angle once, then rotate spots; give ground when man-down and retake together with util.
+- Economy: full save under 2000, never half-buy alone, match your team's buy every round.
+- Reposition after nearly every kill; pros almost never repeek the same pixel.
 
 READ THE HUD
 - Round and score: top-center, plus the round timer and whether it is buy phase.
@@ -285,7 +301,7 @@ Most gameplay frames deserve one sharp, useful observation, so give it: a mistak
 If the screen is NOT live gameplay (main menu, lobby, agent select, loading screen, career or collection page, range with no match), reply with exactly LOBBY.
 Reply with exactly SKIP only when it IS live gameplay but the only honest thing you could say repeats the recent tips below. Never pad with generic ability suggestions.
 
-${transLine}${focusLine}CURRENT MATCH STATE (trust this, do not re-derive it every frame):
+${memoryBlock}${transLine}${focusLine}CURRENT MATCH STATE (trust this, do not re-derive it every frame):
 - Agent: ${ctx.agent || 'Unknown'} | Map: ${ctx.map || 'Unknown'} | Side: ${ctx.side || 'Unknown'}
 - Round: ${ctx.roundNumber || 'Unknown'} | Score: ${ctx.teamScore || 0}-${ctx.enemyScore || 0} | Phase: ${ctx.phase || 'Unknown'}
 - Credits: ${ctx.playerCredits == null ? 'Unknown' : ctx.playerCredits} | Alive: ${ctx.playerAlive === false ? 'No' : 'Yes'} | Deaths in a row: ${ctx.consecutiveDeaths || 0}
@@ -625,7 +641,7 @@ router.post('/match-review', async (req, res) => {
     const tips = Array.isArray(req.body && req.body.tips) ? req.body.tips.slice(0, 30) : [];
     if (tips.length < 3) return res.json({ review: 'Not enough data for a review.' });
 
-    const prompt = `Here are coaching tips from a Valorant match:\n${tips.join('\n')}\n\nWrite a 3-sentence match review. Sentence 1: what the player did well. Sentence 2: their most common mistake. Sentence 3: what to focus on next match. Do not use dashes. End each sentence with a period.`;
+    const prompt = `Here are the coaching tips shown to a Valorant player during one match:\n${tips.join('\n')}\n\nWrite a 3-sentence match review. Sentence 1: the area the coaching pushed most, framed as what to keep building on. Sentence 2: the most repeated correction, that is their most common issue. Sentence 3: the single focus for next match.\n\nCRITICAL GROUNDING RULE: these tips are the ONLY thing you know about the match. Do not invent or assume specific plays, kills, clutches, or moments, and do not claim the player DID something unless the tips clearly show it. Talk about what the coaching focused on, not fabricated events. If the tips do not support a claim, leave it out. Do not use dashes. End each sentence with a period.`;
 
     const review = await Promise.race([
       textInfer(prompt, 200),
