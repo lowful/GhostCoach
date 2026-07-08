@@ -24,6 +24,15 @@ wireSeg(tipposSeg, 'tipPosition');
 const capqSeg = document.getElementById('capq');
 wireSeg(capqSeg, 'captureQuality');
 
+// Tip size: live label, saved as a ratio (1 = normal).
+const scaleEl = document.getElementById('tipscale');
+const scaleLabel = document.getElementById('tipscale-label');
+function scaleText(v) { return v + '%' + (Number(v) === 100 ? ' (normal)' : ''); }
+scaleEl.addEventListener('input', () => { scaleLabel.textContent = scaleText(scaleEl.value); });
+scaleEl.addEventListener('change', () => {
+  window.ghost.setConfig({ tipScale: Number(scaleEl.value) / 100 }).catch(() => {});
+});
+
 // Riot ID: save on change/blur (debounced enough for a text field).
 const riotEl = document.getElementById('riotid');
 let riotTimer = null;
@@ -106,6 +115,9 @@ async function load() {
       markSeg(perfSeg, cfg.performanceMode);
       markSeg(tipposSeg, cfg.tipPosition);
       markSeg(capqSeg, cfg.captureQuality || 'standard');
+      const pct = Math.round((Number(cfg.tipScale) || 1) * 100);
+      scaleEl.value = String(pct);
+      scaleLabel.textContent = scaleText(pct);
       if (typeof cfg.riotId === 'string') riotEl.value = cfg.riotId;
       // Already connected from a previous session? Show it, no reconnect needed.
       if (cfg.playerStats && cfg.playerStats.rank) {

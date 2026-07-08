@@ -70,6 +70,21 @@ function setTipPosition(pos) {
   if (pos) tipsEl.dataset.pos = pos;
 }
 
+// Scale the tip stack in ratio, anchored to its corner so it grows inward and
+// pairs with every position (top/bottom, left/right). 1 = normal size.
+const SCALE_ORIGIN = {
+  'top-right':    'top right',
+  'top-left':     'top left',
+  'bottom-right': 'bottom right',
+  'bottom-left':  'bottom left',
+};
+function setTipScale(scale) {
+  const s = Number(scale);
+  const val = s > 0 && isFinite(s) ? Math.min(1.5, Math.max(0.6, s)) : 1;
+  tipsEl.style.transform = val === 1 ? '' : `scale(${val})`;
+  tipsEl.style.transformOrigin = SCALE_ORIGIN[tipsEl.dataset.pos] || 'top right';
+}
+
 // ── Match review ─────────────────────────────────────────────────────────────
 function showReview(data) {
   if (!data || !data.review) return;
@@ -96,7 +111,7 @@ function showReview(data) {
 window.ghost.onTip(addTip);
 window.ghost.onStatus(({ status }) => setStatus(status));
 window.ghost.onState((s) => {
-  if (s) { setStatus(s.status); setTipPosition(s.tipPosition); }
+  if (s) { setStatus(s.status); setTipPosition(s.tipPosition); setTipScale(s.tipScale); }
 });
 window.ghost.onMatchReview(showReview);
 window.ghost.onVisibility(({ visible }) => {

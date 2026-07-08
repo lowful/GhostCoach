@@ -85,7 +85,8 @@ const STORE_DEFAULTS = {
   playerStats:     null,         // last good tracker profile (persists = always connected)
   badTips:         [],           // tip texts the player rated as bad (blocklist)
   overlayPosition: 'top-right',  // tip card anchor
-  tipPosition:     'top-right',
+  tipPosition:     'top-right',  // top-left | top-right | bottom-left | bottom-right
+  tipScale:        1,            // tip card size ratio; 1 = normal (0.8 to 1.3)
   panelBounds:     null,         // { x, y } remembered position of the control panel
   panelMinimized:  false,
   onboardingCompleted: false,

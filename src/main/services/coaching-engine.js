@@ -50,6 +50,7 @@ class CoachingEngine extends EventEmitter {
     this.recentAbilities = [];    // recent ability words in AI tips (anti-fixation)
     this.lastPhaseChange = null;  // { from, to, at }: round-transition awareness
     this.inLobby        = false;  // server saw a menu/lobby: silence ALL tips
+    this.matchMemory    = [];     // running log of the match (rounds, streaks, reads)
     this.focusIndex     = -1;     // rotates analysis emphasis (map/enemies/eco/…)
 
     this.timers = [];
@@ -74,6 +75,7 @@ class CoachingEngine extends EventEmitter {
     this.recentAbilities = [];
     this.lastPhaseChange = null;
     this.inLobby = false;
+    this.matchMemory = [];
     this.emit('status', 'coaching');
 
     this.timers.push(setTimeout(() =>
@@ -331,6 +333,7 @@ class CoachingEngine extends EventEmitter {
       enemyHistory: this.enemyHistory.slice(-6),
       phaseTransition: this.recentPhaseTransition(),
       badTips: [...this.badTips].slice(0, 6),
+      matchMemory: this.matchMemory.slice(-8),
       playerStats: this.playerStats,
       agentRole:    agentData.getRole(confirmedAgent),
       teammates:    this.matchContext.teammates || null, // passthrough if the server reports the comp
@@ -382,6 +385,7 @@ class CoachingEngine extends EventEmitter {
     const repeats = recent.filter((s) => s === spot).length;
     if (repeats >= 2 && spot !== this.lastWarnedSpot && Date.now() - this.lastTipTime > 8000) {
       this.lastWarnedSpot = spot;
+      this.remember(`Enemies keep taking ${prettySpot(spot)}`);
       this.emitTip(`Heads up, they keep swinging ${prettySpot(spot)}. Pre-aim it or throw util their way.`, 'ai');
     }
   }
@@ -510,6 +514,14 @@ class CoachingEngine extends EventEmitter {
     if (this.playerStats) console.log('[engine] player stats loaded:', this.playerStats.rank || 'unknown rank');
   }
 
+  /** Append one line to the match memory (deduped, capped) so the AI keeps a
+   *  running picture of the match instead of judging every frame cold. */
+  remember(line) {
+    if (!line || this.matchMemory[this.matchMemory.length - 1] === line) return;
+    this.matchMemory.push(line);
+    if (this.matchMemory.length > 12) this.matchMemory.shift();
+  }
+
   /** Player rated a tip as bad: blocklist it and avoid its topic for a while. */
   noteBadTip(text) {
     if (!text) return;
@@ -591,6 +603,8 @@ class CoachingEngine extends EventEmitter {
   updateMatchContext(updates) {
     const prevPhase = this.matchContext.phase;
     const prevRound = this.matchContext.roundNumber;
+    const prevTeam  = this.matchContext.teamScore  | 0;
+    const prevEnemy = this.matchContext.enemyScore | 0;
 
     for (const key of Object.keys(updates)) {
       const v = updates[key];
@@ -614,10 +628,20 @@ class CoachingEngine extends EventEmitter {
     if (updates.phase === 'dead' && prevPhase !== 'dead') {
       this.matchContext.consecutiveDeaths++;
       this.matchContext.consecutiveWins = 0;
+      if (this.matchContext.consecutiveDeaths >= 2) {
+        this.remember(`Player has died ${this.matchContext.consecutiveDeaths} rounds in a row`);
+      }
     }
     if (updates.phase === 'active' && prevPhase === 'dead') {
       this.matchContext.consecutiveDeaths = 0;
     }
+
+    // Match memory: record round outcomes from score changes so future tips
+    // know the flow of the match, not just the current frame.
+    const team  = this.matchContext.teamScore  | 0;
+    const enemy = this.matchContext.enemyScore | 0;
+    if (team > prevTeam)  this.remember(`Won round ${team + enemy} (score ${team}-${enemy})`);
+    if (enemy > prevEnemy) this.remember(`Lost round ${team + enemy} (score ${team}-${enemy})`);
   }
 
   async requestMatchReview() {

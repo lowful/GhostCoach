@@ -61,6 +61,7 @@ function buildState() {
     licenseActive: state.licenseActive,
     licenseReason: state.licenseReason,
     tipPosition:     store.get('tipPosition'),
+    tipScale:        store.get('tipScale'),
     overlayPosition: store.get('overlayPosition'),
     performanceMode: store.get('performanceMode'),
     licensePlan:     store.get('licensePlan'),

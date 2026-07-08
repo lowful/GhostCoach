@@ -73,6 +73,7 @@ function snapshotConfig() {
     playerStats:     stats && stats._riotId === (store.get('riotId') || '').trim() ? stats : null,
     overlayPosition: store.get('overlayPosition'),
     tipPosition:     store.get('tipPosition'),
+    tipScale:        store.get('tipScale'),
     panelMinimized:  store.get('panelMinimized'),
   };
 }
