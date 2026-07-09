@@ -44,6 +44,7 @@ router.post('/create-checkout', async (req, res) => {
       cancel_url:          'https://ghostcoachai.com/signup',
       client_reference_id: String(userId),
       customer_email:      email,
+      allow_promotion_codes: true,
       metadata:            { plan, userId: String(userId), promotekit_referral: referral || '' },
     });
 
