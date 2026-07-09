@@ -18,10 +18,10 @@ const PLAN_MODES = {
 };
 
 // POST /api/payments/create-checkout
-// Body: { plan, userId, email }
+// Body: { plan, userId, email, referral? }
 // No JWT required, Supabase auth is handled client-side on the website.
 router.post('/create-checkout', async (req, res) => {
-  const { plan, userId, email } = req.body;
+  const { plan, userId, email, referral } = req.body;
 
   if (!plan || !userId || !email) {
     return res.status(400).json({ error: 'plan, userId, and email are required' });
@@ -44,7 +44,7 @@ router.post('/create-checkout', async (req, res) => {
       cancel_url:          'https://ghostcoachai.com/signup',
       client_reference_id: String(userId),
       customer_email:      email,
-      metadata:            { plan, userId: String(userId) },
+      metadata:            { plan, userId: String(userId), promotekit_referral: referral || '' },
     });
 
     res.json({ url: session.url, sessionId: session.id });
