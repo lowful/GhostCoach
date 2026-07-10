@@ -641,7 +641,7 @@ router.post('/match-review', async (req, res) => {
     const tips = Array.isArray(req.body && req.body.tips) ? req.body.tips.slice(0, 30) : [];
     if (tips.length < 3) return res.json({ review: 'Not enough data for a review.' });
 
-    const prompt = `Here are the coaching tips shown to a Valorant player during one match:\n${tips.join('\n')}\n\nWrite a 3-sentence match review. Sentence 1: the area the coaching pushed most, framed as what to keep building on. Sentence 2: the most repeated correction, that is their most common issue. Sentence 3: the single focus for next match.\n\nCRITICAL GROUNDING RULE: these tips are the ONLY thing you know about the match. Do not invent or assume specific plays, kills, clutches, or moments, and do not claim the player DID something unless the tips clearly show it. Talk about what the coaching focused on, not fabricated events. If the tips do not support a claim, leave it out. Do not use dashes. End each sentence with a period.`;
+    const prompt = `Here are the coaching tips shown to a Valorant player during one match:\n${tips.join('\n')}\n\nWrite a 3-sentence match review. Sentence 1: the area the coaching pushed most, framed as what to keep building on. Sentence 2: the most repeated correction, that is their most common issue. Sentence 3: the single focus for next match, stated as a concrete habit or drill they can actually do (for example a minimap glance every 5 seconds, or trading every teammate fight), not a vague goal.\n\nCRITICAL GROUNDING RULE: these tips are the ONLY thing you know about the match. Do not invent or assume specific plays, kills, clutches, or moments, and do not claim the player DID something unless the tips clearly show it. Talk about what the coaching focused on, not fabricated events. If the tips do not support a claim, leave it out. Do not use dashes. End each sentence with a period.`;
 
     const review = await Promise.race([
       textInfer(prompt, 200),
@@ -801,11 +801,15 @@ router.post('/chat', async (req, res) => {
     const tipsBlock = Array.isArray(ctx.sessionTips) && ctx.sessionTips.length
       ? 'Coaching tips given this session (newest first):\n' + ctx.sessionTips.slice(0, 20).map((t) => '- ' + String(t).slice(0, 140)).join('\n')
       : 'No tips recorded this session yet.';
+    const memLine = Array.isArray(ctx.matchMemory) && ctx.matchMemory.length
+      ? 'Match flow so far: ' + ctx.matchMemory.slice(-8).map((m) => String(m).slice(0, 80)).join('; ') + '.'
+      : '';
 
     const prompt = `You are GhostCoach, a Radiant-level Valorant coach talking directly with your player after (or during) a session. Be honest, specific, and encouraging, like a real coach in a VOD review. Casual tone, no fluff.
 
 ${statsLine}
 Player's agent this session: ${ctx.agent || 'unknown'}.
+${memLine}
 ${tipsBlock}
 ${image ? 'A screenshot of their current screen is attached. Read it (scoreboard, K/D/A, HUD, combat stats) and ground your answer in what it actually shows.' : ''}
 
@@ -814,7 +818,9 @@ ${messages.map((m) => m.role + ': ' + m.content).join('\n')}
 
 Reply as Coach to the player's last message. Rules:
 - Only discuss Valorant and the player's gaming performance. If asked about anything unrelated, steer back to their gameplay in one friendly sentence.
-- Combine their career stats with what you can see (the screenshot and this session's tips). The best answer ties a stat to a concrete example, and covers both aim and game sense, not just headshot rate.
+- COACH LIKE THE BEST: first diagnose the ROOT CAUSE behind what they are asking (deaths usually trace to positioning, timing, or fighting without a trade partner before they trace to aim). Name the ONE highest-impact fix, then give a concrete drill or in-game habit to build it, for example 10 minutes of deathmatch focusing only on counter-strafe headshots, a minimap glance every 5 seconds, or reviewing one lost round per match and asking what info they had before the fight.
+- Ground advice in proven Radiant and pro fundamentals: fight with a trade partner in view, clear angles in slices, use util before contact, take an off-angle once then move, keep economy discipline, reposition after kills.
+- Combine their career stats with what you can see (the screenshot, the match flow, and this session's tips). The best answer ties a stat to a concrete example, and covers both aim and game sense, not just headshot rate.
 - Be honest, do not praise a mistake as if it were good. Holding a knife out in a live round is a mistake (they cannot shoot), not smart map control. Match abilities to their real purpose (Updraft and dashes are mobility, not tools to clear angles).
 - Be concrete: name the exact habit or mistake and the fix, not generalities.
 - 2 to 5 short sentences, under 120 words total. Plain text, no markdown, no lists.

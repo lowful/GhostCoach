@@ -118,7 +118,10 @@ app.listen(PORT, () => {
   console.log(`[server] GhostCoach API running on port ${PORT}`);
   console.log(`[server] Stripe mode: ${process.env.STRIPE_SECRET_KEY?.startsWith('sk_live') ? 'LIVE' : 'TEST'}`);
   console.log(`[server] Supabase: ${process.env.SUPABASE_URL || '(not configured)'}`);
-  console.log(`[server] Gemini: ${process.env.GEMINI_API_KEY ? 'configured' : '(GEMINI_API_KEY not set)'}`);
+  console.log(`[server] AI provider: ${process.env.AI_API_KEY
+    ? `OpenAI-compatible (${process.env.AI_VISION_MODEL || 'default model'})`
+    : process.env.GEMINI_API_KEY ? 'Gemini' : '(none configured)'}`);
+  console.log(`[server] Stats: ${process.env.HENRIKDEV_API_KEY ? 'HenrikDev' : ''}${process.env.TRACKER_API_KEY ? ' tracker.gg' : ''}` || '(none)');
 });
 
 // ─── Memory logging, every 60s so we can spot leaks early ───────────────────

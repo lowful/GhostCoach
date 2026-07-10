@@ -34,8 +34,8 @@ router.get('/costs', (req, res) => {
     global: {
       callsToday:  globalStats.callsToday,
       callsMonth:  globalStats.callsMonth,
-      costToday:   +'$' + globalStats.costToday.toFixed(4),
-      costMonth:   +'$' + globalStats.costMonth.toFixed(4),
+      costToday:   +globalStats.costToday.toFixed(4),
+      costMonth:   +globalStats.costMonth.toFixed(4),
       estCostToday:  '$' + globalStats.costToday.toFixed(4),
       estCostMonth:  '$' + globalStats.costMonth.toFixed(4),
     },
