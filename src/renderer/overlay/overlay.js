@@ -22,8 +22,16 @@ function formatTime(t) {
   catch { return ''; }
 }
 
+let tipsVisible = true;   // "Show tips" setting: hidden tips are still recorded
+
+function setShowTips(v) {
+  tipsVisible = v !== false;
+  tipsEl.style.display = tipsVisible ? '' : 'none';
+}
+
 function addTip(tip) {
   if (!tip || !tip.text) return;
+  if (!tipsVisible) return;   // recorded in history/sessions, just not shown
 
   const card = document.createElement('div');
   card.className = `tip-card ${tip.source || 'system'}`;
@@ -86,6 +94,45 @@ function setTipScale(scale) {
 }
 
 // ── Match review ─────────────────────────────────────────────────────────────
+// One compact stat chip: label + value, plus a small green/red arrow with the
+// change vs the previous match when we have one.
+function statChip(label, value, prevValue, suffix = '') {
+  const el = document.createElement('span');
+  el.className = 'stat-chip';
+  const b = document.createElement('b');
+  b.textContent = `${value}${suffix}`;
+  el.append(`${label} `, b);
+  const cur = Number(value), prev = Number(prevValue);
+  if (isFinite(cur) && isFinite(prev) && prev > 0 && cur !== prev) {
+    const up = cur > prev;
+    const d = Math.abs(cur - prev);
+    const i = document.createElement('i');
+    i.className = up ? 'up' : 'down';
+    i.textContent = `${up ? '▲' : '▼'}${d < 1 ? d.toFixed(2) : Math.round(d)}`;
+    el.append(' ', i);
+  }
+  return el;
+}
+
+function statsRow(delta) {
+  if (!delta || !delta.current) return null;
+  const cur = delta.current, prev = delta.prev || {};
+  const row = document.createElement('div');
+  row.className = 'stats';
+  if (cur.rank && cur.rank !== 'Unknown') {
+    const r = document.createElement('span');
+    r.className = 'stat-chip';
+    const b = document.createElement('b');
+    b.textContent = cur.rank;
+    r.append(b);
+    row.append(r);
+  }
+  if (Number(cur.kd) > 0)          row.append(statChip('K/D', cur.kd, prev.kd));
+  if (Number(cur.headshotPct) > 0) row.append(statChip('HS', cur.headshotPct, prev.headshotPct, '%'));
+  if (Number(cur.winRate) > 0)     row.append(statChip('Win', cur.winRate, prev.winRate, '%'));
+  return row.children.length ? row : null;
+}
+
 function showReview(data) {
   if (!data || !data.review) return;
   reviewEl.hidden = false;
@@ -99,6 +146,8 @@ function showReview(data) {
   body.className = 'body';
   body.textContent = data.review;
   card.append(h, body);
+  const stats = statsRow(data.statsDelta);
+  if (stats) card.append(stats);
   reviewEl.append(card);
 
   setTimeout(() => {
@@ -111,7 +160,7 @@ function showReview(data) {
 window.ghost.onTip(addTip);
 window.ghost.onStatus(({ status }) => setStatus(status));
 window.ghost.onState((s) => {
-  if (s) { setStatus(s.status); setTipPosition(s.tipPosition); setTipScale(s.tipScale); }
+  if (s) { setStatus(s.status); setTipPosition(s.tipPosition); setTipScale(s.tipScale); setShowTips(s.showTips); }
 });
 window.ghost.onMatchReview(showReview);
 window.ghost.onVisibility(({ visible }) => {

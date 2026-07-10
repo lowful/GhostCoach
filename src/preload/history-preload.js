@@ -13,8 +13,10 @@ function subscribe(channel, cb) {
 }
 
 contextBridge.exposeInMainWorld('ghost', {
-  getState: () => ipcRenderer.invoke(C.STATE_GET),
-  rateTip:  (payload) => ipcRenderer.send(C.TIP_RATE, payload),
-  onTip:    (cb) => subscribe(C.PUSH_TIP, cb),
-  onState:  (cb) => subscribe(C.PUSH_STATE, cb),
+  getState:     () => ipcRenderer.invoke(C.STATE_GET),
+  listSessions: () => ipcRenderer.invoke(C.SESSIONS_LIST),
+  getSession:   (file) => ipcRenderer.invoke(C.SESSION_GET, file),
+  rateTip:      (payload) => ipcRenderer.send(C.TIP_RATE, payload),
+  onTip:        (cb) => subscribe(C.PUSH_TIP, cb),
+  onState:      (cb) => subscribe(C.PUSH_STATE, cb),
 });

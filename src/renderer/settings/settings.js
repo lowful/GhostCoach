@@ -24,6 +24,15 @@ wireSeg(tipposSeg, 'tipPosition');
 const capqSeg = document.getElementById('capq');
 wireSeg(capqSeg, 'captureQuality');
 
+// Show tips: boolean under the hood, on/off buttons in the UI.
+const showTipsSeg = document.getElementById('showtips');
+showTipsSeg.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  markSeg(showTipsSeg, btn.dataset.val);
+  await window.ghost.setConfig({ showTips: btn.dataset.val === 'on' }).catch(() => {});
+});
+
 // Tip size: live label, saved as a ratio (1 = normal).
 const scaleEl = document.getElementById('tipscale');
 const scaleLabel = document.getElementById('tipscale-label');
@@ -115,6 +124,7 @@ async function load() {
       markSeg(perfSeg, cfg.performanceMode);
       markSeg(tipposSeg, cfg.tipPosition);
       markSeg(capqSeg, cfg.captureQuality || 'standard');
+      markSeg(showTipsSeg, cfg.showTips === false ? 'off' : 'on');
       const pct = Math.round((Number(cfg.tipScale) || 1) * 100);
       scaleEl.value = String(pct);
       scaleLabel.textContent = scaleText(pct);

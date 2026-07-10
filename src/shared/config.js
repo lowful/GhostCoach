@@ -83,10 +83,12 @@ const STORE_DEFAULTS = {
   captureQuality:  'standard',   // standard | high (screenshot detail)
   riotId:          '',           // Name#TAG for tracker stats in Ask Coach
   playerStats:     null,         // last good tracker profile (persists = always connected)
+  lastMatchStats:  null,         // stats snapshot from the previous match (delta arrows)
   badTips:         [],           // tip texts the player rated as bad (blocklist)
   overlayPosition: 'top-right',  // tip card anchor
   tipPosition:     'top-right',  // top-left | top-right | bottom-left | bottom-right
   tipScale:        1,            // tip card size ratio; 1 = normal (0.8 to 1.3)
+  showTips:        true,         // false = tips hidden on the overlay but still recorded
   panelBounds:     null,         // { x, y } remembered position of the control panel
   panelMinimized:  false,
   onboardingCompleted: false,

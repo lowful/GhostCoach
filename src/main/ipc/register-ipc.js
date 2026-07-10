@@ -46,6 +46,9 @@ function registerIpc(deps) {
 
   safeHandle(C.STATS_TEST, async () => controller.testTracker());
 
+  safeHandle(C.SESSIONS_LIST, async () => controller.listSessions());
+  safeHandle(C.SESSION_GET, async (_e, file) => controller.getSession(file));
+
   // ── fire-and-forget commands ──────────────────────────────────────────────
   ipcMain.on(C.COACH_START,    () => guard('start',    () => controller.start()));
   ipcMain.on(C.COACH_STOP,     () => guard('stop',     () => controller.stop()));
@@ -74,6 +77,7 @@ function snapshotConfig() {
     overlayPosition: store.get('overlayPosition'),
     tipPosition:     store.get('tipPosition'),
     tipScale:        store.get('tipScale'),
+    showTips:        store.get('showTips'),
     panelMinimized:  store.get('panelMinimized'),
   };
 }

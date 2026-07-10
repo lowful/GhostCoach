@@ -95,8 +95,54 @@ function render(state) {
   for (const tip of list) listEl.append(rowFor(tip));
 }
 
+// ── Past sessions ─────────────────────────────────────────────────────────────
+// The picker swaps the list to an archived session (read-only snapshot); the
+// "Current session" option returns to the live view with real-time updates.
+const pickerEl = document.getElementById('session-picker');
+let viewingFile = '';   // '' = live current session
+
+function sessionLabel(s) {
+  const d = new Date(s.endedAt || 0);
+  const when = d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' +
+               d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return `${when}${s.agent ? ' · ' + s.agent : ''} · ${s.tipCount} tips`;
+}
+
+async function populateSessions() {
+  try {
+    const sessions = await window.ghost.listSessions();
+    const current = pickerEl.value;
+    while (pickerEl.options.length > 1) pickerEl.remove(1);
+    for (const s of sessions || []) {
+      const opt = document.createElement('option');
+      opt.value = s.file;
+      opt.textContent = sessionLabel(s);
+      pickerEl.append(opt);
+    }
+    pickerEl.value = current && [...pickerEl.options].some((o) => o.value === current) ? current : viewingFile;
+  } catch {}
+}
+
+pickerEl.addEventListener('mousedown', populateSessions);
+pickerEl.addEventListener('change', async () => {
+  viewingFile = pickerEl.value;
+  if (!viewingFile) {
+    window.ghost.getState().then((s) => render(s)).catch(() => {});
+    return;
+  }
+  const session = await window.ghost.getSession(viewingFile).catch(() => null);
+  if (!session) { viewingFile = ''; pickerEl.value = ''; return; }
+  const tips = session.tips || [];
+  const mix = session.tipMix || {
+    ai:      tips.filter((t) => t.source === 'ai').length,
+    library: tips.filter((t) => t.source === 'library').length,
+  };
+  render({ tips, tipMix: mix, tipRatings: {} });
+});
+
 window.ghost.getState().then((s) => render(s)).catch(() => {});
-window.ghost.onState((s) => { if (s) render(s); });
+window.ghost.onState((s) => { if (s && !viewingFile) render(s); });
+populateSessions();
 
 document.getElementById('close').addEventListener('click', () => window.close());
 console.log('[history] ready');

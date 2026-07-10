@@ -3,6 +3,15 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
 .sheet { margin: 10px; height: calc(100% - 20px); border-radius: 18px; display: flex; flex-direction: column; overflow: hidden; }
 
 header { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-bottom: 1px solid var(--glass-border); }
+.h-actions { display: flex; align-items: center; gap: 8px; }
+.session-picker {
+  max-width: 170px; height: 30px; padding: 0 8px; border-radius: 8px;
+  font-family: var(--font); font-size: 11.5px; color: var(--text);
+  background: rgba(0,0,0,0.30); border: 1px solid var(--glass-border);
+  outline: none; cursor: pointer;
+}
+.session-picker:focus { border-color: rgba(0,240,255,0.45); }
+.session-picker option { background: #101c27; color: var(--text); }
 .h-brand { display: flex; align-items: center; gap: 9px; }
 .h-brand img { filter: drop-shadow(0 2px 5px rgba(255,70,85,0.45)); }
 header h2 { font-size: 15.5px; font-weight: 700; }

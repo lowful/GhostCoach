@@ -62,6 +62,7 @@ function buildState() {
     licenseReason: state.licenseReason,
     tipPosition:     store.get('tipPosition'),
     tipScale:        store.get('tipScale'),
+    showTips:        store.get('showTips'),
     overlayPosition: store.get('overlayPosition'),
     performanceMode: store.get('performanceMode'),
     licensePlan:     store.get('licensePlan'),
@@ -112,8 +113,16 @@ const controller = {
       state.isPaused = status === 'paused';
       setStatus(status);
     });
-    engine.on('match-review', (review) => {
+    engine.on('match-review', async (review) => {
       const data = { review, game: 'Valorant', timestamp: Date.now(), tipsCount: state.tips.length };
+      // Stat movement vs the previous match: compact chips on the review card.
+      try {
+        const current = await fetchTrackerStats(true);
+        if (current) {
+          data.statsDelta = { current, prev: store.get('lastMatchStats') || null };
+          store.set('lastMatchStats', { ...current, _at: Date.now() });
+        }
+      } catch {}
       registry.broadcast(C.PUSH_MATCH_REVIEW, data);
       saveMatchSummary(data);
       // Natural moment to go deeper: nudge toward the Ask Coach chat.
@@ -132,6 +141,7 @@ const controller = {
     state.isCoaching = true;
     state.isPaused   = false;
     state.agent      = { agent: null, confirmed: false, role: null };
+    state.tips       = [];   // fresh session; the previous one is archived on stop
     engine.start();
     if (state.pendingAgent) {           // player typed their agent before starting
       engine.setAgent(state.pendingAgent);
@@ -147,6 +157,8 @@ const controller = {
     if (!state.isCoaching) return;
     state.isCoaching = false;
     state.isPaused   = false;
+    // Archive the session before tearing the engine down (mix + memory live there).
+    saveSessionArchive(engine ? { tipMix: engine.getMix(), matchMemory: engine.matchMemory.slice() } : {});
     if (engine) { engine.stop(); engine = null; }
     state.agent = { agent: null, confirmed: false, role: null };
     registry.broadcast(C.PUSH_AGENT, state.agent); // hide the panel bubble/chip
@@ -176,6 +188,8 @@ const controller = {
     return { ok: true, ...state.agent };
   },
   getState() { return buildState(); },
+  listSessions() { return listSessions(); },
+  getSession(file) { return getSession(file); },
   toggleOverlay() { overlayWindow.toggleVisible(); },
   toggleMinimizePanel() {
     const willMinimize = !panelWindow.isMinimized();
@@ -207,6 +221,7 @@ const controller = {
     const context = {
       agent:       state.agent && state.agent.agent,
       sessionTips: state.tips.slice(0, 20).map((t) => t.text),
+      matchMemory: engine ? engine.matchMemory.slice(-8) : [],
       stats:       await fetchTrackerStats(),
     };
     try {
@@ -303,6 +318,66 @@ async function fetchTrackerStats(force) {
     return stats || (statsCache.riotId === riotId ? statsCache.data : null);
   } catch {
     return statsCache.riotId === riotId ? statsCache.data : null;
+  }
+}
+
+// ── Session archive ──────────────────────────────────────────────────────────
+// Every coaching session is saved to disk so players can review past sessions
+// in the History window, even when tips were hidden during play.
+function sessionsDir() {
+  return path.join(app.getPath('userData'), 'sessions');
+}
+
+function saveSessionArchive(extra = {}) {
+  try {
+    if (!state.tips.length) return;
+    const dir = sessionsDir();
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const endedAt = Date.now();
+    const file = `session-${new Date(endedAt).toISOString().replace(/[:.]/g, '-')}.json`;
+    fs.writeFileSync(path.join(dir, file), JSON.stringify({
+      endedAt,
+      agent:    (state.agent && state.agent.agent) || null,
+      tipCount: state.tips.length,
+      tipMix:   extra.tipMix || null,
+      tips:     state.tips,
+      matchMemory: extra.matchMemory || [],
+      stats:    extra.stats || store.get('playerStats') || null,
+    }, null, 2));
+    console.log('[session] archived', file, `(${state.tips.length} tips)`);
+  } catch (e) {
+    console.error('[session] archive failed:', e.message);
+  }
+}
+
+const SESSION_FILE_RE = /^session-[\dTZ-]+\.json$/;
+
+function listSessions() {
+  try {
+    const dir = sessionsDir();
+    if (!fs.existsSync(dir)) return [];
+    const out = [];
+    for (const f of fs.readdirSync(dir)) {
+      if (!SESSION_FILE_RE.test(f)) continue;
+      try {
+        const j = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+        out.push({ file: f, endedAt: j.endedAt || 0, tipCount: j.tipCount || 0, agent: j.agent || null });
+      } catch {}
+    }
+    out.sort((a, b) => b.endedAt - a.endedAt);
+    return out.slice(0, 30);
+  } catch {
+    return [];
+  }
+}
+
+function getSession(file) {
+  try {
+    const base = path.basename(String(file || ''));
+    if (!SESSION_FILE_RE.test(base)) return null;   // no traversal, strict name
+    return JSON.parse(fs.readFileSync(path.join(sessionsDir(), base), 'utf8'));
+  } catch {
+    return null;
   }
 }
 
@@ -486,6 +561,9 @@ function launchMainApp() {
 
 function cleanupAndQuit() {
   try {
+    if (state.isCoaching && engine) {
+      saveSessionArchive({ tipMix: engine.getMix(), matchMemory: engine.matchMemory.slice() });
+    }
     if (engine) { engine.stop(); engine = null; }
     capture.disposeWorker();
     hotkeys.unregister();

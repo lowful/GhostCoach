@@ -24,6 +24,8 @@ const CHANNELS = {
   AGENT_SET:        'agent:set',         // (name) → { ok, agent, confirmed, role }
   CHAT_SEND:        'chat:send',         // (messages, opts) → { ok, reply }
   STATS_TEST:       'stats:test',        // () → { ok, stats?, error? } tracker connect test
+  SESSIONS_LIST:    'sessions:list',     // () → [{ file, endedAt, tipCount, agent }]
+  SESSION_GET:      'sessions:get',      // (file) → archived session JSON | null
 
   // ── renderer → main commands (ipcRenderer.send ⇄ ipcMain.on) ──────────────
   COACH_START:     'coach:start',
