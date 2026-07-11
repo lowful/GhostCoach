@@ -208,13 +208,27 @@ const controller = {
   openHistory()   { historyWindow.open(); },
   openChat()      { chatWindow.open(); },
 
+  /** Capture the screen for the chat so the player sees exactly what the
+   *  coach will see; the same frame is then sent along with the question. */
+  async captureForChat() {
+    try {
+      const image = await capture.captureScreenshot(store.get('captureQuality'));
+      return { ok: true, image };
+    } catch (e) {
+      console.warn('[chat] capture failed:', e.message);
+      return { ok: false, error: 'Could not capture the screen.' };
+    }
+  },
+
   /** Ask Coach: one conversation turn, optionally with a live screenshot. */
   async chat(messages, opts = {}) {
     const licenseKey = store.get('licenseKey');
     if (!licenseKey) return { ok: false, error: 'No license active.' };
 
-    let image = null;
-    if (opts && opts.withScreenshot) {
+    // Prefer the frame the renderer already captured (and displayed); fall back
+    // to a fresh capture when only the withScreenshot flag is set.
+    let image = (opts && typeof opts.image === 'string' && opts.image.length > 100) ? opts.image : null;
+    if (!image && opts && opts.withScreenshot) {
       try { image = await capture.captureScreenshot(store.get('captureQuality')); }
       catch (e) { console.warn('[chat] screenshot failed:', e.message); }
     }

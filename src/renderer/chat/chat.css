@@ -50,6 +50,14 @@ header h2 { font-size: 15px; font-weight: 700; }
 .msg.coach.error { border-left-color: var(--red); color: var(--text-dim); }
 .msg .shot-note { display: block; font-size: 10.5px; opacity: 0.75; margin-top: 4px; }
 
+/* the exact frame that was sent, shown inside the message bubble */
+.msg .shot {
+  display: block; width: 100%; margin-top: 8px;
+  border-radius: 9px; border: 1px solid rgba(255,255,255,0.18);
+  cursor: zoom-in; transition: transform var(--t-fast) var(--ease);
+}
+.msg .shot.zoomed { cursor: zoom-out; transform: scale(1.85); transform-origin: top right; position: relative; z-index: 5; box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
+
 /* typing indicator */
 .typing { align-self: flex-start; display: flex; gap: 5px; padding: 12px 15px; background: rgba(0,0,0,0.26); border: 1px solid var(--glass-border); border-radius: 14px; border-bottom-left-radius: 5px; }
 .typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--cyan); opacity: 0.4; animation: tp 1.1s ease-in-out infinite; }
@@ -59,6 +67,14 @@ header h2 { font-size: 15px; font-weight: 700; }
 
 /* ── Composer ── */
 .composer { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--glass-border); flex: none; }
+.attach {
+  flex: none; width: 38px; height: 38px; border-radius: 12px; cursor: pointer;
+  display: grid; place-items: center; color: var(--text-dim);
+  background: rgba(0,0,0,0.30); border: 1px solid var(--glass-border);
+  transition: color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.attach:hover { color: var(--text); border-color: rgba(255,255,255,0.16); }
+.attach.armed { color: var(--cyan); border-color: rgba(0,240,255,0.5); background: rgba(0,240,255,0.10); box-shadow: 0 0 0 2px rgba(0,240,255,0.12); }
 #input {
   flex: 1; min-width: 0; height: 38px; padding: 0 13px; border-radius: 12px;
   font-family: var(--font); font-size: 13px; color: var(--text);

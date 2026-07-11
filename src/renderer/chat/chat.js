@@ -15,7 +15,15 @@ function addMsg(role, text, opts = {}) {
   const el = document.createElement('div');
   el.className = `msg ${role === 'user' ? 'user' : 'coach'}${opts.error ? ' error' : ''}`;
   el.textContent = text;
-  if (opts.shot) {
+  if (opts.shotData) {
+    // Show the exact frame that was sent so the player sees what the coach saw.
+    const img = document.createElement('img');
+    img.className = 'shot';
+    img.src = 'data:image/jpeg;base64,' + opts.shotData;
+    img.alt = 'screenshot sent to the coach';
+    img.addEventListener('click', () => img.classList.toggle('zoomed'));
+    el.append(img);
+  } else if (opts.shot) {
     const note = document.createElement('span');
     note.className = 'shot-note';
     note.textContent = '📸 sent with a screenshot of your screen';
@@ -44,12 +52,24 @@ async function send(text, withScreenshot) {
   sendBtn.disabled = true;
   inputEl.value = '';
 
-  addMsg('user', text, { shot: !!withScreenshot });
+  // Capture first so the player's bubble shows the exact frame the coach gets.
+  let shotData = null;
+  if (withScreenshot) {
+    try {
+      const cap = await window.ghost.capture();
+      if (cap && cap.ok && cap.image) shotData = cap.image;
+    } catch {}
+  }
+
+  addMsg('user', text, shotData ? { shotData } : { shot: !!withScreenshot });
   history.push({ role: 'user', content: text });
+  setArmed(false);
 
   const typing = showTyping();
   try {
-    const res = await window.ghost.sendChat(history.slice(-12), { withScreenshot: !!withScreenshot });
+    const res = await window.ghost.sendChat(history.slice(-12), shotData
+      ? { image: shotData }
+      : { withScreenshot: !!withScreenshot });
     typing.remove();
     if (res && res.ok && res.reply) {
       addMsg('assistant', res.reply);
@@ -67,7 +87,19 @@ async function send(text, withScreenshot) {
   }
 }
 
-composer.addEventListener('submit', (e) => { e.preventDefault(); send(inputEl.value, false); });
+// Camera toggle: arm it and the next question goes out with a screenshot.
+const attachBtn = document.getElementById('attach');
+let armed = false;
+function setArmed(v) {
+  armed = !!v;
+  attachBtn.classList.toggle('armed', armed);
+  attachBtn.title = armed
+    ? 'Screenshot will be attached to your next message'
+    : 'Attach a screenshot of your screen';
+}
+attachBtn.addEventListener('click', () => setArmed(!armed));
+
+composer.addEventListener('submit', (e) => { e.preventDefault(); send(inputEl.value, armed); });
 
 for (const btn of document.querySelectorAll('.starter')) {
   btn.addEventListener('click', () => {

@@ -44,6 +44,8 @@ function registerIpc(deps) {
 
   safeHandle(C.CHAT_SEND, async (_e, messages, opts) => controller.chat(messages, opts));
 
+  safeHandle(C.CHAT_CAPTURE, async () => controller.captureForChat());
+
   safeHandle(C.STATS_TEST, async () => controller.testTracker());
 
   safeHandle(C.SESSIONS_LIST, async () => controller.listSessions());

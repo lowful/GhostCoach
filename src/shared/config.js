@@ -55,6 +55,7 @@ const TIMING = {
 // Screenshot/analyze frequency tiers (ms between captures).
 //   performance = "Very often"  ·  balanced = "Default"  ·  battery = "Barely"
 const PERFORMANCE_INTERVALS = {
+  ultra:       3000,   // testing tier: max freshness, ~20 analyzes/min
   performance: 5000,   // very often
   balanced:    10000,  // default
   battery:     24000,  // barely
@@ -79,7 +80,7 @@ const STORE_DEFAULTS = {
   licenseExpiry: '',
   deviceId:      '',
   // preferences
-  performanceMode: 'balanced',   // battery | balanced | performance
+  performanceMode: 'balanced',   // battery | balanced | performance | ultra
   captureQuality:  'standard',   // standard | high (screenshot detail)
   riotId:          '',           // Name#TAG for tracker stats in Ask Coach
   playerStats:     null,         // last good tracker profile (persists = always connected)

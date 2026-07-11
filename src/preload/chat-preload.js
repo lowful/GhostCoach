@@ -15,6 +15,7 @@ function subscribe(channel, cb) {
 
 contextBridge.exposeInMainWorld('ghost', {
   sendChat: (messages, opts) => ipcRenderer.invoke(C.CHAT_SEND, messages, opts || {}),
+  capture:  () => ipcRenderer.invoke(C.CHAT_CAPTURE),
   getState: () => ipcRenderer.invoke(C.STATE_GET),
   onState:  (cb) => subscribe(C.PUSH_STATE, cb),
 });
