@@ -51,6 +51,7 @@ class CoachingEngine extends EventEmitter {
     this.lastPhaseChange = null;  // { from, to, at }: round-transition awareness
     this.inLobby        = false;  // server saw a menu/lobby: silence ALL tips
     this.matchMemory    = [];     // running log of the match (rounds, streaks, reads)
+    this.recentFrames   = [];     // last few REAL gameplay frames (never lobby/desktop)
     this.focusIndex     = -1;     // rotates analysis emphasis (map/enemies/eco/…)
 
     this.timers = [];
@@ -76,6 +77,7 @@ class CoachingEngine extends EventEmitter {
     this.lastPhaseChange = null;
     this.inLobby = false;
     this.matchMemory = [];
+    this.recentFrames = [];
     this.emit('status', 'coaching');
 
     this.timers.push(setTimeout(() =>
@@ -163,6 +165,7 @@ class CoachingEngine extends EventEmitter {
       if (!data) { this.onAnalyzeFailed(); return; }
       this.warnedFailure = false;   // server is healthy again
       this.processAIResponse(data);
+      if (!this.inLobby) this.pushFrame(shot);   // confirmed gameplay: keep for chat
     } catch (e) {
       console.error('[engine] analyze error:', e.message);
     } finally {
@@ -249,7 +252,8 @@ class CoachingEngine extends EventEmitter {
       if (data.context) this.updateMatchContext(data.context);
 
       const tip = String(data.tip || '').trim();
-      if (tip.length > 10 && tip.toUpperCase() !== 'SKIP') {
+      if (tip.toUpperCase() !== 'LOBBY') this.pushFrame(shot);   // keep gameplay frame for chat
+      if (tip.length > 10 && tip.toUpperCase() !== 'SKIP' && tip.toUpperCase() !== 'LOBBY') {
         this.emitTip(agentData.genericizeAbilities(cleanTip(tip)), 'ai');
       } else {
         // Forced and nothing from AI → guarantee a relevant library tip.
@@ -512,6 +516,15 @@ class CoachingEngine extends EventEmitter {
   setPlayerStats(stats) {
     this.playerStats = stats && !stats.error ? stats : null;
     if (this.playerStats) console.log('[engine] player stats loaded:', this.playerStats.rank || 'unknown rank');
+  }
+
+  /** Keep the last few frames of REAL gameplay so the chat can show the player
+   *  what the coach is talking about. Only called after the server confirmed
+   *  the frame is not a lobby/menu, so a desktop or lobby shot never lands here. */
+  pushFrame(image) {
+    if (!image) return;
+    this.recentFrames.push({ image, at: Date.now(), phase: this.matchContext.phase });
+    if (this.recentFrames.length > 5) this.recentFrames.shift();
   }
 
   /** Append one line to the match memory (deduped, capped) so the AI keeps a

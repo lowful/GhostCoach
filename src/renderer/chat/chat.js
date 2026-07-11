@@ -16,18 +16,17 @@ function addMsg(role, text, opts = {}) {
   el.className = `msg ${role === 'user' ? 'user' : 'coach'}${opts.error ? ' error' : ''}`;
   el.textContent = text;
   if (opts.shotData) {
-    // Show the exact frame that was sent so the player sees what the coach saw.
+    // The frame from the player's recorded gameplay the coach is referring to.
     const img = document.createElement('img');
     img.className = 'shot';
     img.src = 'data:image/jpeg;base64,' + opts.shotData;
-    img.alt = 'screenshot sent to the coach';
+    img.alt = 'frame from your recorded gameplay';
     img.addEventListener('click', () => img.classList.toggle('zoomed'));
     el.append(img);
-  } else if (opts.shot) {
-    const note = document.createElement('span');
-    note.className = 'shot-note';
-    note.textContent = '📸 sent with a screenshot of your screen';
-    el.append(note);
+    const cap = document.createElement('span');
+    cap.className = 'shot-caption';
+    cap.textContent = 'from your recorded gameplay';
+    el.append(cap);
   }
   threadEl.append(el);
   threadEl.scrollTop = threadEl.scrollHeight;
@@ -43,7 +42,7 @@ function showTyping() {
   return el;
 }
 
-async function send(text, withScreenshot) {
+async function send(text) {
   if (busy) return;
   text = (text || '').trim();
   if (!text) return;
@@ -52,27 +51,17 @@ async function send(text, withScreenshot) {
   sendBtn.disabled = true;
   inputEl.value = '';
 
-  // Capture first so the player's bubble shows the exact frame the coach gets.
-  let shotData = null;
-  if (withScreenshot) {
-    try {
-      const cap = await window.ghost.capture();
-      if (cap && cap.ok && cap.image) shotData = cap.image;
-    } catch {}
-  }
-
-  addMsg('user', text, shotData ? { shotData } : { shot: !!withScreenshot });
+  addMsg('user', text);
   history.push({ role: 'user', content: text });
-  setArmed(false);
 
   const typing = showTyping();
   try {
-    const res = await window.ghost.sendChat(history.slice(-12), shotData
-      ? { image: shotData }
-      : { withScreenshot: !!withScreenshot });
+    const res = await window.ghost.sendChat(history.slice(-12));
     typing.remove();
     if (res && res.ok && res.reply) {
-      addMsg('assistant', res.reply);
+      // When the coach referenced a frame from the player's recorded gameplay,
+      // it comes back with the reply so the player can see what it means.
+      addMsg('assistant', res.reply, res.image ? { shotData: res.image } : {});
       history.push({ role: 'assistant', content: res.reply });
     } else {
       addMsg('assistant', (res && res.error) || 'Could not reach your coach right now. Try again in a moment.', { error: true });
@@ -87,27 +76,11 @@ async function send(text, withScreenshot) {
   }
 }
 
-// Camera toggle: arm it and the next question goes out with a screenshot.
-const attachBtn = document.getElementById('attach');
-let armed = false;
-function setArmed(v) {
-  armed = !!v;
-  attachBtn.classList.toggle('armed', armed);
-  attachBtn.title = armed
-    ? 'Screenshot will be attached to your next message'
-    : 'Attach a screenshot of your screen';
-}
-attachBtn.addEventListener('click', () => setArmed(!armed));
-
-composer.addEventListener('submit', (e) => { e.preventDefault(); send(inputEl.value, armed); });
+composer.addEventListener('submit', (e) => { e.preventDefault(); send(inputEl.value); });
 
 for (const btn of document.querySelectorAll('.starter')) {
   btn.addEventListener('click', () => {
-    const withShot = btn.dataset.shot === '1';
-    const text = withShot
-      ? 'Look at my screen right now. What did I do badly this game, and what did I do well?'
-      : btn.textContent.replace(/\s+/g, ' ').replace(/Reads your screen/i, '').trim();
-    send(text, withShot);
+    send(btn.textContent.replace(/\s+/g, ' ').trim());
   });
 }
 

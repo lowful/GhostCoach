@@ -158,7 +158,11 @@ const controller = {
     state.isCoaching = false;
     state.isPaused   = false;
     // Archive the session before tearing the engine down (mix + memory live there).
-    saveSessionArchive(engine ? { tipMix: engine.getMix(), matchMemory: engine.matchMemory.slice() } : {});
+    saveSessionArchive(engine ? {
+      tipMix: engine.getMix(),
+      matchMemory: engine.matchMemory.slice(),
+      frames: engine.recentFrames.slice(-3),
+    } : {});
     if (engine) { engine.stop(); engine = null; }
     state.agent = { agent: null, confirmed: false, role: null };
     registry.broadcast(C.PUSH_AGENT, state.agent); // hide the panel bubble/chip
@@ -208,39 +212,32 @@ const controller = {
   openHistory()   { historyWindow.open(); },
   openChat()      { chatWindow.open(); },
 
-  /** Capture the screen for the chat so the player sees exactly what the
-   *  coach will see; the same frame is then sent along with the question. */
-  async captureForChat() {
-    try {
-      const image = await capture.captureScreenshot(store.get('captureQuality'));
-      return { ok: true, image };
-    } catch (e) {
-      console.warn('[chat] capture failed:', e.message);
-      return { ok: false, error: 'Could not capture the screen.' };
-    }
-  },
-
-  /** Ask Coach: one conversation turn, optionally with a live screenshot. */
-  async chat(messages, opts = {}) {
+  /** Ask Coach: one conversation turn. The coach references a frame from the
+   *  player's OWN recorded gameplay (current session or the latest archived
+   *  one), never a live desktop capture. With no session played yet, nothing
+   *  is sent and the AI is told not to invent gameplay observations. */
+  async chat(messages) {
     const licenseKey = store.get('licenseKey');
     if (!licenseKey) return { ok: false, error: 'No license active.' };
 
-    // Prefer the frame the renderer already captured (and displayed); fall back
-    // to a fresh capture when only the withScreenshot flag is set.
-    let image = (opts && typeof opts.image === 'string' && opts.image.length > 100) ? opts.image : null;
-    if (!image && opts && opts.withScreenshot) {
-      try { image = await capture.captureScreenshot(store.get('captureQuality')); }
-      catch (e) { console.warn('[chat] screenshot failed:', e.message); }
-    }
+    const frame = latestGameFrame();
+    const image = frame ? frame.image : null;
+    const hasSessionData = !!image || state.tips.length > 0 || listSessions().length > 0;
+
     const context = {
-      agent:       state.agent && state.agent.agent,
-      sessionTips: state.tips.slice(0, 20).map((t) => t.text),
-      matchMemory: engine ? engine.matchMemory.slice(-8) : [],
-      stats:       await fetchTrackerStats(),
+      agent:        state.agent && state.agent.agent,
+      sessionTips:  state.tips.slice(0, 20).map((t) => t.text),
+      matchMemory:  engine ? engine.matchMemory.slice(-8) : [],
+      stats:        await fetchTrackerStats(),
+      frameAgeMin:  frame ? Math.max(0, Math.round((Date.now() - frame.at) / 60000)) : null,
+      noSessionYet: !hasSessionData,
     };
     try {
       const { ok, data } = await api.post('/api/coach/chat', { messages, context, image }, licenseKey, 30000);
-      if (ok && data && data.reply) return { ok: true, reply: data.reply };
+      if (ok && data && data.reply) {
+        // Hand the referenced frame back so the chat shows it with the reply.
+        return { ok: true, reply: data.reply, image: image || null };
+      }
       return { ok: false, error: (data && data.error) || 'The coach had no answer. Try again.' };
     } catch (e) {
       console.error('[chat] failed:', e.message);
@@ -356,15 +353,48 @@ function saveSessionArchive(extra = {}) {
       tipMix:   extra.tipMix || null,
       tips:     state.tips,
       matchMemory: extra.matchMemory || [],
+      frames:   extra.frames || [],   // a few real gameplay frames for chat reference
       stats:    extra.stats || store.get('playerStats') || null,
     }, null, 2));
     console.log('[session] archived', file, `(${state.tips.length} tips)`);
+    cleanupOldSessions();
   } catch (e) {
     console.error('[session] archive failed:', e.message);
   }
 }
 
 const SESSION_FILE_RE = /^session-[\dTZ-]+\.json$/;
+
+/** The most recent REAL gameplay frame: live session first, then the newest
+ *  archived session that saved frames. Null when the player has none. */
+function latestGameFrame() {
+  if (engine && engine.recentFrames && engine.recentFrames.length) {
+    return engine.recentFrames[engine.recentFrames.length - 1];
+  }
+  for (const s of listSessions().slice(0, 5)) {
+    const full = getSession(s.file);
+    if (full && Array.isArray(full.frames) && full.frames.length) {
+      return full.frames[full.frames.length - 1];
+    }
+  }
+  return null;
+}
+
+/** Sessions auto-expire after a week so the archive never clutters up. */
+function cleanupOldSessions() {
+  try {
+    const dir = sessionsDir();
+    if (!fs.existsSync(dir)) return;
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    for (const f of fs.readdirSync(dir)) {
+      if (!SESSION_FILE_RE.test(f)) continue;
+      const p = path.join(dir, f);
+      try {
+        if (fs.statSync(p).mtimeMs < cutoff) { fs.unlinkSync(p); console.log('[session] pruned (7 days):', f); }
+      } catch {}
+    }
+  } catch {}
+}
 
 function listSessions() {
   try {
@@ -560,6 +590,7 @@ function launchMainApp() {
     });
   }
   startLicenseWatch(); // detect expiry / revocation mid-session and keep Settings fresh
+  cleanupOldSessions(); // prune week-old session archives on every launch
 
   // Stay connected to the tracker across restarts: refresh the saved profile in
   // the background so live tips + chat have current stats without reconnecting.
@@ -576,7 +607,11 @@ function launchMainApp() {
 function cleanupAndQuit() {
   try {
     if (state.isCoaching && engine) {
-      saveSessionArchive({ tipMix: engine.getMix(), matchMemory: engine.matchMemory.slice() });
+      saveSessionArchive({
+        tipMix: engine.getMix(),
+        matchMemory: engine.matchMemory.slice(),
+        frames: engine.recentFrames.slice(-3),
+      });
     }
     if (engine) { engine.stop(); engine = null; }
     capture.disposeWorker();

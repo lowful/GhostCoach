@@ -22,8 +22,7 @@ const CHANNELS = {
   CONFIG_SET:       'config:set',        // (partial) → { ok }
   STATE_GET:        'state:get',         // () → current coaching state snapshot
   AGENT_SET:        'agent:set',         // (name) → { ok, agent, confirmed, role }
-  CHAT_SEND:        'chat:send',         // (messages, opts) → { ok, reply }
-  CHAT_CAPTURE:     'chat:capture',      // () → { ok, image? } screenshot for the chat
+  CHAT_SEND:        'chat:send',         // (messages) → { ok, reply, image? }
   STATS_TEST:       'stats:test',        // () → { ok, stats?, error? } tracker connect test
   SESSIONS_LIST:    'sessions:list',     // () → [{ file, endedAt, tipCount, agent }]
   SESSION_GET:      'sessions:get',      // (file) → archived session JSON | null

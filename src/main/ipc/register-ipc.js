@@ -42,9 +42,7 @@ function registerIpc(deps) {
 
   safeHandle(C.AGENT_SET, async (_e, name) => controller.setAgent(name));
 
-  safeHandle(C.CHAT_SEND, async (_e, messages, opts) => controller.chat(messages, opts));
-
-  safeHandle(C.CHAT_CAPTURE, async () => controller.captureForChat());
+  safeHandle(C.CHAT_SEND, async (_e, messages) => controller.chat(messages));
 
   safeHandle(C.STATS_TEST, async () => controller.testTracker());
 
