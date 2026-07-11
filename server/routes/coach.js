@@ -811,7 +811,8 @@ ${statsLine}
 Player's agent this session: ${ctx.agent || 'unknown'}.
 ${memLine}
 ${tipsBlock}
-${image ? 'A screenshot of their current screen is attached. Read it (scoreboard, K/D/A, HUD, combat stats) and ground your answer in what it actually shows.' : ''}
+${image ? 'Attached is a frame from the player\'s OWN recorded gameplay, captured during their coaching session' + (ctx.frameAgeMin != null ? ' about ' + ctx.frameAgeMin + ' minute(s) ago' : '') + '. Ground your points in what it actually shows, and reference it when it helps the player understand what you mean. Do not describe it as a live screen.' : ''}
+${ctx.noSessionYet ? 'IMPORTANT: this player has NOT played a coached session yet. You have no gameplay, no tips, and no screenshots from them. Do not invent observations about their play. Answer general Valorant questions briefly and invite them to start coaching and play a match so you can review it together.' : ''}
 
 Conversation so far:
 ${messages.map((m) => m.role + ': ' + m.content).join('\n')}
