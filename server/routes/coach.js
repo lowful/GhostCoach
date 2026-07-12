@@ -1,6 +1,7 @@
 'use strict';
 const express  = require('express');
 const supabase = require('../db/supabase');
+const knowledge = require('../services/knowledge');
 const router = express.Router();
 
 // ─── Cost tracking (in-memory, resets on server restart) ──────────────────────
@@ -8,7 +9,8 @@ const costStore   = new Map();
 const globalStats = { callsToday: 0, callsMonth: 0, costToday: 0, costMonth: 0, date: '' };
 const COST_PER_CALL = (2200 * 0.00000013) + (40 * 0.00000052); // Qwen3-VL, ~$0.0003
 
-function trackCall(key) {
+function trackCall(key, units = 1) {           // units: frame-memory calls send 2 images
+  const cost  = COST_PER_CALL * units;
   const today = new Date().toISOString().slice(0, 10);
   if (globalStats.date !== today) {
     globalStats.callsToday = 0;
@@ -17,16 +19,16 @@ function trackCall(key) {
   }
   globalStats.callsToday++;
   globalStats.callsMonth++;
-  globalStats.costToday  += COST_PER_CALL;
-  globalStats.costMonth  += COST_PER_CALL;
+  globalStats.costToday  += cost;
+  globalStats.costMonth  += cost;
 
   if (!costStore.has(key)) costStore.set(key, { callsToday: 0, callsMonth: 0, costToday: 0, costMonth: 0, date: '' });
   const e = costStore.get(key);
   if (e.date !== today) { e.callsToday = 0; e.costToday = 0; e.date = today; }
   e.callsToday++;
   e.callsMonth++;
-  e.costToday  += COST_PER_CALL;
-  e.costMonth  += COST_PER_CALL;
+  e.costToday  += cost;
+  e.costMonth  += cost;
 }
 
 function sanitize(t) {
@@ -51,11 +53,14 @@ const AI = {
 };
 
 // One OpenAI-style chat call. `imageB64` present => multimodal (vision) request.
+// Accepts a single base64 string or an ordered array (frame memory sends
+// [previousFrame, currentFrame]; the prompt explains the order).
 async function chatCall({ prompt, imageB64, maxTokens, temperature }) {
-  const content = imageB64
+  const images  = Array.isArray(imageB64) ? imageB64 : (imageB64 ? [imageB64] : []);
+  const content = images.length
     ? [
         { type: 'text', text: prompt },
-        { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageB64}` } },
+        ...images.map((img) => ({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${img}` } })),
       ]
     : prompt;
 
@@ -68,7 +73,7 @@ async function chatCall({ prompt, imageB64, maxTokens, temperature }) {
       'X-Title':       'GhostCoach',
     },
     body: JSON.stringify({
-      model:       imageB64 ? AI.visionModel : AI.textModel,
+      model:       images.length ? AI.visionModel : AI.textModel,
       messages:    [{ role: 'user', content }],
       max_tokens:  maxTokens || 100,
       temperature: temperature == null ? 0.7 : temperature,
@@ -126,11 +131,12 @@ async function geminiCall(imageB64, prompt, maxTokens, jsonMode) {
     generationConfig.responseSchema   = ANALYZE_SCHEMA;
   }
 
+  const images = Array.isArray(imageB64) ? imageB64 : (imageB64 ? [imageB64] : []);
   const body = JSON.stringify({
     contents: [{
       parts: [
         { text: prompt },
-        { inlineData: { mimeType: 'image/jpeg', data: imageB64 } },
+        ...images.map((img) => ({ inlineData: { mimeType: 'image/jpeg', data: img } })),
       ],
     }],
     generationConfig,
@@ -250,6 +256,12 @@ Aim and game sense matter together: if their aim is fine, coach the tactical mis
     ? ('The player is ' + ctx.agent + '. This is confirmed. Only ever suggest ' + ctx.agent + "'s own abilities, never another agent's. Before naming an ability, make sure it belongs to " + ctx.agent + '; if not, give a positioning, economy, or aim tip with no ability name.')
     : "The player's agent is not known yet. Do NOT name any agent or any specific ability. Give general advice only: positioning, crosshair placement, economy, rotation, or game sense.";
 
+  // Pro Playbook (experimental): retrieve habits matched to THIS situation from
+  // the knowledge base instead of the same static list on every frame.
+  const habitsBlock = ctx.proPlaybook
+    ? (knowledge.block(ctx) || staticHabits())
+    : staticHabits();
+
   return `You are a Radiant and professional level Valorant coach watching a live match through the player's screen. Give ONE short, specific, high-value tip, or the single word SKIP. Nothing else.
 
 WHO THE PLAYER IS
@@ -272,14 +284,7 @@ ABILITY AND WEAPON SANITY (critical):
 BE SPECIFIC, NEVER VAGUE
 Vague or contradictory advice is worthless and forbidden. Never produce filler like "do not enter from the open and get high ground". Every tip must name the concrete action: which angle to hold, where exactly to stand, when to rotate, what to buy, or which util to use and where. If you cannot be that specific from this frame, pick a different topic you CAN be specific about, or SKIP.
 
-PROVEN HIGH-ELO HABITS (distilled from Radiant, Immortal, and pro play; prefer these over generic advice):
-- Take fights with a trade partner in view; a solo pick is only worth it on real info.
-- Clear angles in slices from cover; never wide-swing into multiple uncleared angles at once.
-- Use util to take space, then HOLD the space you took; never re-peek a fight you already won.
-- Attack: default for info first, then commit as five behind util; always keep one smoke or flash for post-plant.
-- Defense: play an off-angle once, then rotate spots; give ground when man-down and retake together with util.
-- Economy: full save under 2000, never half-buy alone, match your team's buy every round.
-- Reposition after nearly every kill; pros almost never repeek the same pixel.
+${habitsBlock}
 
 READ THE HUD
 - Round and score: top-center, plus the round timer and whether it is buy phase.
@@ -328,6 +333,19 @@ Watch flank, your whole team is looking site.
 SKIP`;
 }
 
+// The pre-playbook static habits list, still used when the experimental
+// Pro Playbook setting is off (and as a safety net if retrieval returns nothing).
+function staticHabits() {
+  return `PROVEN HIGH-ELO HABITS (distilled from Radiant, Immortal, and pro play; prefer these over generic advice):
+- Take fights with a trade partner in view; a solo pick is only worth it on real info.
+- Clear angles in slices from cover; never wide-swing into multiple uncleared angles at once.
+- Use util to take space, then HOLD the space you took; never re-peek a fight you already won.
+- Attack: default for info first, then commit as five behind util; always keep one smoke or flash for post-plant.
+- Defense: play an off-angle once, then rotate spots; give ground when man-down and retake together with util.
+- Economy: full save under 2000, never half-buy alone, match your team's buy every round.
+- Reposition after nearly every kill; pros almost never repeek the same pixel.`;
+}
+
 
 const ROUND_SUMMARY_PROMPT = 'You are analyzing a Valorant round that just ended. Return ONLY valid JSON, no markdown: {"round_result":"win","things_done_well":["praise under 12 words"],"things_to_improve":["advice under 12 words"],"key_tip_for_next_round":"tip under 12 words","performance_rating":3} round_result: win, loss, or unknown. 1-3 items per array. performance_rating 1-5. No em-dashes.';
 
@@ -356,18 +374,26 @@ router.post('/analyze', async (req, res) => {
   const context = (req.body && req.body.context) || {};
   if (!image || typeof image !== 'string') return res.status(400).json({ error: 'No image data' });
 
+  // Frame memory (experimental): the client sends the previous gameplay frame
+  // so the coach can see what CHANGED, not just one frozen moment.
+  const prevImage = (typeof req.body.previousImage === 'string' && req.body.previousImage.length > 100)
+    ? req.body.previousImage : null;
+  const frameMemoryBlock = prevImage
+    ? '\n\nFRAME MEMORY: two screenshots are attached in order. The FIRST is the PREVIOUS frame from moments earlier; the SECOND is the CURRENT frame. Coach ONLY the current frame. Use the previous one to read what just changed: movement, a fight, damage taken, a rotation, or the spike state. If the player held the same angle in both frames too long, or repeeked the same spot, or has not moved since a kill, call that out, it is exactly the kind of mistake one frame cannot show.'
+    : '';
+
   const isForced = req.headers['x-forced'] === 'true';
-  const prompt   = buildContextPrompt(context) + (isForced
+  const prompt   = buildContextPrompt(context) + frameMemoryBlock + (isForced
     ? '\n\nOVERRIDE: The player manually requested coaching. Always give a real tip, do not respond with SKIP.'
     : '');
 
   const t0 = Date.now();
   try {
     const raw = await Promise.race([
-      visionInfer(image, prompt, 120, false),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('Gemini timeout')), 10000)),
+      visionInfer(prevImage ? [prevImage, image] : image, prompt, 120, false),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('Gemini timeout')), prevImage ? 13000 : 10000)),
     ]);
-    trackCall(licenseKey);
+    trackCall(licenseKey, prevImage ? 2 : 1);
 
     let finalTip     = null;
     let finalContext = {};
@@ -641,7 +667,16 @@ router.post('/match-review', async (req, res) => {
     const tips = Array.isArray(req.body && req.body.tips) ? req.body.tips.slice(0, 30) : [];
     if (tips.length < 3) return res.json({ review: 'Not enough data for a review.' });
 
-    const prompt = `Here are the coaching tips shown to a Valorant player during one match:\n${tips.join('\n')}\n\nWrite a 3-sentence match review. Sentence 1: the area the coaching pushed most, framed as what to keep building on. Sentence 2: the most repeated correction, that is their most common issue. Sentence 3: the single focus for next match, stated as a concrete habit or drill they can actually do (for example a minimap glance every 5 seconds, or trading every teammate fight), not a vague goal.\n\nCRITICAL GROUNDING RULE: these tips are the ONLY thing you know about the match. Do not invent or assume specific plays, kills, clutches, or moments, and do not claim the player DID something unless the tips clearly show it. Talk about what the coaching focused on, not fabricated events. If the tips do not support a claim, leave it out. Do not use dashes. End each sentence with a period.`;
+    // Pro Playbook (experimental): ground the next-match drill in curated habits.
+    const reviewCtx = (req.body && req.body.context) || {};
+    const playbookBlock = reviewCtx.proPlaybook
+      ? (() => {
+          const notes = knowledge.retrieve(reviewCtx, 4);
+          return notes.length ? `\n\nProven high-elo habits relevant to this player (draw the sentence 3 drill from one of these when it fits the tips):\n${notes.map((t) => '- ' + t).join('\n')}` : '';
+        })()
+      : '';
+
+    const prompt = `Here are the coaching tips shown to a Valorant player during one match:\n${tips.join('\n')}${playbookBlock}\n\nWrite a 3-sentence match review. Sentence 1: the area the coaching pushed most, framed as what to keep building on. Sentence 2: the most repeated correction, that is their most common issue. Sentence 3: the single focus for next match, stated as a concrete habit or drill they can actually do (for example a minimap glance every 5 seconds, or trading every teammate fight), not a vague goal.\n\nCRITICAL GROUNDING RULE: these tips are the ONLY thing you know about the match. Do not invent or assume specific plays, kills, clutches, or moments, and do not claim the player DID something unless the tips clearly show it. Talk about what the coaching focused on, not fabricated events. If the tips do not support a claim, leave it out. Do not use dashes. End each sentence with a period.`;
 
     const review = await Promise.race([
       textInfer(prompt, 200),
@@ -804,12 +839,21 @@ router.post('/chat', async (req, res) => {
     const memLine = Array.isArray(ctx.matchMemory) && ctx.matchMemory.length
       ? 'Match flow so far: ' + ctx.matchMemory.slice(-8).map((m) => String(m).slice(0, 80)).join('; ') + '.'
       : '';
+    // Pro Playbook (experimental): pull the player-relevant habits into the
+    // conversation so drills and fixes come from the curated knowledge base.
+    const playbookLine = ctx.proPlaybook
+      ? (() => {
+          const notes = knowledge.retrieve({ agent: ctx.agent }, 5);
+          return notes.length ? 'PRO PLAYBOOK (curated high-elo habits, ground your advice and drills in these):\n' + notes.map((t) => '- ' + t).join('\n') : '';
+        })()
+      : '';
 
     const prompt = `You are GhostCoach, a Radiant-level Valorant coach talking directly with your player after (or during) a session. Be honest, specific, and encouraging, like a real coach in a VOD review. Casual tone, no fluff.
 
 ${statsLine}
 Player's agent this session: ${ctx.agent || 'unknown'}.
 ${memLine}
+${playbookLine}
 ${tipsBlock}
 ${image ? 'Attached is a frame from the player\'s OWN recorded gameplay, captured during their coaching session' + (ctx.frameAgeMin != null ? ' about ' + ctx.frameAgeMin + ' minute(s) ago' : '') + '. Ground your points in what it actually shows, and reference it when it helps the player understand what you mean. Do not describe it as a live screen.' : ''}
 ${ctx.noSessionYet ? 'IMPORTANT: this player has NOT played a coached session yet. You have no gameplay, no tips, and no screenshots from them. Do not invent observations about their play. Answer general Valorant questions briefly and invite them to start coaching and play a match so you can review it together.' : ''}
