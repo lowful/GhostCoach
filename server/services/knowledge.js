@@ -50,6 +50,10 @@ const PLAYBOOK = [
   { text: 'Play your life when your gun matters, dying with a rifle you cannot rebuy loses this round and the next.', weight: 1 },
   { text: 'Win the fights you choose, not the fights they offer, if a peek feels forced, back off and reset.', weight: 1 },
   { text: 'In a clutch, isolate one duel at a time and use the spike timer to force them to come to you.', weight: 1 },
+  { text: 'Rotate with your knife out through safe or cleared space for the speed, and switch to your gun before you reach possible contact.', weight: 2 },
+  { text: 'Patterns repeat until punished, if they hit the same site twice in a row, expect it again and pre stack util there.', weight: 2 },
+  { text: 'Read the minimap for absence, no contact anywhere by mid round means a stack or a late hit, call it before the timer forces panic.', weight: 1 },
+  { text: 'Call enemy positions in three words, place, number, action, "two B main pushing" wins rounds, essays lose them.', weight: 1 },
 
   // ── aim ─────────────────────────────────────────────────────────────────
   { text: 'Burst 2 to 4 bullets at range and reset the spray, holding the trigger past 6 bullets is throwing bullets.', weight: 1 },
@@ -102,6 +106,7 @@ const PLAYBOOK = [
   { side: 'attack', text: 'If the entry dies untraded, regroup and reset the hit, do not trickle one by one into the same angle.', weight: 2 },
   { side: 'attack', text: 'Lurk with purpose, cut the rotation or catch the flank exactly when your team hits, not while they wait.', weight: 1 },
   { side: 'attack', text: 'Hit a split together, both prongs must swing within seconds of each other or each dies alone.', weight: 1 },
+  { side: 'attack', text: 'Assign one player to watch the flank on every hit, a single defender walking in behind undoes the entire entry.', weight: 2 },
   { side: 'attack', text: 'If the call is fast, commit fast, slow rolling a rush hands the defense free seconds to reset.', weight: 1 },
   { side: 'attack', text: 'If first contact shows a stacked site, rotate early as five, do not force into a prepared defense.', weight: 1 },
   { side: 'attack', phase: 'postplant', text: 'Plant for cover, then play off site with crossed angles on the spike, never stand on top of it.', weight: 3 },
@@ -122,6 +127,7 @@ const PLAYBOOK = [
   { side: 'defense', text: 'Take one aggressive info peek at round start only with an escape planned and a teammate covering the fall back.', weight: 1 },
   { side: 'defense', text: 'A quiet early round means a default or a late hit, keep your util and do not burn smokes at nothing.', weight: 1 },
   { side: 'defense', text: 'Retreat off site before you are surrounded, alive behind them beats dead on them, then retake with your team.', weight: 1 },
+  { side: 'defense', text: 'Once they fully commit to the far site, a timed flank through their entry path arrives behind the post plant, go with a call, not alone.', weight: 2 },
   { side: 'defense', phase: 'postplant', situations: ['retake'], text: 'Retake as a unit behind util, flash or smoke the planter cover and swing together, never one by one.', weight: 3 },
   { side: 'defense', phase: 'postplant', situations: ['retake'], text: 'Play the defuse math, full defuse is 7 seconds and half is 3.5, tap the half defuse to bait their peek.', weight: 2 },
   { side: 'defense', phase: 'postplant', situations: ['retake'], text: 'Clear the common post plant spots before touching the spike, tapping into three crosshairs is a throw.', weight: 2 },
@@ -180,6 +186,7 @@ const PLAYBOOK = [
   { weapons: ['ghost'], text: 'The Ghost rewards head taps at ranges other pistols cannot reach, play it like a mini Guardian.', weight: 2 },
   { weapons: ['phantom'], text: 'The Phantom sprays through smokes with no tracers up close, spray the smoke edge where they cross.', weight: 1 },
   { weapons: ['vandal'], text: 'The Vandal one taps at every range, slow your fights down to single accurate shots, especially at distance.', weight: 1 },
+  { weapons: ['knife'], text: 'Knife out is for covering ground fast, the moment contact is possible your gun comes out, before the corner, not after.', weight: 3 },
 
   // ── roles (apply once the confirmed agent maps to a role) ───────────────
   { roles: ['duelist'], side: 'attack', text: 'Your entry creates space even when traded, but swing WITH your util as it lands, never before it.', weight: 2 },

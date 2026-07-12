@@ -227,18 +227,24 @@ function buildContextPrompt(context) {
     ? ('THE PHASE JUST CHANGED (' + ctx.phaseTransition + '). Coach the NEW phase first: buy advice as buy phase opens, setup or positioning as the round starts, post-plant or retake play the moment the spike is planted.\n\n')
     : '';
   const memoryBlock = Array.isArray(ctx.matchMemory) && ctx.matchMemory.length
-    ? ('MATCH MEMORY (what has happened so far, use it for continuity, momentum reads, and patterns):\n'
-       + ctx.matchMemory.slice(-8).map((m) => '- ' + String(m).slice(0, 90)).join('\n') + '\n\n')
+    ? ('MATCH MEMORY (what has happened so far, use it for continuity, momentum reads, and predictions):\n'
+       + ctx.matchMemory.slice(-10).map((m) => '- ' + String(m).slice(0, 90)).join('\n') + '\n\n')
+    : '';
+  const enemyBlock = Array.isArray(ctx.enemyHistory) && ctx.enemyHistory.length
+    ? ('ENEMY PATTERNS this match (where they have been seen or made plays, oldest to newest): '
+       + ctx.enemyHistory.slice(-6).map((e) => String(e).slice(0, 40)).join(' | ') + '\n\n')
     : '';
   const side       = String(ctx.side || '').toLowerCase();
 
   const sideBlock = side.includes('att')
-    ? `YOU ARE ON ATTACK. The goal is to take space with utility, trade your entries, and hit a site together, then win the post-plant.
-Coach at a Radiant level: gather info before committing, use util to clear or take an angle BEFORE you peek, stay in trade range with a teammate, take map control on defaults instead of forcing, plant in a spot the team can protect, and save util for the post-plant. Catch and correct: dry peeks, wasted early util, lurking too deep with no impact, planting in the open, and solo plays with no trade.`
+    ? `YOU ARE ON ATTACK. Attack is initiative: your team picks where and when the fight happens. Take map control with util, gather info, then commit as five, trade every entry, plant for cover, win the post-plant.
+Coach at a Radiant level: use util BEFORE you peek, stay in trade range, default until you have a read then hit fast (tempo is a weapon), keep one smoke or flash for the post-plant, and make sure someone watches YOUR flank, defenders love walking up behind a committed hit through the space you left behind. A lurker is your flank insurance and rotation cutter, but only if their pressure lands WITH the hit, not after it.
+Catch and correct: dry peeks, wasted early util, five players staring at one choke with an unwatched flank, lurks that never arrive, planting in the open, and solo hero plays with no trade.`
     : side.includes('def')
-    ? `YOU ARE ON DEFENSE. The goal is to get early picks, hold with crossfires, gather info, delay with util, and retake as a group.
-Coach at a Radiant level: hold off-angles instead of the spot they pre-aim, always set a crossfire so you have a trade, do not over-peek and give up your setup, use util to delay a push and buy rotation time, watch the minimap for rotates and flanks, and retake together not one by one. Catch and correct: over-peeking, no trade partner, predictable angles, dry retakes, and an unwatched flank.`
-    : `SIDE UNKNOWN this frame. Keep advice fundamentals-first so it fits either side: trade, crossfires, util before peeking, minimap awareness, and economy discipline.`;
+    ? `YOU ARE ON DEFENSE. Defense is information and time: you do not need kills, you need to know where they are and to stall until help arrives. Take one safe pick if it is there, delay with util, rotate off early info, retake as a group.
+Coach at a Radiant level: hold an off-angle once then move, set crossfires so every entry gets traded, use util to delay a committed push instead of fishing for kills, read the minimap for the lean of the map, and once they fully commit to the far site consider the FLANK, walking in behind their hit through their own entry path wins retakes, but only with time, numbers, and a call.
+Catch and correct: over-peeking after a kill, dying alone on a repeek, holding the same pixel every round, dry retakes one by one, nobody watching the rotate or flank path, and ego duels the site did not need.`
+    : `SIDE UNKNOWN this frame. Read it from the HUD if you can (your team carrying or buying the spike means attack, a defuser in inventory or holding sites means defense) and report it in STATE. Keep advice fundamentals-first so it fits either side: trade, crossfires, util before peeking, minimap awareness, and economy discipline.`;
 
   const s = ctx.playerStats;
   const profileBlock = s && !s.error
@@ -284,12 +290,15 @@ ABILITY AND WEAPON SANITY (critical):
 - BEFORE suggesting ANY ability, look at the bottom-center ability bar in THIS screenshot and confirm that exact ability icon is bright and available. Greyed, dim, or missing means it is unbought or already used, so suggest something else. On pistol rounds and ecos assume abilities are NOT bought unless you can clearly see them lit.
 - Match every ability to what it actually does. Updraft, Tailwind, High Gear, Satchel and Sprint are MOBILITY, they do not clear, check, or hold an angle or a flank. Never say "use Updraft to clear the flank" or similar nonsense.
 - Only suggest an ability when the situation genuinely calls for it and there is space or a clear reason (taking height or an off-angle, escaping, entering with a flash or smoke, denying a plant). If there is no clear use, coach positioning, aim, trading, or economy instead. Never suggest an ability just to mention one.
-- Holding the KNIFE out is only for running to position during the buy phase (barriers up) with no enemies near. Once the round is live (active or post-plant), an out knife is a MISTAKE because the player cannot shoot: tell them to switch to their gun. Never praise holding a knife in a live round.
+- KNIFE RULES: the knife is the fastest movement in the game, so knife out is CORRECT play while rotating through safe or cleared space, leaving spawn, or repositioning far from any possible contact. Do NOT correct a knife-out rotation, coach the rotation itself instead (where to go, what to check on arrival, what the timing means). Knife out becomes a mistake only where contact is possible: entering a site, holding an angle, peeking, or anywhere an enemy could appear, there the gun must already be out BEFORE the corner, not after.
 
 BE SPECIFIC, NEVER VAGUE
 Vague or contradictory advice is worthless and forbidden. Never produce filler like "do not enter from the open and get high ground". Every tip must name the concrete action: which angle to hold, where exactly to stand, when to rotate, what to buy, or which util to use and where. If you cannot be that specific from this frame, pick a different topic you CAN be specific about, or SKIP.
 
 ${habitsBlock}
+
+PREDICT, DO NOT JUST REACT (the highest value coaching there is)
+Combine the minimap, the kill feed, MATCH MEMORY, and ENEMY PATTERNS to anticipate what happens NEXT: which site they favor, where the lurker goes, when the flank comes, what their economy forces them into this round. When a pattern repeats, coach the prediction and its counter, "they have hit A three rounds in a row, expect A again, pre aim the choke" is the shape of a great tip. If the minimap shows no contact anywhere late in the round, warn about the stack or the late hit before it lands. A correct prediction beats any reaction, give one whenever the evidence supports it.
 
 READ THE HUD
 - Round and score: top-center, plus the round timer and whether it is buy phase.
@@ -299,19 +308,22 @@ READ THE HUD
 - Center: crosshair placement and the angle being held.
 - Kill feed (top-right): recent kills and trades.
 
-ECONOMY (only when credits AND round are clearly visible).${buyNote}
-- Round 1 or 13 pistol (~800): light shields plus one ability, or a Ghost. Nothing more.
-- Under 2000: full save, buy nothing.
-- 2000 to 3900: force buy, Spectre with light shields.
-- 3900 or more: full buy, Vandal or Phantom with full shields and util.
-- If the team is saving, save with them.
+ECONOMY AND ROUND TYPES (read credits, round number, and score, then coach the RIGHT round type, they play completely differently).${buyNote}
+- Pistol (round 1 and 13, ~800): light shields plus one cheap ability, or a Ghost, never full armor. Group up, trades win pistols.
+- Anti eco (you won the pistol): they are on pistols or a light force. Hold range and open ground, never push close corners where a Classic or shotgun wins the exchange.
+- After a LOST pistol (round 2 or 14): decide as a TEAM, full save together to buy round 3, or full force together. Half measures lose both rounds.
+- Eco / save (under 2000): buy nothing or a bare pistol. The round's job is funding the next full buy: play for time, info, and chip damage, stack together or hunt one close pick, and keep players alive at the end.
+- Force / half buy (2000 to 3900): Spectre or Sheriff with light shields. Only works as a coordinated team taking CLOSE fights, a spread out half buy against rifles is a donation.
+- Full buy (3900+): rifle, full shields, AND full utility. A rifle with no util is half a buy.
+- Bonus round: you won the last round on cheap guns, play with house money, take aggressive info fights but do not throw bodies into rifles.
+- Team coherence beats everything: match your team's buy every round, and if you are rich while a teammate saves, drop them a weapon.
 
 WHEN TO SPEAK, SKIP, or LOBBY
 Most gameplay frames deserve one sharp, useful observation, so give it: a mistake, an opportunity, a read, an economy call, or a positioning fix.
 If the screen is NOT live gameplay (main menu, lobby, agent select, loading screen, career or collection page, range with no match), reply with exactly LOBBY.
 Reply with exactly SKIP only when it IS live gameplay but the only honest thing you could say repeats the recent tips below. Never pad with generic ability suggestions.
 
-${memoryBlock}${transLine}${focusLine}CURRENT MATCH STATE (trust this, do not re-derive it every frame):
+${enemyBlock}${memoryBlock}${transLine}${focusLine}CURRENT MATCH STATE (trust this, do not re-derive it every frame):
 - Agent: ${ctx.agent || 'Unknown'} | Map: ${ctx.map || 'Unknown'} | Side: ${ctx.side || 'Unknown'}
 - Round: ${ctx.roundNumber || 'Unknown'} | Score: ${ctx.teamScore || 0}-${ctx.enemyScore || 0} | Phase: ${ctx.phase || 'Unknown'}
 - Credits: ${ctx.playerCredits == null ? 'Unknown' : ctx.playerCredits} | Alive: ${ctx.playerAlive === false ? 'No' : 'Yes'} | Deaths in a row: ${ctx.consecutiveDeaths || 0}
@@ -325,16 +337,26 @@ ABILITY REFERENCE (only ever suggest the player's own; plain words like smoke, f
 Jett: smokes, updraft, dash. Reyna: blind, heal, dismiss. Phoenix: flash, molly, wall. Raze: boombot, satchel, nade. Neon: walls, stun, sprint. Iso: shield, wall. Yoru: decoy, flash, teleport. Sova: drone, recon dart, shock. Breach: flash, stun, aftershock. Skye: flash, dog, heal. KAY/O: flash, suppress knife, molly. Fade: recon, tether, prowler. Gekko: flash, wingman, molly. Omen: smokes, flash, teleport. Brimstone: smokes, molly, stim. Viper: wall, smoke, molly. Astra: smokes, stun, wall. Harbor: walls, bubble. Clove: smokes, decay. Sage: wall, slow, heal. Killjoy: turret, molly, alarmbot. Cypher: tripwire, camera, cage. Chamber: trap, teleport, sheriff. Deadlock: wall, sensor, net. Vyse, Tejo, Waylay: only reference abilities you can actually see on screen.
 
 OUTPUT
-Reply with ONLY the tip: one plain sentence, 6 to 16 words, ending with a period. No quotes, no "Tip:", no JSON, no markdown, no preamble. Use commas and periods, never dashes. Always finish the sentence; never end on a preposition, article, conjunction, or possessive. If it is live gameplay with nothing new to say, reply with exactly SKIP. If it is not live gameplay at all, reply with exactly LOBBY.
+Line 1 is the tip: one plain sentence, 8 to 22 words, ending with a period. Be detailed like a real in-game comm: name the PLACE and the ACTION ("Hold showers from the dark corner and let them cross into you", never "play safer"). No quotes, no "Tip:", no markdown, no preamble. Use commas and periods, never dashes. Always finish the sentence; never end on a preposition, article, conjunction, or possessive. If it is live gameplay with nothing new worth saying, line 1 is exactly SKIP. If it is not live gameplay at all, output ONLY the word LOBBY and nothing else.
+
+Then, for any live-gameplay frame (including SKIP), add a second line reporting what the HUD actually shows, null for anything unreadable, never guess:
+STATE: {"side":"attack","phase":"buy","round":5,"team":3,"enemy":1,"credits":4200,"alive":true,"weapon":"Vandal","map":"Ascent","enemySpot":null}
+- side: "attack" if your team carries or bought the spike, "defense" if you see a defuser or you are holding sites, else null.
+- phase: "buy" (barriers up), "active" (round live), "postplant" (spike down), "dead" (player dead or spectating), else null.
+- team is YOUR team's score, enemy is theirs, round is team plus enemy plus 1.
+- credits: only during the buy phase when the number is readable.
+- weapon: whatever is in the player's hands right now, "Knife" counts and matters.
+- map: the map name when the environment or HUD makes it clear.
+- enemySpot: a SHORT callout for where an enemy is visible right now (screen or minimap), like "A main", else null.
 
 Good examples (attack):
-Take map control mid before you commit, do not force site.
-Trade your entry, swing the instant your teammate takes the duel.
-Save one smoke for the post-plant, not the entry.
+Take mid control with a teammate before you commit, forcing A main into a stacked site loses this buy.
+They retook through market twice now, save your last smoke for market this post plant.
+Good knife rotation, gun out before B link though, they have lurked it twice this half.
 Good examples (defense):
-Hold an off-angle, they pre-aim the default spot every round.
-Fall back and retake as five, do not peek this alone.
-Watch flank, your whole team is looking site.
+Hold the boxes off angle once, then rotate, they pre aim your default spot every round.
+They rushed B on both ecos, expect the same rush, stack your util at the choke now.
+Watch the flank path through mid, all four teammates are committed site and nobody sees it.
 SKIP`;
 }
 
@@ -351,6 +373,33 @@ function staticHabits() {
 - Reposition after nearly every kill; pros almost never repeek the same pixel.`;
 }
 
+
+/**
+ * The model appends "STATE: {...}" after the tip, reporting what the HUD
+ * actually shows. This is the feedback loop that keeps the client's match
+ * context real: side, phase, round, score, credits, weapon, map, enemy spots.
+ * Everything is validated and clamped; null/garbage fields are dropped.
+ */
+function mapState(s) {
+  if (!s || typeof s !== 'object') return {};
+  const num = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
+  const str = (v) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 40) : null);
+  const out = {};
+  const side = str(s.side);
+  if (side && /^att/i.test(side)) out.side = 'attacking';
+  else if (side && /^def/i.test(side)) out.side = 'defending';
+  const phase = str(s.phase);
+  if (phase && /^(buy|active|postplant|dead)$/i.test(phase)) out.phase = phase.toLowerCase();
+  if (num(s.round)   != null && s.round   >= 1 && s.round   <= 45)    out.roundNumber   = Math.round(s.round);
+  if (num(s.team)    != null && s.team    >= 0 && s.team    <= 30)    out.teamScore     = Math.round(s.team);
+  if (num(s.enemy)   != null && s.enemy   >= 0 && s.enemy   <= 30)    out.enemyScore    = Math.round(s.enemy);
+  if (num(s.credits) != null && s.credits >= 0 && s.credits <= 30000) out.playerCredits = Math.round(s.credits);
+  if (typeof s.alive === 'boolean') out.playerAlive = s.alive;
+  if (str(s.weapon))    out.playerWeapon = str(s.weapon);
+  if (str(s.map))       out.map          = str(s.map);
+  if (str(s.enemySpot)) out.enemySpot    = str(s.enemySpot);
+  return out;
+}
 
 const ROUND_SUMMARY_PROMPT = 'You are analyzing a Valorant round that just ended. Return ONLY valid JSON, no markdown: {"round_result":"win","things_done_well":["praise under 12 words"],"things_to_improve":["advice under 12 words"],"key_tip_for_next_round":"tip under 12 words","performance_rating":3} round_result: win, loss, or unknown. 1-3 items per array. performance_rating 1-5. No em-dashes.';
 
@@ -395,7 +444,7 @@ router.post('/analyze', async (req, res) => {
   const t0 = Date.now();
   try {
     const raw = await Promise.race([
-      visionInfer(prevImage ? [prevImage, image] : image, prompt, 120, false),
+      visionInfer(prevImage ? [prevImage, image] : image, prompt, 220, false),
       new Promise((_, rej) => setTimeout(() => rej(new Error('Gemini timeout')), prevImage ? 13000 : 10000)),
     ]);
     trackCall(licenseKey, prevImage ? 2 : 1);
@@ -411,6 +460,16 @@ router.post('/analyze', async (req, res) => {
       .replace(/```(?:json)?\s*\n?/gi, '')
       .replace(/```/g, '')
       .trim();
+
+    // Pull the HUD state report out BEFORE tip parsing, so the trailing JSON
+    // never gets mistaken for the tip itself.
+    let hudState = {};
+    const stateMatch = cleaned.match(/STATE\s*:\s*(\{[\s\S]*\})/i);
+    if (stateMatch) {
+      try { hudState = mapState(JSON.parse(stateMatch[1])); }
+      catch { /* unreadable state report, tip still counts */ }
+      cleaned = cleaned.replace(/STATE\s*:\s*\{[\s\S]*$/i, '').trim();
+    }
 
     // Try JSON first (in case Gemini still returns structured)
     const firstBrace = cleaned.indexOf('{');
@@ -448,7 +507,7 @@ router.post('/analyze', async (req, res) => {
       } else if (plain.toUpperCase() === 'LOBBY') {
         finalTip = 'LOBBY';   // not live gameplay: client silences all tips
         console.log('[coach] LOBBY response');
-      } else if (plain.length >= 10 && plain.length <= 200) {
+      } else if (plain.length >= 10 && plain.length <= 220) {
         finalTip = plain;
         console.log('[coach] Using plain text as tip:', finalTip);
       } else {
@@ -459,7 +518,8 @@ router.post('/analyze', async (req, res) => {
     if (finalTip && typeof finalTip !== 'string') finalTip = String(finalTip);
 
     let tip    = sanitize(finalTip || '');
-    let outCtx = finalContext;
+    // HUD state report wins over anything the legacy JSON path produced.
+    let outCtx = { ...finalContext, ...hudState };
     console.log('[coach] FINAL TIP:', tip.slice(0, 100));
 
     // Enforce complete sentence on the server before sending to client
@@ -861,7 +921,7 @@ Player's agent this session: ${ctx.agent || 'unknown'}.
 ${memLine}
 ${playbookLine}
 ${tipsBlock}
-${image ? 'Attached is a frame from the player\'s OWN recorded gameplay, captured during their coaching session' + (ctx.frameAgeMin != null ? ' about ' + ctx.frameAgeMin + ' minute(s) ago' : '') + '. Ground your points in what it actually shows, and reference it when it helps the player understand what you mean. Do not describe it as a live screen.' : ''}
+${image ? 'Attached is a frame from the player\'s OWN recorded gameplay, captured during their coaching session' + (ctx.frameAgeMin != null ? ' about ' + ctx.frameAgeMin + ' minute(s) ago' : '') + '. Do not describe it as a live screen. IMPORTANT: only reference this frame if it actually shows the moment or mistake the player is asking about. If your reply directly discusses something visible in this exact frame, append the token [FRAME] at the very end of your reply. If the frame is unrelated to the question (a different round, a different topic, or just generic advice), ignore the frame entirely and do NOT append the token.' : ''}
 ${ctx.noSessionYet ? 'IMPORTANT: this player has NOT played a coached session yet. You have no gameplay, no tips, and no screenshots from them. Do not invent observations about their play. Answer general Valorant questions briefly and invite them to start coaching and play a match so you can review it together.' : ''}
 
 Conversation so far:
@@ -872,7 +932,7 @@ Reply as Coach to the player's last message. Rules:
 - COACH LIKE THE BEST: first diagnose the ROOT CAUSE behind what they are asking (deaths usually trace to positioning, timing, or fighting without a trade partner before they trace to aim). Name the ONE highest-impact fix, then give a concrete drill or in-game habit to build it, for example 10 minutes of deathmatch focusing only on counter-strafe headshots, a minimap glance every 5 seconds, or reviewing one lost round per match and asking what info they had before the fight.
 - Ground advice in proven Radiant and pro fundamentals: fight with a trade partner in view, clear angles in slices, use util before contact, take an off-angle once then move, keep economy discipline, reposition after kills.
 - Combine their career stats with what you can see (the screenshot, the match flow, and this session's tips). The best answer ties a stat to a concrete example, and covers both aim and game sense, not just headshot rate.
-- Be honest, do not praise a mistake as if it were good. Holding a knife out in a live round is a mistake (they cannot shoot), not smart map control. Match abilities to their real purpose (Updraft and dashes are mobility, not tools to clear angles).
+- Be honest, do not praise a mistake as if it were good, and do not invent a mistake that is not there. Knife out while rotating through safe space is CORRECT (fastest movement), knife out where contact is possible is the mistake. Match abilities to their real purpose (Updraft and dashes are mobility, not tools to clear angles).
 - Be concrete: name the exact habit or mistake and the fix, not generalities.
 - 2 to 5 short sentences, under 120 words total. Plain text, no markdown, no lists.
 - Use commas and periods, never dashes.
@@ -895,7 +955,11 @@ Reply as Coach to the player's last message. Rules:
     if (!chatReplyOk(reply)) {
       reply = 'Let\'s keep it on your gameplay. Ask me about a specific round, your aim, positioning, or economy and I\'ll break it down.';
     }
-    res.json({ reply: reply.slice(0, 1500) });
+    // The model marks [FRAME] only when its answer is about what that frame
+    // shows; otherwise the client keeps the screenshot out of the reply.
+    const usedFrame = !!image && /\[FRAME\]/i.test(reply);
+    reply = reply.replace(/\s*\[FRAME\]\s*/gi, ' ').replace(/\s{2,}/g, ' ').trim();
+    res.json({ reply: reply.slice(0, 1500), usedFrame });
   } catch (e) {
     console.error('[coach] chat error:', e.message);
     res.status(500).json({ error: 'Chat failed' });

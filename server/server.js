@@ -68,16 +68,21 @@ const checkoutLimiter = rateLimit({
   standardHeaders: true, legacyHeaders: false,
 });
 
-// AI endpoints cost real money per call: cap them per IP so a leaked or shared
-// license key can't burn credits. Legit use peaks at ~12 analyzes/min plus
-// detect-agent and the odd chat turn, so these ceilings never touch real players.
+// AI endpoints cost real money per call, so they are capped, but PER LICENSE
+// KEY, not per IP. IP buckets collide players behind the same NAT or proxy
+// chain and were throttling legit sessions (Ultra mode alone is ~20 analyzes
+// per minute plus agent detection). Keyless requests share one bucket; the
+// routes reject them with 400/403 before any AI cost anyway.
+const licenseKeyOrIp = (req) => String(req.headers['x-license-key'] || '').trim().toUpperCase() || 'no-key';
 const coachLimiter = rateLimit({
-  windowMs: 60 * 1000, max: 40,
+  windowMs: 60 * 1000, max: 60,
+  keyGenerator: licenseKeyOrIp,
   message: { error: 'Slow down. Too many coaching requests.' },
   standardHeaders: true, legacyHeaders: false,
 });
 const chatLimiter = rateLimit({
   windowMs: 5 * 60 * 1000, max: 25,
+  keyGenerator: licenseKeyOrIp,
   message: { error: 'Too many chat messages. Give it a few minutes.' },
   standardHeaders: true, legacyHeaders: false,
 });
