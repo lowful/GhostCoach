@@ -4,8 +4,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 const C = require('../shared/channels');
 
 /**
- * Ask Coach bridge: send a conversation turn (optionally with a screenshot of
- * the current screen) and read session state for context chips.
+ * Ask Coach bridge: send a conversation turn (text only) and read session
+ * state for context chips.
  */
 function subscribe(channel, cb) {
   const handler = (_e, data) => cb(data);

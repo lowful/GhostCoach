@@ -52,16 +52,30 @@ const TIMING = {
   serverTimeout:       8000,
 };
 
-// Screenshot/analyze frequency tiers (ms between captures). The engine's
-// single-in-flight guard means the real ceiling is the AI's reply latency,
-// so turbo/rapid capture "as fast as the coach can think" without stacking.
+// Tip-frequency tiers. The tier the user picks is about HOW MANY TIPS they
+// get; screenshots scale with it (Max analyzes every second). The engine's
+// single-in-flight guard means the real capture ceiling is the AI's reply
+// latency, so fast tiers run "as fast as the coach can think" without stacking.
 const PERFORMANCE_INTERVALS = {
-  turbo:       1000,   // every second
-  rapid:       2000,   // every 2 seconds
-  ultra:       3000,   // every 3 seconds
-  performance: 5000,   // every 5 seconds
-  balanced:    10000,  // default
-  battery:     24000,  // barely
+  turbo:       1000,   // Max: most tips the coach can give while staying good
+  rapid:       2000,   // High+
+  ultra:       3000,   // High
+  performance: 5000,   // Medium
+  balanced:    10000,  // Default
+  battery:     24000,  // Minimal
+};
+
+// Tip pacing per tier: cooldown = minimum gap between tips, silence = how long
+// an AI quiet spell lasts before the library covers it. Faster tiers allow
+// more tips; every tip still passes the same quality gates, so "more" never
+// means "worse", it means the good ones are allowed through sooner.
+const TIP_PACING = {
+  turbo:       { cooldown: 5000,  silence: 9000  },
+  rapid:       { cooldown: 6500,  silence: 11000 },
+  ultra:       { cooldown: 8000,  silence: 13000 },
+  performance: { cooldown: 10000, silence: 15000 },
+  balanced:    { cooldown: 12000, silence: 18000 },
+  battery:     { cooldown: 16000, silence: 26000 },
 };
 
 // Tip mix: AI tips must stay the majority. Fallback library tips that fire while
@@ -111,6 +125,7 @@ module.exports = {
   CAPTURE,
   TIMING,
   PERFORMANCE_INTERVALS,
+  TIP_PACING,
   COACHING,
   STORE_DEFAULTS,
 };

@@ -40,7 +40,7 @@ header h2 { font-size: 15.5px; font-weight: 700; }
   border-radius: 11px; padding: 11px 13px;
   animation: rowIn 220ms var(--ease) both;
 }
-.row.ai      { border-left-color: var(--cyan); }
+.row.ai      { border-left-color: #ff8591; }
 .row.library { border-left-color: #3a5fd0; }
 .row.system  { border-left-color: var(--red); }
 @keyframes rowIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
@@ -69,7 +69,7 @@ header h2 { font-size: 15.5px; font-weight: 700; }
 .rate-badge.bad  { color: #ff9aa3; background: rgba(255,70,85,0.12); border: 1px solid rgba(255,70,85,0.3); }
 .row.rated-bad .text { color: var(--text-mute); }
 .row .src { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 700; color: var(--text-dim); }
-.row.ai .src      { color: var(--cyan); }
+.row.ai .src      { color: #ff8591; }
 .row.library .src { color: #5b80e8; }
 .row.system .src  { color: var(--red); }
 .row .time { font-size: 10.5px; color: var(--text-mute); flex: none; }

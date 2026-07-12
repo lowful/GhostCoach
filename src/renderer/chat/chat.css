@@ -48,16 +48,6 @@ header h2 { font-size: 15px; font-weight: 700; }
   border-bottom-left-radius: 5px;
 }
 .msg.coach.error { border-left-color: var(--red); color: var(--text-dim); }
-.msg .shot-note { display: block; font-size: 10.5px; opacity: 0.75; margin-top: 4px; }
-
-/* frame from the player's recorded gameplay, shown with the coach's reply */
-.msg .shot {
-  display: block; width: 100%; margin-top: 8px;
-  border-radius: 9px; border: 1px solid rgba(255,255,255,0.18);
-  cursor: zoom-in; transition: transform var(--t-fast) var(--ease);
-}
-.msg .shot.zoomed { cursor: zoom-out; transform: scale(1.85); transform-origin: top left; position: relative; z-index: 5; box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
-.msg .shot-caption { display: block; font-size: 10px; color: var(--text-mute); margin-top: 4px; }
 
 /* typing indicator */
 .typing { align-self: flex-start; display: flex; gap: 5px; padding: 12px 15px; background: rgba(0,0,0,0.26); border: 1px solid var(--glass-border); border-radius: 14px; border-bottom-left-radius: 5px; }

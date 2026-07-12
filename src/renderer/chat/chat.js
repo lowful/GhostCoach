@@ -15,19 +15,6 @@ function addMsg(role, text, opts = {}) {
   const el = document.createElement('div');
   el.className = `msg ${role === 'user' ? 'user' : 'coach'}${opts.error ? ' error' : ''}`;
   el.textContent = text;
-  if (opts.shotData) {
-    // The frame from the player's recorded gameplay the coach is referring to.
-    const img = document.createElement('img');
-    img.className = 'shot';
-    img.src = 'data:image/jpeg;base64,' + opts.shotData;
-    img.alt = 'frame from your recorded gameplay';
-    img.addEventListener('click', () => img.classList.toggle('zoomed'));
-    el.append(img);
-    const cap = document.createElement('span');
-    cap.className = 'shot-caption';
-    cap.textContent = 'from your recorded gameplay';
-    el.append(cap);
-  }
   threadEl.append(el);
   threadEl.scrollTop = threadEl.scrollHeight;
   return el;
@@ -59,9 +46,7 @@ async function send(text) {
     const res = await window.ghost.sendChat(history.slice(-12));
     typing.remove();
     if (res && res.ok && res.reply) {
-      // When the coach referenced a frame from the player's recorded gameplay,
-      // it comes back with the reply so the player can see what it means.
-      addMsg('assistant', res.reply, res.image ? { shotData: res.image } : {});
+      addMsg('assistant', res.reply);
       history.push({ role: 'assistant', content: res.reply });
     } else {
       addMsg('assistant', (res && res.error) || 'Could not reach your coach right now. Try again in a moment.', { error: true });

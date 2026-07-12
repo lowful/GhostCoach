@@ -94,7 +94,7 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
 }
 .last-tip:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.14); }
 .lt-dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 5px; background: var(--text-mute); flex: none; transition: background var(--t-med) var(--ease); }
-.last-tip.ai .lt-dot      { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+.last-tip.ai .lt-dot      { background: #ff8591; box-shadow: 0 0 8px #ff8591; }
 .last-tip.system .lt-dot  { background: var(--red); box-shadow: 0 0 8px var(--red); }
 /* show the full tip (up to 3 lines holds any tip we send) instead of cutting it off */
 .lt-text { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }

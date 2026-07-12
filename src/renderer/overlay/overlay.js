@@ -136,6 +136,26 @@ function statsRow(delta) {
   return row.children.length ? row : null;
 }
 
+// The real tracker match this session produced: result, KDA, ACS, ADR, grade.
+function lastMatchRow(lm) {
+  if (!lm || !lm.result) return null;
+  const row = document.createElement('div');
+  row.className = 'stats';
+  const res = document.createElement('span');
+  res.className = `stat-chip result ${lm.result === 'Victory' ? 'win' : lm.result === 'Defeat' ? 'loss' : ''}`;
+  const rb = document.createElement('b');
+  rb.textContent = `${lm.result} ${lm.score || ''}`.trim();
+  res.append(rb);
+  row.append(res);
+  if (lm.map && lm.map !== 'Unknown') row.append(statChip('', lm.map));
+  row.append(statChip('KDA', `${lm.kills}/${lm.deaths}/${lm.assists}`));
+  if (Number(lm.acs) > 0) row.append(statChip('ACS', lm.acs));
+  if (Number(lm.adr) > 0) row.append(statChip('ADR', lm.adr));
+  if (Number(lm.headshotPct) > 0) row.append(statChip('HS', lm.headshotPct, undefined, '%'));
+  if (lm.grade) row.append(statChip('Rating', lm.grade));
+  return row;
+}
+
 function showReview(data) {
   if (!data || !data.review) return;
   reviewEl.hidden = false;
@@ -154,6 +174,8 @@ function showReview(data) {
   body.className = 'body';
   body.textContent = data.review;
   card.append(h, body);
+  const match = lastMatchRow(data.lastMatch);
+  if (match) card.append(match);
   const stats = statsRow(data.statsDelta);
   if (stats) card.append(stats);
   reviewEl.append(card);

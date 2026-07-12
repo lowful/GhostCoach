@@ -126,10 +126,25 @@ const controller = {
           store.set('lastMatchStats', { ...current, _at: Date.now() });
         }
       } catch {}
+      // The actual match from the tracker: result, KDA, ACS, ADR, and a grade.
+      try {
+        const lm = await fetchLastMatch();
+        if (lm) data.lastMatch = lm;
+      } catch {}
       registry.broadcast(C.PUSH_MATCH_REVIEW, data);
       saveMatchSummary(data);
       // Natural moment to go deeper: nudge toward the Ask Coach chat.
       pushTip({ text: 'Want the full breakdown? Open Ask Coach from the panel and ask what to fix.', source: 'system' });
+      // Riot publishes match data a few minutes after the match ends; if it
+      // was not up yet, try once more and re-push the review with real stats.
+      if (!data.lastMatch) {
+        setTimeout(async () => {
+          try {
+            const lm = await fetchLastMatch();
+            if (lm) registry.broadcast(C.PUSH_MATCH_REVIEW, { ...data, lastMatch: lm });
+          } catch {}
+        }, 90000);
+      }
     });
     engine.on('agent', (info) => {
       state.agent = info || { agent: null, confirmed: false, role: null };
@@ -164,7 +179,6 @@ const controller = {
     saveSessionArchive(engine ? {
       tipMix: engine.getMix(),
       matchMemory: engine.matchMemory.slice(),
-      frames: engine.recentFrames.slice(-3),
     } : {});
     if (engine) { engine.stop(); engine = null; }
     state.agent = { agent: null, confirmed: false, role: null };
@@ -216,34 +230,25 @@ const controller = {
   openHistory()   { historyWindow.open(); },
   openChat()      { chatWindow.open(); },
 
-  /** Ask Coach: one conversation turn. The coach references a frame from the
-   *  player's OWN recorded gameplay (current session or the latest archived
-   *  one), never a live desktop capture. With no session played yet, nothing
-   *  is sent and the AI is told not to invent gameplay observations. */
+  /** Ask Coach: one conversation turn. Text-only: the coach works from the
+   *  session's tips, match memory, and tracker stats, no screenshots. With no
+   *  session played yet the AI is told not to invent gameplay observations. */
   async chat(messages) {
     const licenseKey = store.get('licenseKey');
     if (!licenseKey) return { ok: false, error: 'No license active.' };
 
-    const frame = latestGameFrame();
-    const image = frame ? frame.image : null;
-    const hasSessionData = !!image || state.tips.length > 0 || listSessions().length > 0;
-
+    const hasSessionData = state.tips.length > 0 || listSessions().length > 0;
     const context = {
       agent:        state.agent && state.agent.agent,
       sessionTips:  state.tips.slice(0, 20).map((t) => t.text),
       matchMemory:  engine ? engine.matchMemory.slice(-8) : [],
       stats:        await fetchTrackerStats(),
-      frameAgeMin:  frame ? Math.max(0, Math.round((Date.now() - frame.at) / 60000)) : null,
       noSessionYet: !hasSessionData,
       proPlaybook:  playbookMode(),   // experimental: curated habits in chat
     };
     try {
-      const { ok, data } = await api.post('/api/coach/chat', { messages, context, image }, licenseKey, 30000);
-      if (ok && data && data.reply) {
-        // Show the frame ONLY when the coach's answer is actually about it
-        // (the server sets usedFrame when the model referenced this frame).
-        return { ok: true, reply: data.reply, image: data.usedFrame && image ? image : null };
-      }
+      const { ok, data } = await api.post('/api/coach/chat', { messages, context }, licenseKey, 30000);
+      if (ok && data && data.reply) return { ok: true, reply: data.reply };
       return { ok: false, error: (data && data.error) || 'The coach had no answer. Try again.' };
     } catch (e) {
       console.error('[chat] failed:', e.message);
@@ -342,6 +347,21 @@ async function fetchTrackerStats(force) {
   }
 }
 
+/** The most recent COMPLETED competitive match from the tracker, only when
+ *  it ended recently enough to plausibly be this session's match (3 hours).
+ *  Null when unavailable; the review simply shows without match stats. */
+async function fetchLastMatch() {
+  const riotId = (store.get('riotId') || '').trim();
+  const licenseKey = store.get('licenseKey');
+  if (!riotId || !riotId.includes('#') || !licenseKey) return null;
+  try {
+    const { ok, data } = await api.get('/api/coach/last-match?username=' + encodeURIComponent(riotId), licenseKey, 15000);
+    if (!ok || !data || data.error || !data.result) return null;
+    if (!data.startedAt || Date.now() - data.startedAt > 3 * 60 * 60 * 1000) return null;
+    return data;
+  } catch { return null; }
+}
+
 /** Pro Playbook mode from the store, normalized: earlier builds stored a
  *  boolean (true meant on); the setting is now 'off' | 'on' | 'hybrid'. */
 function playbookMode() {
@@ -371,7 +391,6 @@ function saveSessionArchive(extra = {}) {
       tipMix:   extra.tipMix || null,
       tips:     state.tips,
       matchMemory: extra.matchMemory || [],
-      frames:   extra.frames || [],   // a few real gameplay frames for chat reference
       stats:    extra.stats || store.get('playerStats') || null,
     }, null, 2));
     console.log('[session] archived', file, `(${state.tips.length} tips)`);
@@ -382,21 +401,6 @@ function saveSessionArchive(extra = {}) {
 }
 
 const SESSION_FILE_RE = /^session-[\dTZ-]+\.json$/;
-
-/** The most recent REAL gameplay frame: live session first, then the newest
- *  archived session that saved frames. Null when the player has none. */
-function latestGameFrame() {
-  if (engine && engine.recentFrames && engine.recentFrames.length) {
-    return engine.recentFrames[engine.recentFrames.length - 1];
-  }
-  for (const s of listSessions().slice(0, 5)) {
-    const full = getSession(s.file);
-    if (full && Array.isArray(full.frames) && full.frames.length) {
-      return full.frames[full.frames.length - 1];
-    }
-  }
-  return null;
-}
 
 /** Sessions auto-expire after a week so the archive never clutters up. */
 function cleanupOldSessions() {
@@ -628,7 +632,6 @@ function cleanupAndQuit() {
       saveSessionArchive({
         tipMix: engine.getMix(),
         matchMemory: engine.matchMemory.slice(),
-        frames: engine.recentFrames.slice(-3),
       });
     }
     if (engine) { engine.stop(); engine = null; }

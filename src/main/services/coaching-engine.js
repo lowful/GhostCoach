@@ -4,7 +4,7 @@ const EventEmitter = require('events');
 const api = require('./api-client');
 const tipLibrary = require('./tip-library');
 const agentData = require('./agent-data');
-const { API, TIMING, PERFORMANCE_INTERVALS, COACHING } = require('../../shared/config');
+const { API, TIMING, PERFORMANCE_INTERVALS, TIP_PACING, COACHING } = require('../../shared/config');
 
 /**
  * The coaching loop. Lives in the main process; the heavy screen capture runs in
@@ -21,6 +21,8 @@ class CoachingEngine extends EventEmitter {
     this.licenseKey      = opts.licenseKey || '';
     this.captureFunction = opts.captureFunction || null;
     this.analyzeInterval = PERFORMANCE_INTERVALS[opts.performanceMode] || PERFORMANCE_INTERVALS.balanced;
+    // Tip pacing follows the tier: faster tiers allow more (equally gated) tips.
+    this.pacing = TIP_PACING[opts.performanceMode] || TIP_PACING.balanced;
     // Tips the player rated as bad: never re-served from the library, and the
     // most recent ones are sent to the AI so it avoids similar advice.
     this.badTips = new Set(Array.isArray(opts.badTips) ? opts.badTips : []);
@@ -146,6 +148,7 @@ class CoachingEngine extends EventEmitter {
     const next = PERFORMANCE_INTERVALS[mode];
     if (!next || next === this.analyzeInterval) return;
     this.analyzeInterval = next;
+    this.pacing = TIP_PACING[mode] || TIP_PACING.balanced;
     if (this.isRunning && this.loopTimer) {
       clearInterval(this.loopTimer);
       this.loopTimer = setInterval(() => {
@@ -460,7 +463,7 @@ class CoachingEngine extends EventEmitter {
 
     if (tip.toUpperCase() === 'SKIP' || tip.length < 20) {         // skip / too short
       this.skipCount++;
-      if (this.skipCount >= 2 && Date.now() - this.lastTipTime > TIMING.librarySilence) {
+      if (this.skipCount >= 2 && Date.now() - this.lastTipTime > this.pacing.silence) {
         this.skipCount = 0;
         // AI went quiet: fill in with a library tip, but keep it within the mix
         // budget so library stays a minority (<=35%). The player wants majority
@@ -473,8 +476,8 @@ class CoachingEngine extends EventEmitter {
     if (!/[.!?"]$/.test(tip))                  { console.log('[engine] reject: incomplete'); return; }
     if (tip.split(/\s+/).length > 24)          { console.log('[engine] reject: too long'); return; }
     // A fresh phase flip (round start, spike planted) opens a short window where
-    // a timely tip beats the normal pacing, so the cooldown relaxes to 6s.
-    const cooldown = this.recentPhaseTransition() ? 6000 : TIMING.tipCooldown;
+    // a timely tip beats the normal pacing, so the cooldown relaxes.
+    const cooldown = this.recentPhaseTransition() ? Math.min(6000, this.pacing.cooldown) : this.pacing.cooldown;
     if (Date.now() - this.lastTipTime < cooldown) { console.log('[engine] reject: cooldown'); return; }
 
     const cleaned = agentData.genericizeAbilities(cleanTip(tip));
@@ -521,7 +524,7 @@ class CoachingEngine extends EventEmitter {
     const { force = false, ignoreRatio = false } = (typeof opts === 'boolean' ? { force: opts } : opts);
     if (this.inLobby && !force) return;   // in a menu/lobby: no filler tips at all
     if (this.analyzedFrames < 2 && !force) return;   // warm-up: context before coaching
-    if (!force && Date.now() - this.lastTipTime < TIMING.tipCooldown) return;
+    if (!force && Date.now() - this.lastTipTime < this.pacing.cooldown) return;
 
     // Keep AI the majority: while the AI is available, a "filler" library tip
     // only fires if it won't push AI's share below the configured floor.
