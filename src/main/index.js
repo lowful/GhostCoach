@@ -165,9 +165,10 @@ const controller = {
       engine.setAgent(state.pendingAgent);
       state.pendingAgent = null;
     }
-    // Load the tracker profile in the background: once it lands, every live
-    // analyze request calibrates advice to the player's rank and weaknesses.
-    fetchTrackerStats().then((s) => { if (engine && s) engine.setPlayerStats(s); }).catch(() => {});
+    // Pull a FRESH tracker profile in the background for every session (force
+    // bypasses the cache): the last match just changed the numbers, and once
+    // it lands every analyze request calibrates to the up-to-date player.
+    fetchTrackerStats(true).then((s) => { if (engine && s) engine.setPlayerStats(s); }).catch(() => {});
     setStatus('coaching');
     console.log('[coach] started');
   },
@@ -318,8 +319,11 @@ let statsCache = { at: 0, riotId: '', data: null, lastError: null };
     const savedId = (store.get('riotId') || '').trim();
     const saved   = store.get('playerStats');
     // Only reuse the saved profile if it belongs to the current Riot ID.
+    // at: 0 means "usable as a fallback but always due for refresh", so a
+    // days-old disk profile is never treated as current just because the
+    // app restarted; the next stats request pulls fresh data.
     if (savedId && saved && saved._riotId === savedId) {
-      statsCache = { at: Date.now(), riotId: savedId, data: saved, lastError: null };
+      statsCache = { at: 0, riotId: savedId, data: saved, lastError: null };
     }
   } catch {}
 })();
