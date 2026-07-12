@@ -25,8 +25,8 @@ class CoachingEngine extends EventEmitter {
     // most recent ones are sent to the AI so it avoids similar advice.
     this.badTips = new Set(Array.isArray(opts.badTips) ? opts.badTips : []);
     this.playerStats = null;   // tracker profile (rank/KD/HS%), set async after start
-    // Experimental toggles, read live from the store so a settings flip applies
-    // to the very next capture: { proPlaybook, frameMemory }.
+    // Experimental settings, read live from the store so a settings flip
+    // applies to the very next capture: { proPlaybook: 'off'|'on'|'hybrid' }.
     this.experiments = typeof opts.experiments === 'function' ? opts.experiments : () => ({});
 
     this.matchContext = freshContext();
@@ -114,6 +114,9 @@ class CoachingEngine extends EventEmitter {
     this.timers.forEach(clearTimeout); this.timers = [];
     if (this.loopTimer)  { clearInterval(this.loopTimer);  this.loopTimer = null; }
     if (this.agentTimer) { clearInterval(this.agentTimer); this.agentTimer = null; }
+    // Frame memory is session-scoped: the controller archives what it needs
+    // BEFORE calling stop(), then the buffer is wiped so nothing carries over.
+    this.recentFrames = [];
     this.emit('status', 'stopped');
 
     const aiTips = this.tipHistory.filter((t) => t.source === 'ai').length;
@@ -355,8 +358,8 @@ class CoachingEngine extends EventEmitter {
       teammates:    this.matchContext.teammates || null, // passthrough if the server reports the comp
       buyInfoClear: tipLibrary.buyInfoClear(this.matchContext), // don't advise a buy on unclear numbers
       focus:        this.nextFocus(),
-      // Experimental: server retrieves situation-matched pro habits when set.
-      proPlaybook:  !!this.experiments().proPlaybook,
+      // Experimental: playbook mode ('off' | 'on' | 'hybrid') for the server.
+      proPlaybook:  this.experiments().proPlaybook || 'off',
       // Tell the coach how we want advice phrased / scoped. Greyed-out (unbought
       // or on-cooldown) abilities show dimmed in-game; only the AI vision can read
       // that, so we ask it to respect it and to keep ability talk generic.
@@ -541,12 +544,12 @@ class CoachingEngine extends EventEmitter {
     if (this.recentFrames.length > 5) this.recentFrames.shift();
   }
 
-  /** Frame memory (experimental): the newest CONFIRMED gameplay frame, only
-   *  while it is fresh enough to still describe "a moment ago" (90s). Frames
-   *  land in recentFrames after the server verifies them, so a lobby or
-   *  desktop shot can never be sent as the previous frame. */
+  /** Frame memory (always on, session-scoped): the newest CONFIRMED gameplay
+   *  frame, only while fresh enough to still describe "a moment ago" (90s).
+   *  Frames land in recentFrames after the server verifies them, so a lobby
+   *  or desktop shot can never be sent as the previous frame. The buffer is
+   *  wiped on stop() and rebuilt fresh by the next session. */
   previousGameplayFrame() {
-    if (!this.experiments().frameMemory) return null;
     const last = this.recentFrames[this.recentFrames.length - 1];
     return last && Date.now() - last.at < 90000 ? last.image : null;
   }
@@ -686,7 +689,7 @@ class CoachingEngine extends EventEmitter {
       const tips = this.tipHistory.filter((t) => t.source === 'ai').map((t) => t.text);
       const data = await this.callServer(API.MATCH_REVIEW, {
         tips,
-        context: { ...this.matchContext, proPlaybook: !!this.experiments().proPlaybook },
+        context: { ...this.matchContext, proPlaybook: this.experiments().proPlaybook || 'off' },
       });
       if (data && data.review) this.emit('match-review', data.review);
     } catch (e) {

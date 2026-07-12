@@ -36,8 +36,10 @@ function wireBoolSeg(id, key) {
   return seg;
 }
 const showTipsSeg = wireBoolSeg('showtips', 'showTips');
-const playbookSeg = wireBoolSeg('playbook', 'proPlaybook');   // experimental
-const frameMemSeg = wireBoolSeg('framemem', 'frameMemory');   // experimental
+
+// Pro playbook (experimental): a string mode, off | on | hybrid.
+const playbookSeg = document.getElementById('playbook');
+wireSeg(playbookSeg, 'proPlaybook');
 
 // Tip size: live label, saved as a ratio (1 = normal).
 const scaleEl = document.getElementById('tipscale');
@@ -131,8 +133,9 @@ async function load() {
       markSeg(tipposSeg, cfg.tipPosition);
       markSeg(capqSeg, cfg.captureQuality || 'standard');
       markSeg(showTipsSeg, cfg.showTips === false ? 'off' : 'on');
-      markSeg(playbookSeg, cfg.proPlaybook === true ? 'on' : 'off');
-      markSeg(frameMemSeg, cfg.frameMemory === true ? 'on' : 'off');
+      // Earlier builds stored a boolean; true maps to 'on'.
+      markSeg(playbookSeg, cfg.proPlaybook === true ? 'on'
+        : (cfg.proPlaybook === 'on' || cfg.proPlaybook === 'hybrid') ? cfg.proPlaybook : 'off');
       const pct = Math.round((Number(cfg.tipScale) || 1) * 100);
       scaleEl.value = String(pct);
       scaleLabel.textContent = scaleText(pct);

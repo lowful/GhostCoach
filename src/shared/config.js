@@ -90,9 +90,10 @@ const STORE_DEFAULTS = {
   tipPosition:     'top-right',  // top-left | top-right | bottom-left | bottom-right
   tipScale:        1,            // tip card size ratio; 1 = normal (0.8 to 1.3)
   showTips:        true,         // false = tips hidden on the overlay but still recorded
-  // experimental coach upgrades (off by default while under test)
-  proPlaybook:     false,        // retrieve situation-matched pro habits into every prompt
-  frameMemory:     false,        // send the previous gameplay frame so the AI sees change
+  // experimental: pro playbook mode. off = classic static habits,
+  // on = retrieved situation-matched habits, hybrid = both layered together.
+  // (Frame memory is always on and session-scoped, no setting.)
+  proPlaybook:     'off',        // off | on | hybrid
   panelBounds:     null,         // { x, y } remembered position of the control panel
   panelMinimized:  false,
   onboardingCompleted: false,
