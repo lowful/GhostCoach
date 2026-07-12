@@ -89,6 +89,7 @@ const STORE_DEFAULTS = {
   playerStats:     null,         // last good tracker profile (persists = always connected)
   lastMatchStats:  null,         // stats snapshot from the previous match (delta arrows)
   badTips:         [],           // tip texts the player rated as bad (blocklist)
+  tipRatings:      {},           // text -> 'good'|'bad', persists so ratings survive restarts
   overlayPosition: 'top-right',  // tip card anchor
   tipPosition:     'top-right',  // top-left | top-right | bottom-left | bottom-right
   tipScale:        1,            // tip card size ratio; 1 = normal (0.8 to 1.3)

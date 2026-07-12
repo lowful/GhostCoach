@@ -77,9 +77,13 @@ trkBtn.addEventListener('click', async () => {
     if (res && res.ok && res.stats) {
       const s = res.stats;
       const bits = [`rank ${s.rank || 'unknown'}`];
+      if (s.peakRank) bits.push(`peak ${s.peakRank}`);
       if (s.kd) bits.push(`K/D ${s.kd}`);
+      if (s.kpr != null) bits.push(`${s.kpr} kills/round`);
+      if (s.adr) bits.push(`ADR ${s.adr}`);
+      if (s.acs) bits.push(`ACS ${s.acs}`);
       if (s.headshotPct) bits.push(`HS ${s.headshotPct}%`);
-      showTrk(true, `Connected. ${bits.join(', ')}. Your coach now uses these stats.`);
+      showTrk(true, `Connected. ${bits.join(', ')}. Your coach now uses all of these stats.`);
     } else {
       showTrk(false, (res && res.error) || 'Could not connect. Try again in a minute.');
     }
@@ -145,6 +149,8 @@ async function load() {
         const s = cfg.playerStats;
         const bits = [`rank ${s.rank}`];
         if (s.kd) bits.push(`K/D ${s.kd}`);
+        if (s.kpr != null) bits.push(`${s.kpr} kills/round`);
+        if (s.adr) bits.push(`ADR ${s.adr}`);
         if (s.headshotPct) bits.push(`HS ${s.headshotPct}%`);
         showTrk(true, `Connected. ${bits.join(', ')}.`);
       }

@@ -688,6 +688,7 @@ class CoachingEngine extends EventEmitter {
       this.matchContext.consecutiveDeaths++;
       this.matchContext.consecutiveWins = 0;
       this.lastDeathAt = Date.now();   // opens the death-review window
+      this.matchContext.lastDeathAt = this.lastDeathAt;   // visible to the tip verifier
       this.remember(`Player died round ${(this.matchContext.teamScore | 0) + (this.matchContext.enemyScore | 0) + 1}`);
       if (this.matchContext.consecutiveDeaths >= 2) {
         this.remember(`Player has died ${this.matchContext.consecutiveDeaths} rounds in a row`);
@@ -878,6 +879,14 @@ const MOBILITY_MISUSE = new RegExp(
 // must never surface as a tip.
 const PROMPT_LEAK = /"(?:side|phase|round|team|enemy|credits|alive|weapon|map|enemySpot)"|\bSTATE\b|\benemy ?spot\b|\b(?:previous|current|second) frame\b|\bplaybook\b/i;
 
+// Updraft tips are permanently banned (player feedback: the model always gets
+// them wrong). Knife tips are only allowed in the death-review window, i.e.
+// when having the knife out plausibly just got the player killed; commentary
+// on ordinary knife rotations is noise.
+const UPDRAFT_BAN = /\bupdraft\b/i;
+const KNIFE_TIP   = /\bknife\b/i;
+const DEATH_WINDOW_MS = 15000;
+
 // High-confidence situational guards only, never reject on a guess.
 function scenarioFits(text, source, ctx) {
   if (!ctx) return true;
@@ -891,6 +900,12 @@ function scenarioFits(text, source, ctx) {
   if (source === 'ai' && ECON_TIP.test(l)) return false;
   if (MOBILITY_MISUSE.test(l)) return false;
   if (source !== 'system' && PROMPT_LEAK.test(text)) return false;
+  // Updraft advice: never. Knife advice: only right after a death it may have caused.
+  if (source !== 'system' && UPDRAFT_BAN.test(l)) return false;
+  if (source !== 'system' && KNIFE_TIP.test(l)
+      && !(ctx.lastDeathAt && Date.now() - ctx.lastDeathAt < DEATH_WINDOW_MS)) {
+    return false;
+  }
 
   // Don't tell the player to use an ability their agent can't (e.g. "recon
   // dart" on Reyna). With no confirmed agent, hold back ability-specific tips

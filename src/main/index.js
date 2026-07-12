@@ -40,7 +40,7 @@ const state = {
   status:     'idle',   // idle | coaching | paused | stopped
   tips:       [],       // recent tips this session (newest first)
   agent:      { agent: null, confirmed: false, role: null }, // detected/confirmed agent
-  tipRatings: {},       // text -> 'good' | 'bad' (session display state)
+  tipRatings: store.get('tipRatings') || {},   // text -> 'good'|'bad', disk-backed so ratings survive restarts and mark archived sessions
   licenseActive: true,  // false once the subscription ends (locks coaching)
   licenseReason: '',    // why it ended (expired | cancelled | payment_failed | ...)
 };
@@ -266,12 +266,16 @@ const controller = {
     return { ok: false, error: statsCache.lastError || 'Could not reach the stats service. Try again in a minute.' };
   },
 
-  /** Player rated a tip in history. Bad tips feed the avoidance loop. */
+  /** Player rated a tip (live or archived session). Ratings persist to disk
+   *  so ✓/✗ marks survive restarts; bad tips feed the avoidance loop. */
   rateTip(payload) {
     const text   = payload && String(payload.text || '').trim();
     const rating = payload && payload.rating;
     if (!text || (rating !== 'good' && rating !== 'bad')) return;
     state.tipRatings[text] = rating;
+    const keys = Object.keys(state.tipRatings);
+    if (keys.length > 400) delete state.tipRatings[keys[0]];   // oldest-first trim
+    store.set('tipRatings', state.tipRatings);
     if (rating === 'bad') {
       const bad = store.get('badTips') || [];
       if (!bad.includes(text)) {

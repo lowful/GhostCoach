@@ -128,6 +128,9 @@ function statsRow(delta) {
     row.append(r);
   }
   if (Number(cur.kd) > 0)          row.append(statChip('K/D', cur.kd, prev.kd));
+  if (Number(cur.kpr) > 0)         row.append(statChip('KPR', cur.kpr, prev.kpr));
+  if (Number(cur.adr) > 0)         row.append(statChip('ADR', cur.adr, prev.adr));
+  if (Number(cur.acs) > 0)         row.append(statChip('ACS', cur.acs, prev.acs));
   if (Number(cur.headshotPct) > 0) row.append(statChip('HS', cur.headshotPct, prev.headshotPct, '%'));
   if (Number(cur.winRate) > 0)     row.append(statChip('Win', cur.winRate, prev.winRate, '%'));
   return row.children.length ? row : null;
