@@ -50,7 +50,6 @@ const PLAYBOOK = [
   { text: 'Play your life when your gun matters, throwing away a rifle costs your team this round and the next.', weight: 1 },
   { text: 'Win the fights you choose, not the fights they offer, if a peek feels forced, back off and reset.', weight: 1 },
   { text: 'In a clutch, isolate one duel at a time and use the spike timer to force them to come to you.', weight: 1 },
-  { text: 'Rotate with your knife out through safe or cleared space for the speed, and switch to your gun before you reach possible contact.', weight: 2 },
   { text: 'Patterns repeat until punished, if they hit the same site twice in a row, expect it again and pre stack util there.', weight: 2 },
   { text: 'Read the minimap for absence, no contact anywhere by mid round means a stack or a late hit, call it before the timer forces panic.', weight: 1 },
   { text: 'Call enemy positions in three words, place, number, action, "two B main pushing" wins rounds, essays lose them.', weight: 1 },
@@ -182,7 +181,6 @@ const PLAYBOOK = [
   { weapons: ['ghost'], text: 'The Ghost rewards head taps at ranges other pistols cannot reach, play it like a mini Guardian.', weight: 2 },
   { weapons: ['phantom'], text: 'The Phantom sprays through smokes with no tracers up close, spray the smoke edge where they cross.', weight: 1 },
   { weapons: ['vandal'], text: 'The Vandal one taps at every range, slow your fights down to single accurate shots, especially at distance.', weight: 1 },
-  { weapons: ['knife'], text: 'Knife out is for covering ground fast, the moment contact is possible your gun comes out, before the corner, not after.', weight: 3 },
 
   // ── roles (apply once the confirmed agent maps to a role) ───────────────
   { roles: ['duelist'], side: 'attack', text: 'Your entry creates space even when traded, but swing WITH your util as it lands, never before it.', weight: 2 },
@@ -204,7 +202,6 @@ const PLAYBOOK = [
 
   // ── agent specific (served only after the player confirms the agent) ────
   { agents: ['Jett'], text: 'Dash is your exit ticket, take the aggressive off angle only while dash is up, play passive without it.', weight: 2 },
-  { agents: ['Jett'], text: 'An updraft peek works once, the second one gets pre aimed, use it somewhere different.', weight: 1 },
   { agents: ['Reyna'], text: 'Your kit only works off the opening pick, take the first duel with a trade or flash, then dismiss out.', weight: 2 },
   { agents: ['Reyna'], text: 'Devour after every safe kill, a healed Reyna snowballs, but dismiss instead when a second enemy still sees you.', weight: 1 },
   { agents: ['Phoenix'], text: 'Throw the curveball tight around the corner for your own swing, it pops fast and blinds the holder first.', weight: 2 },

@@ -244,12 +244,17 @@ Catch and correct: over-peeking after a kill, dying alone on a repeek, holding t
     : `SIDE UNKNOWN this frame. Read it from the HUD if you can (your team carrying or buying the spike means attack, a defuser in inventory or holding sites means defense) and report it in STATE. Keep advice fundamentals-first so it fits either side: trade, crossfires, util before peeking, minimap awareness, and economy discipline.`;
 
   const s = ctx.playerStats;
+  const extLine = s && (s.kpr != null || s.adr || s.acs)
+    ? `Per round over their last ${s.matches || 'few'} matches: ${s.kpr != null ? s.kpr + ' kills, ' : ''}${s.dpr != null ? s.dpr + ' deaths, ' : ''}${s.apr != null ? s.apr + ' assists, ' : ''}${s.adr ? s.adr + ' damage (ADR), ' : ''}${s.acs ? s.acs + ' combat score (ACS)' : ''}.
+Per-round reads: KPR 0.8+ is strong fragging, under 0.6 is low impact, coach them into more fights WITH a trade partner. DPR 0.85+ means overexposure, coach positioning and patience. ADR under 120 means low damage output, coach taking more efficient fights and finishing chip damage. High assists with low kills means they support well but never convert, coach follow-up aggression.
+`
+    : '';
   const profileBlock = s && !s.error
-    ? `PLAYER PROFILE (career tracker stats): rank ${s.rank || 'unknown'}, K/D ${s.kd || '?'}, headshot ${s.headshotPct || '?'}%, win rate ${s.winRate || '?'}%, top agent ${s.topAgent || 'unknown'}.
-Use these stats to decide WHAT to prioritise, then combine that with what the screenshot actually shows this frame. The strongest tip is a career weakness that also shows up on screen right now. Never give a stat-based tip the frame does not support.
+    ? `PLAYER PROFILE (tracker stats over recent competitive matches): rank ${s.rank || 'unknown'}${s.peakRank ? ' (peak ' + s.peakRank + ')' : ''}, K/D ${s.kd || '?'}, headshot ${s.headshotPct || '?'}%, win rate ${s.winRate || '?'}%, top agent ${s.topAgent || 'unknown'}.
+${extLine}Use these stats to decide WHAT to prioritise, then combine that with what the screenshot actually shows this frame. The strongest tip is a career weakness that also shows up on screen right now. Never give a stat-based tip the frame does not support.
 Aim read: 20% headshots and up is good, do not nitpick it; below 20% means aim needs work, so when you see whiffs, low crosshair, or spraying at range, coach crosshair placement and aim.
 K/D read: under 1.0 means they trade themselves too often, favor positioning, patience, and trading; 1.3 and up means they frag well, push impact, round wins, and playing for the team.
-Rank read: lower ranks (Iron to Gold) want fundamentals; higher ranks (Plat and up) want utility timing, off-angles, tempo, and info.
+Rank read: lower ranks (Iron to Gold) want fundamentals; higher ranks (Plat and up) want utility timing, off-angles, tempo, and info. A peak rank above current rank means the skill is there, coach consistency and mental.
 Aim and game sense matter together: if their aim is fine, coach the tactical mistake you see instead.
 
 `
@@ -300,10 +305,12 @@ ABILITY AND WEAPON SANITY (critical):
 - BEFORE suggesting ANY ability, look at the bottom-center ability bar in THIS screenshot and confirm that exact ability icon is bright and available. Greyed, dim, or missing means it is unbought or already used, so suggest something else. On pistol rounds and ecos assume abilities are NOT bought unless you can clearly see them lit.
 - Match every ability to what it actually does. Updraft, Tailwind, High Gear, Satchel and Sprint are MOBILITY, they do not clear, check, or hold an angle or a flank. Never say "use Updraft to clear the flank" or similar nonsense.
 - Only suggest an ability when the situation genuinely calls for it and there is space or a clear reason (taking height or an off-angle, escaping, entering with a flash or smoke, denying a plant). If there is no clear use, coach positioning, aim, trading, or economy instead. Never suggest an ability just to mention one.
-- KNIFE RULES: the knife is the fastest movement in the game, so knife out is CORRECT play while rotating through safe or cleared space, leaving spawn, or repositioning far from any possible contact. Do NOT correct a knife-out rotation, coach the rotation itself instead (where to go, what to check on arrival, what the timing means). Knife out becomes a mistake only where contact is possible: entering a site, holding an angle, peeking, or anywhere an enemy could appear, there the gun must already be out BEFORE the corner, not after.
+- KNIFE RULES: knife out while rotating through safe space is normal, correct play (fastest movement). NEVER comment on it, not to praise it and not to correct it, no knife tips at all. The ONLY time the word knife may appear in a tip is when the player JUST DIED and having the knife out at a bad moment clearly contributed to that death. Otherwise coach something else entirely.
+- NEVER mention Updraft in any tip, ever. No Updraft suggestions, no Updraft corrections, the word must not appear. If a movement read matters for Jett, talk about dash or positioning instead.
 
-BE SPECIFIC, NEVER VAGUE
-Vague or contradictory advice is worthless and forbidden. Never produce filler like "do not enter from the open and get high ground". Every tip must name the concrete action: which angle to hold, where exactly to stand, when to rotate, what to buy, or which util to use and where. If you cannot be that specific from this frame, pick a different topic you CAN be specific about, or SKIP.
+BE SPECIFIC, NEVER VAGUE, AND USE REAL NAMES
+Vague or contradictory advice is worthless and forbidden. Never produce filler like "do not enter from the open and get high ground". Every tip must name the concrete action: which angle to hold, where exactly to stand, when to rotate, or which util to use and where.
+Locations must be ones the player can actually find: use REAL, standard map callouts only (A Main, Hookah, Market, Heaven, Garage, Mid, Showers), or plain directions relative to what the player sees right now ("the corner on your left", "the doorway you are facing"). NEVER invent descriptors like "the dark corner", "the boxes", or "the sneaky angle", those are not places, the player cannot find them, and the tip becomes noise. If you do not know the real callout, use a relative direction or SKIP.
 
 ${habitsBlock}
 
@@ -337,7 +344,7 @@ ABILITY REFERENCE (only ever suggest the player's own; plain words like smoke, f
 Jett: smokes, updraft, dash. Reyna: blind, heal, dismiss. Phoenix: flash, molly, wall. Raze: boombot, satchel, nade. Neon: walls, stun, sprint. Iso: shield, wall. Yoru: decoy, flash, teleport. Sova: drone, recon dart, shock. Breach: flash, stun, aftershock. Skye: flash, dog, heal. KAY/O: flash, suppress knife, molly. Fade: recon, tether, prowler. Gekko: flash, wingman, molly. Omen: smokes, flash, teleport. Brimstone: smokes, molly, stim. Viper: wall, smoke, molly. Astra: smokes, stun, wall. Harbor: walls, bubble. Clove: smokes, decay. Sage: wall, slow, heal. Killjoy: turret, molly, alarmbot. Cypher: tripwire, camera, cage. Chamber: trap, teleport, sheriff. Deadlock: wall, sensor, net. Vyse, Tejo, Waylay: only reference abilities you can actually see on screen.
 
 OUTPUT
-Line 1 is the tip: one plain sentence, 8 to 22 words, ending with a period. Be detailed like a real in-game comm: name the PLACE and the ACTION ("Hold showers from the dark corner and let them cross into you", never "play safer"). No quotes, no "Tip:", no markdown, no preamble. Use commas and periods, never dashes. Always finish the sentence; never end on a preposition, article, conjunction, or possessive. If it is live gameplay with nothing new worth saying, line 1 is exactly SKIP. If it is not live gameplay at all, output ONLY the word LOBBY and nothing else.
+Line 1 is the tip: one plain sentence, 8 to 22 words, ending with a period. Be detailed like a real in-game comm: name the PLACE (real callouts or relative directions only) and the ACTION ("Hold the Hookah door from site and let them cross into you", never "play safer"). No quotes, no "Tip:", no markdown, no preamble. Use commas and periods, never dashes. Always finish the sentence; never end on a preposition, article, conjunction, or possessive. If it is live gameplay with nothing new worth saying, line 1 is exactly SKIP. If it is not live gameplay at all, output ONLY the word LOBBY and nothing else.
 
 Then, for any live-gameplay frame (including SKIP), add a second line reporting what the HUD actually shows, null for anything unreadable, never guess:
 STATE: {"side":"attack","phase":"buy","round":5,"team":3,"enemy":1,"credits":4200,"alive":true,"weapon":"Vandal","map":"Ascent","enemySpot":null}
@@ -350,13 +357,13 @@ STATE: {"side":"attack","phase":"buy","round":5,"team":3,"enemy":1,"credits":420
 - enemySpot: a SHORT callout for where an enemy is visible right now (screen or minimap), like "A main", else null.
 
 Good examples (attack):
-Take mid control with a teammate before you commit, forcing A main into a stacked site loses this buy.
-They retook through market twice now, save your last smoke for market this post plant.
-Good knife rotation, gun out before B link though, they have lurked it twice this half.
+Take mid control with a teammate before you commit, forcing A Main into a stacked site loses the round.
+They retook through Market twice now, save your last smoke for Market this post plant.
+Your team is hitting B while you are still A Main, rotate now or the hit goes in a man down.
 Good examples (defense):
-Hold the boxes off angle once, then rotate, they pre aim your default spot every round.
-They rushed B on both ecos, expect the same rush, stack your util at the choke now.
-Watch the flank path through mid, all four teammates are committed site and nobody sees it.
+Hold Mid from the site side once, then move, they pre aim your usual spot every round.
+They rushed B twice in a row now, expect the same rush, set your util at the choke early.
+Watch the flank path through Mid, all four teammates are committed site and nobody sees it.
 SKIP`;
 }
 
@@ -623,8 +630,10 @@ async function henrikGet(pathPart) {
 }
 
 // HenrikDev works from datacenter IPs (unlike tracker.gg). Resolve region from
-// the account, read the current rank, then aggregate recent competitive matches
-// for a rough K/D and headshot %. Returns { stats } or { fail: 'reason' }.
+// the account, read current + peak rank, then mine the recent competitive
+// matches for the FULL picture: K/D, win rate, headshot and bodyshot %, kills/
+// deaths/assists per round, ADR, ACS, and the actually-most-played agent.
+// Returns { stats } or { fail: 'reason' }.
 async function henrikStats(name, tag) {
   const enc = encodeURIComponent;
   const acct = await henrikGet(`/valorant/v2/account/${enc(name)}/${enc(tag)}`);
@@ -634,29 +643,54 @@ async function henrikStats(name, tag) {
   const region = acct.json && acct.json.data && acct.json.data.region;
   if (!region) return { fail: 'HenrikDev returned no region for that account (status ' + acct.status + ').' };
 
-  const mmr = await henrikGet(`/valorant/v2/mmr/${region}/${enc(name)}/${enc(tag)}`);
-  const rank = mmr.json && mmr.json.data && mmr.json.data.current_data && mmr.json.data.current_data.currenttierpatched;
+  const mmr  = await henrikGet(`/valorant/v2/mmr/${region}/${enc(name)}/${enc(tag)}`);
+  const rank = mmr.json?.data?.current_data?.currenttierpatched || null;
+  const peakRank = mmr.json?.data?.highest_rank?.patched_tier || null;
 
-  let kd = 0, headshotPct = 0;
+  let agg = null;
   try {
-    const sm = await henrikGet(`/valorant/v1/stored-matches/${region}/${enc(name)}/${enc(tag)}?mode=competitive&size=8`);
+    const sm = await henrikGet(`/valorant/v1/stored-matches/${region}/${enc(name)}/${enc(tag)}?mode=competitive&size=10`);
     const matches = (sm.json && Array.isArray(sm.json.data)) ? sm.json.data : [];
-    let k = 0, d = 0, head = 0, shots = 0, counted = 0;
+    let k = 0, d = 0, a = 0, score = 0, head = 0, body = 0, leg = 0, dmg = 0, rounds = 0, wins = 0, counted = 0;
+    const agents = {};
     for (const m of matches) {
       const st = m && m.stats;
       if (!st) continue;
-      k += st.kills || 0; d += st.deaths || 0;
+      k += st.kills || 0; d += st.deaths || 0; a += st.assists || 0; score += st.score || 0;
       const sh = st.shots || {};
-      const h = sh.head || 0, b = sh.body || 0, l = sh.leg || 0;
-      head += h; shots += h + b + l; counted++;
+      head += sh.head || 0; body += sh.body || 0; leg += sh.leg || 0;
+      dmg += (st.damage && (st.damage.made != null ? st.damage.made : st.damage.dealt)) || 0;
+      const teams = m.teams || {};
+      const r = (teams.red | 0) + (teams.blue | 0);
+      rounds += r;
+      const mine = String(st.team || '').toLowerCase();
+      if (r && (mine === 'red' || mine === 'blue') && (teams[mine] | 0) > (teams[mine === 'red' ? 'blue' : 'red'] | 0)) wins++;
+      const agent = st.character && st.character.name;
+      if (agent) agents[agent] = (agents[agent] || 0) + 1;
+      counted++;
     }
-    if (d > 0) kd = +(k / d).toFixed(2);
-    if (shots > 0) headshotPct = Math.round((head / shots) * 100);
-    if (!counted && !rank) return { fail: 'No recent competitive matches or rank found for that account.' };
+    if (counted) {
+      const shots = head + body + leg;
+      const top = Object.entries(agents).sort((x, y) => y[1] - x[1])[0];
+      agg = {
+        matches:     counted,
+        kd:          d > 0 ? +(k / d).toFixed(2) : k,
+        winRate:     Math.round((wins / counted) * 100),
+        headshotPct: shots ? Math.round((head / shots) * 100) : 0,
+        bodyshotPct: shots ? Math.round((body / shots) * 100) : 0,
+        kpr:         rounds ? +(k / rounds).toFixed(2) : 0,   // kills per round
+        dpr:         rounds ? +(d / rounds).toFixed(2) : 0,   // deaths per round
+        apr:         rounds ? +(a / rounds).toFixed(2) : 0,   // assists per round
+        adr:         rounds ? Math.round(dmg / rounds) : 0,   // average damage per round
+        acs:         rounds ? Math.round(score / rounds) : 0, // average combat score
+        topAgent:    top ? top[0] : 'Unknown',
+      };
+    }
   } catch { /* rank-only is still useful */ }
 
-  if (!rank && !kd) return { fail: 'HenrikDev found the account but no rank or match data yet.' };
-  return { stats: { source: 'henrikdev', rank: rank || 'Unranked', kd, winRate: 0, headshotPct, topAgent: 'Unknown' } };
+  if (!rank && !agg) return { fail: 'HenrikDev found the account but no rank or match data yet.' };
+  return { stats: { source: 'henrikdev', rank: rank || 'Unranked', peakRank,
+    ...(agg || { kd: 0, winRate: 0, headshotPct: 0, topAgent: 'Unknown' }) } };
 }
 
 async function trackerStats(name, tag) {
@@ -895,8 +929,10 @@ router.post('/chat', async (req, res) => {
     const ctx   = body.context || {};
     const image = typeof body.image === 'string' && body.image.length > 100 ? body.image : null;
 
-    const statsLine = ctx.stats && !ctx.stats.error
-      ? `Their tracker profile: rank ${ctx.stats.rank || 'unknown'}, K/D ${ctx.stats.kd || '?'}, win rate ${ctx.stats.winRate || '?'}%, headshot ${ctx.stats.headshotPct || '?'}%, top agent ${ctx.stats.topAgent || 'unknown'}. Note: 20% headshots or higher is good; below 20% means aim training helps. Aim is only one part, weigh it against their game sense, positioning, and decisions too.`
+    const st = ctx.stats;
+    const statsLine = st && !st.error
+      ? `Their tracker profile (last ${st.matches || 'few'} competitive matches): rank ${st.rank || 'unknown'}${st.peakRank ? ', peak ' + st.peakRank : ''}, K/D ${st.kd || '?'}, win rate ${st.winRate || '?'}%, headshot ${st.headshotPct || '?'}%${st.bodyshotPct ? ', bodyshot ' + st.bodyshotPct + '%' : ''}, top agent ${st.topAgent || 'unknown'}.${st.kpr != null ? ` Per round: ${st.kpr} kills, ${st.dpr} deaths, ${st.apr} assists, ${st.adr} ADR, ${st.acs} ACS.` : ''}
+Reading the numbers: 20%+ headshots is good aim. KPR 0.8+ is strong fragging, under 0.6 is low round impact. DPR 0.85+ means they die too much, that is positioning. ADR 150+ is high damage output, under 120 is low. ACS 220+ means they are carrying. A peak rank above current means proven skill, coach consistency. Use the WEAKEST number to find the real problem, and weigh aim against game sense, positioning, and decisions, never aim alone.`
       : 'No tracker stats available.';
     const tipsBlock = Array.isArray(ctx.sessionTips) && ctx.sessionTips.length
       ? 'Coaching tips given this session (newest first):\n' + ctx.sessionTips.slice(0, 20).map((t) => '- ' + String(t).slice(0, 140)).join('\n')
