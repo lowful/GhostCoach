@@ -256,11 +256,16 @@ Aim and game sense matter together: if their aim is fine, coach the tactical mis
     ? ('The player is ' + ctx.agent + '. This is confirmed. Only ever suggest ' + ctx.agent + "'s own abilities, never another agent's. Before naming an ability, make sure it belongs to " + ctx.agent + '; if not, give a positioning, economy, or aim tip with no ability name.')
     : "The player's agent is not known yet. Do NOT name any agent or any specific ability. Give general advice only: positioning, crosshair placement, economy, rotation, or game sense.";
 
-  // Pro Playbook (experimental): retrieve habits matched to THIS situation from
-  // the knowledge base instead of the same static list on every frame.
-  const habitsBlock = ctx.proPlaybook
-    ? (knowledge.block(ctx) || staticHabits())
-    : staticHabits();
+  // Pro Playbook (experimental) modes:
+  //   'off'    -> the classic static habits list (default)
+  //   'on'     -> retrieved situation-matched habits replace the static list
+  //   'hybrid' -> both: the static foundation plus the retrieved habits
+  // (older clients sent booleans; true means 'on')
+  const pbMode = ctx.proPlaybook === 'hybrid' ? 'hybrid'
+    : (ctx.proPlaybook === true || ctx.proPlaybook === 'on') ? 'on' : 'off';
+  const habitsBlock = pbMode === 'on'     ? (knowledge.block(ctx) || staticHabits())
+    :                 pbMode === 'hybrid' ? [staticHabits(), knowledge.block(ctx)].filter(Boolean).join('\n\n')
+    :                 staticHabits();
 
   return `You are a Radiant and professional level Valorant coach watching a live match through the player's screen. Give ONE short, specific, high-value tip, or the single word SKIP. Nothing else.
 
@@ -669,7 +674,7 @@ router.post('/match-review', async (req, res) => {
 
     // Pro Playbook (experimental): ground the next-match drill in curated habits.
     const reviewCtx = (req.body && req.body.context) || {};
-    const playbookBlock = reviewCtx.proPlaybook
+    const playbookBlock = (reviewCtx.proPlaybook && reviewCtx.proPlaybook !== 'off')
       ? (() => {
           const notes = knowledge.retrieve(reviewCtx, 4);
           return notes.length ? `\n\nProven high-elo habits relevant to this player (draw the sentence 3 drill from one of these when it fits the tips):\n${notes.map((t) => '- ' + t).join('\n')}` : '';
@@ -841,7 +846,8 @@ router.post('/chat', async (req, res) => {
       : '';
     // Pro Playbook (experimental): pull the player-relevant habits into the
     // conversation so drills and fixes come from the curated knowledge base.
-    const playbookLine = ctx.proPlaybook
+    // ('on' and 'hybrid' both retrieve here; chat has no static block to layer.)
+    const playbookLine = (ctx.proPlaybook && ctx.proPlaybook !== 'off')
       ? (() => {
           const notes = knowledge.retrieve({ agent: ctx.agent }, 5);
           return notes.length ? 'PRO PLAYBOOK (curated high-elo habits, ground your advice and drills in these):\n' + notes.map((t) => '- ' + t).join('\n') : '';
