@@ -757,6 +757,62 @@ router.get('/player-stats', async (req, res) => {
   res.json({ error: reasons[0] || 'Could not load that profile. Check the Riot ID is exact.' });
 });
 
+// GET /api/coach/last-match?username=Name%23TAG
+// The player's most recent COMPLETED competitive match from the tracker, with
+// a simple performance grade. (There is no live in-match API; matches appear
+// here a few minutes after they end.) Grade: ACS ladder, adjusted by K/D.
+router.get('/last-match', async (req, res) => {
+  const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
+  if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+  if (!process.env.HENRIKDEV_API_KEY) return res.json({ error: 'No stats provider configured.' });
+
+  const username = String(req.query.username || '');
+  if (!username.includes('#')) return res.json({ error: 'Riot ID must be Name#TAG.' });
+  const [name, tag] = username.split('#').map((s) => s.trim());
+  const enc = encodeURIComponent;
+  try {
+    const acct = await henrikGet(`/valorant/v2/account/${enc(name)}/${enc(tag)}`);
+    const region = acct.json?.data?.region;
+    if (!region) return res.json({ error: 'Account not found.' });
+
+    const sm = await henrikGet(`/valorant/v1/stored-matches/${region}/${enc(name)}/${enc(tag)}?mode=competitive&size=1`);
+    const m  = sm.json?.data?.[0];
+    if (!m || !m.stats) return res.json({ error: 'No recent match found yet. Matches appear a few minutes after they end.' });
+
+    const st = m.stats, teams = m.teams || {};
+    const rounds  = (teams.red | 0) + (teams.blue | 0);
+    const mine    = String(st.team || '').toLowerCase();
+    const myScore = teams[mine] | 0;
+    const theirs  = teams[mine === 'red' ? 'blue' : 'red'] | 0;
+    const kills = st.kills | 0, deaths = st.deaths | 0, assists = st.assists | 0;
+    const kd  = deaths > 0 ? +(kills / deaths).toFixed(2) : kills;
+    const acs = rounds ? Math.round((st.score | 0) / rounds) : 0;
+    const dmg = (st.damage && (st.damage.made != null ? st.damage.made : st.damage.dealt)) || 0;
+    const adr = rounds ? Math.round(dmg / rounds) : 0;
+    const sh  = st.shots || {};
+    const shots = (sh.head | 0) + (sh.body | 0) + (sh.leg | 0);
+
+    const ladder = ['D', 'C', 'B', 'A', 'S'];
+    let gi = acs >= 270 ? 4 : acs >= 230 ? 3 : acs >= 190 ? 2 : acs >= 150 ? 1 : 0;
+    if (kd >= 1.5 && gi < 4) gi++;
+    if (kd < 0.7 && gi > 0) gi--;
+
+    res.json({
+      map:     m.meta?.map?.name || 'Unknown',
+      agent:   st.character?.name || null,
+      result:  myScore > theirs ? 'Victory' : myScore < theirs ? 'Defeat' : 'Draw',
+      score:   myScore + '-' + theirs,
+      kills, deaths, assists, kd, acs, adr,
+      headshotPct: shots ? Math.round(((sh.head | 0) / shots) * 100) : 0,
+      grade:   ladder[gi],
+      startedAt: m.meta?.started_at ? Date.parse(m.meta.started_at) : null,
+    });
+  } catch (e) {
+    console.error('[coach] last-match error:', e.message);
+    res.json({ error: 'Could not load the last match.' });
+  }
+});
+
 // POST /api/coach/match-review, JSON body: { tips: string[] }
 router.post('/match-review', async (req, res) => {
   try {
@@ -907,10 +963,10 @@ function chatReplyOk(t) {
   return true;
 }
 
-// POST /api/coach/chat, JSON body: { messages: [{role,content}], context: {...}, image? }
+// POST /api/coach/chat, JSON body: { messages: [{role,content}], context: {...} }
 // The "Ask Coach" conversation: post-match reviews, "what did I do wrong", etc.
-// Flattens the conversation into one prompt so it works on any provider, and
-// attaches the player's screenshot when the client sends one.
+// Text-only: the coach works from session tips, match memory, and tracker
+// stats. Flattens the conversation into one prompt so it works everywhere.
 router.post('/chat', async (req, res) => {
   try {
     const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
@@ -926,8 +982,7 @@ router.post('/chat', async (req, res) => {
       .filter((m) => m.content);
     if (!messages.length) return res.status(400).json({ error: 'No messages' });
 
-    const ctx   = body.context || {};
-    const image = typeof body.image === 'string' && body.image.length > 100 ? body.image : null;
+    const ctx = body.context || {};
 
     const st = ctx.stats;
     const statsLine = st && !st.error
@@ -957,8 +1012,7 @@ Player's agent this session: ${ctx.agent || 'unknown'}.
 ${memLine}
 ${playbookLine}
 ${tipsBlock}
-${image ? 'Attached is a frame from the player\'s OWN recorded gameplay, captured during their coaching session' + (ctx.frameAgeMin != null ? ' about ' + ctx.frameAgeMin + ' minute(s) ago' : '') + '. Do not describe it as a live screen. IMPORTANT: only reference this frame if it actually shows the moment or mistake the player is asking about. If your reply directly discusses something visible in this exact frame, append the token [FRAME] at the very end of your reply. If the frame is unrelated to the question (a different round, a different topic, or just generic advice), ignore the frame entirely and do NOT append the token.' : ''}
-${ctx.noSessionYet ? 'IMPORTANT: this player has NOT played a coached session yet. You have no gameplay, no tips, and no screenshots from them. Do not invent observations about their play. Answer general Valorant questions briefly and invite them to start coaching and play a match so you can review it together.' : ''}
+${ctx.noSessionYet ? 'IMPORTANT: this player has NOT played a coached session yet. You have no gameplay and no tips from them. Do not invent observations about their play. Answer general Valorant questions briefly and invite them to start coaching and play a match so you can review it together.' : ''}
 
 Conversation so far:
 ${messages.map((m) => m.role + ': ' + m.content).join('\n')}
@@ -967,7 +1021,7 @@ Reply as Coach to the player's last message. Rules:
 - Only discuss Valorant and the player's gaming performance. If asked about anything unrelated, steer back to their gameplay in one friendly sentence.
 - COACH LIKE THE BEST: first diagnose the ROOT CAUSE behind what they are asking (deaths usually trace to positioning, timing, or fighting without a trade partner before they trace to aim). Name the ONE highest-impact fix, then give a concrete drill or in-game habit to build it, for example 10 minutes of deathmatch focusing only on counter-strafe headshots, a minimap glance every 5 seconds, or reviewing one lost round per match and asking what info they had before the fight.
 - Ground advice in proven Radiant and pro fundamentals: fight with a trade partner in view, clear angles in slices, use util before contact, take an off-angle once then move, keep economy discipline, reposition after kills.
-- Combine their career stats with what you can see (the screenshot, the match flow, and this session's tips). The best answer ties a stat to a concrete example, and covers both aim and game sense, not just headshot rate.
+- Combine their career stats with the match flow and this session's tips. The best answer ties a stat to a concrete example, and covers both aim and game sense, not just headshot rate.
 - Be honest, do not praise a mistake as if it were good, and do not invent a mistake that is not there. Knife out while rotating through safe space is CORRECT (fastest movement), knife out where contact is possible is the mistake. Match abilities to their real purpose (Updraft and dashes are mobility, not tools to clear angles).
 - Be concrete: name the exact habit or mistake and the fix, not generalities.
 - 2 to 5 short sentences, under 120 words total. Plain text, no markdown, no lists.
@@ -975,7 +1029,7 @@ Reply as Coach to the player's last message. Rules:
 - If you genuinely lack the information to answer, say what you'd need to see.`;
 
     const ask = (p) => Promise.race([
-      image ? visionInfer(image, p, 350, false) : textInfer(p, 350),
+      textInfer(p, 350),
       new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 25000)),
     ]);
 
@@ -991,11 +1045,7 @@ Reply as Coach to the player's last message. Rules:
     if (!chatReplyOk(reply)) {
       reply = 'Let\'s keep it on your gameplay. Ask me about a specific round, your aim, positioning, or economy and I\'ll break it down.';
     }
-    // The model marks [FRAME] only when its answer is about what that frame
-    // shows; otherwise the client keeps the screenshot out of the reply.
-    const usedFrame = !!image && /\[FRAME\]/i.test(reply);
-    reply = reply.replace(/\s*\[FRAME\]\s*/gi, ' ').replace(/\s{2,}/g, ' ').trim();
-    res.json({ reply: reply.slice(0, 1500), usedFrame });
+    res.json({ reply: reply.slice(0, 1500) });
   } catch (e) {
     console.error('[coach] chat error:', e.message);
     res.status(500).json({ error: 'Chat failed' });
