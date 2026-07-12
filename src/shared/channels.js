@@ -32,6 +32,7 @@ const CHANNELS = {
   COACH_STOP:      'coach:stop',
   COACH_PAUSE:     'coach:pauseResume',
   OVERLAY_TOGGLE:  'overlay:toggle',
+  OVERLAY_INTERACT:'overlay:interact',    // (bool) overlay accepts mouse input while hovering the review card's ✕
   AGENT_CONFIRM:   'agent:confirm',      // player tapped ✓ on the detected agent
   PANEL_RESIZE:    'panel:resize',       // (height) → fit the window to panel content
   PANEL_MINIMIZE:  'panel:minimize',     // hide the interactive panel (anti-aim-interference)

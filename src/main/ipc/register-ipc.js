@@ -54,6 +54,7 @@ function registerIpc(deps) {
   ipcMain.on(C.COACH_STOP,     () => guard('stop',     () => controller.stop()));
   ipcMain.on(C.COACH_PAUSE,    () => guard('pause',    () => controller.pauseResume()));
   ipcMain.on(C.OVERLAY_TOGGLE, () => guard('toggle',   () => controller.toggleOverlay()));
+  ipcMain.on(C.OVERLAY_INTERACT, (_e, on) => guard('overlayInteract', () => controller.setOverlayInteractive(!!on)));
   ipcMain.on(C.AGENT_CONFIRM,  () => guard('agentConfirm', () => controller.confirmAgent()));
   ipcMain.on(C.PANEL_RESIZE,   (_e, h) => guard('panelResize', () => controller.resizePanel(h)));
   ipcMain.on(C.PANEL_MINIMIZE, () => guard('minimize', () => controller.toggleMinimizePanel()));

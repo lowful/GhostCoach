@@ -224,6 +224,13 @@ function buyInfoClear(ctx) {
     && typeof ctx.playerCredits === 'number' && ctx.playerCredits >= 0;
 }
 
+// The AI reports side as "attacking"/"defending"; older paths said
+// "attack"/"defense". Match on the stem so both work.
+function sideOf(ctx) {
+  const s = String((ctx && ctx.side) || '').toLowerCase();
+  return s.includes('att') ? 'attack' : s.includes('def') ? 'defense' : null;
+}
+
 function chooseBucket(ctx) {
   if (!ctx) return pickTactical(ctx);
 
@@ -232,21 +239,13 @@ function chooseBucket(ctx) {
   if (ctx.phase === 'dead')       return 'dead';
 
   if (ctx.phase === 'postplant') {
-    if (ctx.side === 'defense') return 'retake';
-    if (ctx.side === 'attack')  return 'postplant';
+    if (sideOf(ctx) === 'defense') return 'retake';
+    if (sideOf(ctx) === 'attack')  return 'postplant';
     return pickTactical(ctx);   // side unknown: don't guess which way the plant went
   }
 
-  if (ctx.phase === 'buy') {
-    // Only advise a buy when we can actually read the round + credits.
-    if (!buyInfoClear(ctx)) return pickTactical(ctx);
-    if (ctx.roundNumber === 1 || ctx.roundNumber === 13) return 'pistol';
-    const c = ctx.playerCredits;
-    if (c < 2000) return 'eco';
-    if (c < 3900) return 'forcebuy';
-    return 'fullbuy';
-  }
-
+  // Buy phase: economy advice is retired (player feedback: inaccurate, low
+  // value), so buy-phase frames get tactical prep tips instead of buy tips.
   return pickTactical(ctx);
 }
 
@@ -255,9 +254,10 @@ function chooseBucket(ctx) {
 function pickTactical(ctx) {
   let pool = NEUTRAL;
   if (ctx) {
-    if (ctx.consecutiveDeaths >= 1)   pool = ['positioning', 'crosshair', 'trade', 'util', 'info'];
-    else if (ctx.side === 'attack')   pool = ['entry', 'util', 'default', 'trade', 'info', 'positioning', 'lurk'];
-    else if (ctx.side === 'defense')  pool = ['positioning', 'crosshair', 'info', 'rotate', 'trade', 'util'];
+    const side = sideOf(ctx);
+    if (ctx.consecutiveDeaths >= 1) pool = ['positioning', 'crosshair', 'trade', 'util', 'info'];
+    else if (side === 'attack')     pool = ['entry', 'util', 'default', 'trade', 'info', 'positioning', 'lurk'];
+    else if (side === 'defense')    pool = ['positioning', 'crosshair', 'info', 'rotate', 'trade', 'util'];
   }
   return pool[Math.floor(Math.random() * pool.length)];
 }

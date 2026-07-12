@@ -142,6 +142,11 @@ function showReview(data) {
   const h = document.createElement('h3');
   h.innerHTML = '<span class="src-dot"></span>';
   h.append('Match Review');
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'review-close';
+  closeBtn.title = 'Dismiss';
+  closeBtn.textContent = '✕';
+  h.append(closeBtn);
   const body = document.createElement('div');
   body.className = 'body';
   body.textContent = data.review;
@@ -150,10 +155,19 @@ function showReview(data) {
   if (stats) card.append(stats);
   reviewEl.append(card);
 
-  setTimeout(() => {
+  let timer;
+  const dismiss = () => {
+    clearTimeout(timer);
+    window.ghost.setInteractive(false);   // always hand the mouse back to the game
     card.classList.add('out');
     setTimeout(() => { reviewEl.hidden = true; reviewEl.innerHTML = ''; }, 300);
-  }, 22000);
+  };
+  closeBtn.addEventListener('click', dismiss);
+  // The overlay is click-through; while the cursor is over the card, main
+  // accepts mouse input so the ✕ is clickable, released on leave.
+  card.addEventListener('mouseenter', () => window.ghost.setInteractive(true));
+  card.addEventListener('mouseleave', () => window.ghost.setInteractive(false));
+  timer = setTimeout(dismiss, 22000);
 }
 
 // ── Subscriptions ────────────────────────────────────────────────────────────

@@ -198,6 +198,7 @@ const controller = {
   listSessions() { return listSessions(); },
   getSession(file) { return getSession(file); },
   toggleOverlay() { overlayWindow.toggleVisible(); },
+  setOverlayInteractive(on) { overlayWindow.setInteractive(!!on); },
   toggleMinimizePanel() {
     const willMinimize = !panelWindow.isMinimized();
     if (willMinimize) {

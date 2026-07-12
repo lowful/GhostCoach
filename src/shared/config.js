@@ -52,11 +52,14 @@ const TIMING = {
   serverTimeout:       8000,
 };
 
-// Screenshot/analyze frequency tiers (ms between captures).
-//   performance = "Very often"  ·  balanced = "Default"  ·  battery = "Barely"
+// Screenshot/analyze frequency tiers (ms between captures). The engine's
+// single-in-flight guard means the real ceiling is the AI's reply latency,
+// so turbo/rapid capture "as fast as the coach can think" without stacking.
 const PERFORMANCE_INTERVALS = {
-  ultra:       3000,   // testing tier: max freshness, ~20 analyzes/min
-  performance: 5000,   // very often
+  turbo:       1000,   // every second
+  rapid:       2000,   // every 2 seconds
+  ultra:       3000,   // every 3 seconds
+  performance: 5000,   // every 5 seconds
   balanced:    10000,  // default
   battery:     24000,  // barely
 };

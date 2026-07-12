@@ -55,7 +55,9 @@ class CoachingEngine extends EventEmitter {
     this.inLobby        = false;  // server saw a menu/lobby: silence ALL tips
     this.matchMemory    = [];     // running log of the match (rounds, streaks, reads)
     this.recentFrames   = [];     // last few REAL gameplay frames (never lobby/desktop)
-    this.focusIndex     = -1;     // rotates analysis emphasis (map/enemies/eco/…)
+    this.focusIndex     = -1;     // rotates analysis emphasis (map/enemies/…)
+    this.analyzedFrames = 0;      // frames analyzed this session (warm-up gate)
+    this.lastDeathAt    = 0;      // when the player last died (death-review window)
 
     this.timers = [];
     this.loopTimer = null;
@@ -81,6 +83,8 @@ class CoachingEngine extends EventEmitter {
     this.inLobby = false;
     this.matchMemory = [];
     this.recentFrames = [];
+    this.analyzedFrames = 0;
+    this.lastDeathAt = 0;
     this.emit('status', 'coaching');
 
     this.timers.push(setTimeout(() =>
@@ -176,6 +180,7 @@ class CoachingEngine extends EventEmitter {
       if (this.shouldAbort) return;
       if (!data) { this.onAnalyzeFailed(); return; }
       this.warnedFailure = false;   // server is healthy again
+      this.analyzedFrames++;
       this.processAIResponse(data);
       if (!this.inLobby) this.pushFrame(shot);   // confirmed gameplay: keep for chat
     } catch (e) {
@@ -356,7 +361,9 @@ class CoachingEngine extends EventEmitter {
       playerStats: this.playerStats,
       agentRole:    agentData.getRole(confirmedAgent),
       teammates:    this.matchContext.teammates || null, // passthrough if the server reports the comp
-      buyInfoClear: tipLibrary.buyInfoClear(this.matchContext), // don't advise a buy on unclear numbers
+      // Death review: the player died moments ago, the server prompts for a
+      // cause-and-fix explanation ONLY when the evidence clearly supports one.
+      justDied:     this.lastDeathAt > 0 && Date.now() - this.lastDeathAt < 12000,
       focus:        this.nextFocus(),
       // Experimental: playbook mode ('off' | 'on' | 'hybrid') for the server.
       proPlaybook:  this.experiments().proPlaybook || 'off',
@@ -378,9 +385,10 @@ class CoachingEngine extends EventEmitter {
   }
 
   nextFocus() {
-    // Some frames emphasise the minimap / economy / enemy reads; 'teammates' and
-    // 'abilities' nudge the coach to factor in the comp and what's actually usable.
-    const foci = ['map', 'enemies', 'economy', 'positioning', 'utility', 'aim', 'teammates', 'abilities'];
+    // Some frames emphasise the minimap / enemy reads; 'teammates' and
+    // 'abilities' nudge the coach to factor in the comp and what's actually
+    // usable. (economy was retired: buy advice is banned, reads stay context.)
+    const foci = ['map', 'enemies', 'positioning', 'utility', 'aim', 'teammates', 'abilities'];
     this.focusIndex = (this.focusIndex + 1) % foci.length;
     return foci[this.focusIndex];
   }
@@ -402,12 +410,14 @@ class CoachingEngine extends EventEmitter {
     this.enemyHistory.push(spot);
     if (this.enemyHistory.length > 8) this.enemyHistory.shift();
 
+    // A repeated spot goes into MATCH MEMORY + ENEMY PATTERNS so the AI folds
+    // the read into a real, situation-aware tip. (The old hardcoded "Heads up,
+    // they keep swinging X" template tip is gone: templated spam, not coaching.)
     const recent  = this.enemyHistory.slice(-3);
     const repeats = recent.filter((s) => s === spot).length;
-    if (repeats >= 2 && spot !== this.lastWarnedSpot && Date.now() - this.lastTipTime > 8000) {
+    if (repeats >= 2 && spot !== this.lastWarnedSpot) {
       this.lastWarnedSpot = spot;
       this.remember(`Enemies keep taking ${prettySpot(spot)}`);
-      this.emitTip(`Heads up, they keep swinging ${prettySpot(spot)}. Pre-aim it or throw util their way.`, 'ai');
     }
   }
 
@@ -439,6 +449,14 @@ class CoachingEngine extends EventEmitter {
       return;
     }
     this.inLobby = false;   // any non-LOBBY answer means we are in gameplay
+
+    // Warm-up: the first frames of a session build context (side, phase,
+    // memory, patterns). A tip with no context behind it is a guess, so the
+    // state still updates above but nothing is coached yet.
+    if (this.analyzedFrames < 2) {
+      console.log('[engine] warm-up frame, gathering context only');
+      return;
+    }
 
     if (tip.toUpperCase() === 'SKIP' || tip.length < 20) {         // skip / too short
       this.skipCount++;
@@ -502,6 +520,7 @@ class CoachingEngine extends EventEmitter {
   emitLibraryTip(opts = {}) {
     const { force = false, ignoreRatio = false } = (typeof opts === 'boolean' ? { force: opts } : opts);
     if (this.inLobby && !force) return;   // in a menu/lobby: no filler tips at all
+    if (this.analyzedFrames < 2 && !force) return;   // warm-up: context before coaching
     if (!force && Date.now() - this.lastTipTime < TIMING.tipCooldown) return;
 
     // Keep AI the majority: while the AI is available, a "filler" library tip
@@ -668,6 +687,8 @@ class CoachingEngine extends EventEmitter {
     if (updates.phase === 'dead' && prevPhase !== 'dead') {
       this.matchContext.consecutiveDeaths++;
       this.matchContext.consecutiveWins = 0;
+      this.lastDeathAt = Date.now();   // opens the death-review window
+      this.remember(`Player died round ${(this.matchContext.teamScore | 0) + (this.matchContext.enemyScore | 0) + 1}`);
       if (this.matchContext.consecutiveDeaths >= 2) {
         this.remember(`Player has died ${this.matchContext.consecutiveDeaths} rounds in a row`);
       }
@@ -836,6 +857,27 @@ function verifyTip(rawText, source, ctx) {
 // Non-actionable "meta" advice, nothing the player can do in the moment.
 const META_ADVICE = /\b(combat report|scoreboard|tab (?:menu|key|screen|out)|match history|post[- ]?game|kill ?feed|the report)\b/i;
 
+// Economy/buy advice is retired (player feedback: inaccurate and low value).
+// The AI keeps the economy as CONTEXT for reads, but any tip that tells the
+// player what to buy, save, force, or drop is dropped here.
+const ECON_TIP = new RegExp([
+  '\\bfull ?buy\\b', '\\bforce ?buy\\b', '\\bhalf ?buy\\b', '\\beco(?:nomy)?\\b',
+  '\\bfull save\\b', '\\bsave (?:your |the )?(?:creds?|credits?|money|gun|rifle|weapon)\\b',
+  '\\bcredits?\\b', '\\b(?:light|full|half|heavy|buy(?:ing)?) shields?\\b', '\\barmor\\b',
+  '\\b(?:buy|purchase|rebuy)\\b(?!\\s+(?:you|yourself|your team|us|them|some)?\\s*(?:time|seconds|space))',
+  "\\bteam'?s buy\\b", '\\bdrop (?:a |your |him |her |them )?(?:gun|weapon|rifle)\\b',
+].join('|'), 'i');
+
+// Mobility abilities cannot clear, check, or watch anything. "Use Updraft to
+// clear the flank" style tips are nonsense and get dropped outright.
+const MOBILITY_MISUSE = new RegExp(
+  '\\b(updraft|tailwind|dash(?:es)?|satchel|blast pack|high gear|sprint|blink|gatecrash)\\b[^.]{0,44}\\b(clear|check|watch|scan|spot)\\b'
+  + '|\\b(clear|check|watch|scan)(?:ing)?\\b[^.]{0,44}\\b(updraft|tailwind|satchel|high gear|sprint)\\b', 'i');
+
+// Prompt-echo leaks: fragments of the STATE schema or frame-memory wording
+// must never surface as a tip.
+const PROMPT_LEAK = /"(?:side|phase|round|team|enemy|credits|alive|weapon|map|enemySpot)"|\bSTATE\b|\benemy ?spot\b|\b(?:previous|current|second) frame\b|\bplaybook\b/i;
+
 // High-confidence situational guards only, never reject on a guess.
 function scenarioFits(text, source, ctx) {
   if (!ctx) return true;
@@ -843,6 +885,12 @@ function scenarioFits(text, source, ctx) {
 
   // No "analyse the combat report"-style tips, give in-the-moment advice.
   if (source === 'ai' && META_ADVICE.test(l)) return false;
+
+  // Economy/buy tips are retired entirely; mobility abilities can't "clear"
+  // anything; and prompt internals never surface as coaching.
+  if (source === 'ai' && ECON_TIP.test(l)) return false;
+  if (MOBILITY_MISUSE.test(l)) return false;
+  if (source !== 'system' && PROMPT_LEAK.test(text)) return false;
 
   // Don't tell the player to use an ability their agent can't (e.g. "recon
   // dart" on Reyna). With no confirmed agent, hold back ability-specific tips
@@ -861,13 +909,6 @@ function scenarioFits(text, source, ctx) {
   if (ctx.phase === 'dead'
       && /\b(peek|swing|shoot|spray|tap|push|rush|plant|defuse|reload)\b/.test(l)
       && !/\b(comm|call|callout|watch|spectat|info|next round|note)\b/.test(l)) {
-    return false;
-  }
-  // Buy advice only when the round + credits are actually readable (mirrors the
-  // library's gating, applied to AI tips that try to talk economy on bad info).
-  if (source === 'ai'
-      && /\b(buy|eco|force ?buy|full ?buy|half ?buy|credits?)\b/.test(l)
-      && !tipLibrary.buyInfoClear(ctx)) {
     return false;
   }
   return true;

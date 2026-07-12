@@ -73,4 +73,13 @@ function setVisible(visible) {
 
 function toggleVisible() { return setVisible(!overlayVisible); }
 
-module.exports = { create, get, setVisible, toggleVisible };
+/** Temporarily accept mouse input (cursor over the review card's ✕), then
+ *  back to fully click-through with event forwarding. */
+function setInteractive(on) {
+  const win = get();
+  if (!win || win.isDestroyed()) return;
+  if (on) win.setIgnoreMouseEvents(false);
+  else    win.setIgnoreMouseEvents(true, { forward: true });
+}
+
+module.exports = { create, get, setVisible, toggleVisible, setInteractive };

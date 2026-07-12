@@ -20,4 +20,7 @@ contextBridge.exposeInMainWorld('ghost', {
   onState:      (cb) => subscribe(C.PUSH_STATE, cb),
   onMatchReview:(cb) => subscribe(C.PUSH_MATCH_REVIEW, cb),
   onVisibility: (cb) => subscribe(C.PUSH_OVERLAY_VIS, cb),
+  // The overlay is click-through; while the cursor hovers the review card this
+  // asks main to accept mouse input so its ✕ can actually be clicked.
+  setInteractive: (on) => ipcRenderer.send(C.OVERLAY_INTERACT, !!on),
 });
