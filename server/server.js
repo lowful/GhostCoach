@@ -75,7 +75,7 @@ const checkoutLimiter = rateLimit({
 // routes reject them with 400/403 before any AI cost anyway.
 const licenseKeyOrIp = (req) => String(req.headers['x-license-key'] || '').trim().toUpperCase() || 'no-key';
 const coachLimiter = rateLimit({
-  windowMs: 60 * 1000, max: 60,
+  windowMs: 60 * 1000, max: 90,   // headroom for the 1s capture tier
   keyGenerator: licenseKeyOrIp,
   message: { error: 'Slow down. Too many coaching requests.' },
   standardHeaders: true, legacyHeaders: false,

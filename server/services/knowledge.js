@@ -47,7 +47,7 @@ const PLAYBOOK = [
   { text: 'Play the range of your gun, a Spectre wants close angles, rifles want mid range, an Operator wants the longest sightline.', weight: 1 },
   { text: 'Never look at the floor or a wall while moving, keep the crosshair working head height every step you take.', weight: 1 },
   { text: 'Isolate your duels, fight where only one enemy can see you, back off when two can shoot you at once.', weight: 2 },
-  { text: 'Play your life when your gun matters, dying with a rifle you cannot rebuy loses this round and the next.', weight: 1 },
+  { text: 'Play your life when your gun matters, throwing away a rifle costs your team this round and the next.', weight: 1 },
   { text: 'Win the fights you choose, not the fights they offer, if a peek feels forced, back off and reset.', weight: 1 },
   { text: 'In a clutch, isolate one duel at a time and use the spike timer to force them to come to you.', weight: 1 },
   { text: 'Rotate with your knife out through safe or cleared space for the speed, and switch to your gun before you reach possible contact.', weight: 2 },
@@ -75,7 +75,7 @@ const PLAYBOOK = [
 
   // ── utility craft ───────────────────────────────────────────────────────
   { text: 'Use util to answer util, if they smoke your angle then reposition or molly the push, do not dry hold a smoke.', weight: 2 },
-  { text: 'Never die with full util, unused abilities are credits you burned for nothing.', weight: 2 },
+  { text: 'Never die with full util, an unused ability is value thrown away for nothing.', weight: 2 },
   { text: 'Throw util for a purpose you can name, info, space, delay, or a kill, never just because it is up.', weight: 2 },
   { text: 'Combo your utility, a flash into a swing, a stun into an entry, solo util is half value.', weight: 1 },
   { text: 'Respect enemy util timings, most teams burn util early in the round, play patient through it then take the space.', weight: 1 },
@@ -134,20 +134,16 @@ const PLAYBOOK = [
   { side: 'defense', phase: 'postplant', situations: ['retake'], text: 'Use the spike audio, the fast beeps mean commit now, before that you still have time to clear properly.', weight: 1 },
   { side: 'defense', phase: 'postplant', text: 'If the retake is not winnable, save your gun and util, winning the next two rounds beats a hero attempt.', weight: 2 },
 
-  // ── economy ─────────────────────────────────────────────────────────────
-  { phase: 'buy', situations: ['eco'], text: 'Under 2000 credits full save, stack a site together or play for one close range pick, do not spread thin.', weight: 3 },
-  { phase: 'buy', situations: ['eco'], text: 'On a save round play for damage, info, and time, chip their armor, do not gift the kill feed a 5 for 0.', weight: 2 },
-  { phase: 'buy', situations: ['pistol'], text: 'Pistol round buy is light shields plus one cheap ability, or a Ghost, never full armor.', weight: 3 },
-  { phase: 'buy', situations: ['pistol'], text: 'Pistols reward the first accurate headshot, take close fights and burst, do not spray at range.', weight: 2 },
+  // ── round-type play (HOW to play the round type, never WHAT to buy;
+  //     buy advice is retired on player feedback) ─────────────────────────
+  { situations: ['eco'], text: 'Broke round, stack together for one close range pick and play the time down, do not spread thin and feed one by one.', weight: 3 },
+  { situations: ['eco'], text: 'On a broke round play for damage, info, and time, chip their armor, do not gift the kill feed a 5 for 0.', weight: 2 },
+  { situations: ['pistol'], text: 'Pistols reward the first accurate headshot, take close fights and burst, do not spray at range.', weight: 2 },
   { side: 'attack', situations: ['pistol'], text: 'On attack pistol, group as five with one plan, spread out pistol duels favor the defenders.', weight: 2 },
   { side: 'defense', situations: ['pistol'], text: 'On defense pistol, play crossfire pairs close together, a solo pistol duel is a coin flip, a trade is not.', weight: 2 },
-  { phase: 'buy', situations: ['forcebuy'], text: 'On a force buy take close fights, a Spectre or shotgun loses every long range duel to a rifle.', weight: 3 },
-  { phase: 'buy', situations: ['fullbuy'], text: 'Buy your utility with the rifle, a full buy with no util is half a buy at high level.', weight: 2 },
-  { phase: 'buy', text: 'Match your team buy, a solo force next to four saves wastes both rounds, buy together or save together.', weight: 3 },
-  { phase: 'buy', text: 'Sitting above 6000 with a teammate on a save, offer the drop, team economy wins matches.', weight: 1 },
+  { situations: ['forcebuy'], text: 'On cheap guns take close fights, a Spectre or shotgun loses every long range duel to a rifle.', weight: 3 },
   { situations: ['antieco'], text: 'You won pistol so they are broke, hold range and open ground, do not push corners where a Classic wins.', weight: 3 },
   { situations: ['antieco'], text: 'Anti eco rounds are positioning, not aim, make them cross open ground into rifles and never chase into close quarters.', weight: 2 },
-  { situations: ['lostpistol'], text: 'You lost pistol, coordinate round 2 as a team, full save together or full force together, half measures lose both rounds.', weight: 3 },
 
   // ── streaks and mental ──────────────────────────────────────────────────
   { situations: ['deathstreak'], text: 'You have died several rounds in a row, change your timing, peek earlier or later, they have your pattern read.', weight: 3 },
@@ -172,7 +168,7 @@ const PLAYBOOK = [
   // ── weapons (matched to what the player is actually holding) ────────────
   { weapons: ['operator'], text: 'With the Operator hold one long sightline at max range and reposition the moment you fire, never re scope the same pixel.', weight: 3 },
   { weapons: ['operator'], text: 'Pick the sightline they must cross and let them walk into your Operator, you win by holding, not hunting.', weight: 2 },
-  { weapons: ['operator'], text: 'Do not push with the Operator, a moving Op is a 4700 credit knife, let the fight come to your scope.', weight: 2 },
+  { weapons: ['operator'], text: 'Do not push with the Operator, a moving Op is just a very expensive knife, let the fight come to your scope.', weight: 2 },
   { weapons: ['spectre', 'stinger'], text: 'The Spectre loses every long duel, play elbows, corners, and smoke edges, force fights inside 15 meters.', weight: 3 },
   { weapons: ['spectre', 'stinger'], text: 'The Spectre stays accurate on the move up close, strafe fight inside rooms where rifles must stand still.', weight: 2 },
   { weapons: ['judge', 'bucky', 'shorty'], text: 'A shotgun owns doorways and tight corners, hold the pixel where they funnel and take one body per shell.', weight: 3 },

@@ -220,8 +220,6 @@ function buildContextPrompt(context) {
   const recentList = ctx.recentTips || ctx.lastTipsGiven || [];
   const recent     = recentList.length ? recentList.map((t, i) => (i + 1) + '. ' + t).join('\n') : '(none yet)';
   const topics     = (Array.isArray(ctx.recentTopics) && ctx.recentTopics.length) ? ctx.recentTopics.join(', ') : 'none yet';
-  const buyClear   = ctx.buyInfoClear !== false;
-  const buyNote    = buyClear ? '' : ' Right now credits or round are NOT clearly visible, so give a tactical tip, not a buy tip.';
   const focusLine  = ctx.focus ? ('This frame, lean toward: ' + ctx.focus + '.\n\n') : '';
   const transLine  = ctx.phaseTransition
     ? ('THE PHASE JUST CHANGED (' + ctx.phaseTransition + '). Coach the NEW phase first: buy advice as buy phase opens, setup or positioning as the round starts, post-plant or retake play the moment the spike is planted.\n\n')
@@ -230,9 +228,8 @@ function buildContextPrompt(context) {
     ? ('MATCH MEMORY (what has happened so far, use it for continuity, momentum reads, and predictions):\n'
        + ctx.matchMemory.slice(-10).map((m) => '- ' + String(m).slice(0, 90)).join('\n') + '\n\n')
     : '';
-  const enemyBlock = Array.isArray(ctx.enemyHistory) && ctx.enemyHistory.length
-    ? ('ENEMY PATTERNS this match (where they have been seen or made plays, oldest to newest): '
-       + ctx.enemyHistory.slice(-6).map((e) => String(e).slice(0, 40)).join(' | ') + '\n\n')
+  const deathLine = ctx.justDied
+    ? 'THE PLAYER JUST DIED. If the frames, match memory, and state CLEARLY show why (a dry peek, no trade partner in range, repeeking the same angle, a bad position, fighting without util), make this tip the death explanation: name the cause and the exact fix in one sentence. But if the death looks unlucky, a fair duel simply lost, or you cannot actually see the cause, do NOT guess and do NOT invent a reason, coach something else or SKIP. A wrong death explanation is worse than none.\n\n'
     : '';
   const side       = String(ctx.side || '').toLowerCase();
 
@@ -273,6 +270,19 @@ Aim and game sense matter together: if their aim is fine, coach the tactical mis
     :                 pbMode === 'hybrid' ? [staticHabits(), knowledge.block(ctx)].filter(Boolean).join('\n\n')
     :                 staticHabits();
 
+  // Prediction coaching and the enemy-pattern feed belong to the playbook
+  // modes. Off means the CLASSIC coach, cleanly separated, nothing layered in.
+  const enemyBlock = (pbMode !== 'off' && Array.isArray(ctx.enemyHistory) && ctx.enemyHistory.length)
+    ? ('ENEMY PATTERNS this match (where they have been seen or made plays, oldest to newest): '
+       + ctx.enemyHistory.slice(-6).map((e) => String(e).slice(0, 40)).join(' | ') + '\n\n')
+    : '';
+  const predictBlock = pbMode !== 'off'
+    ? `PREDICT, DO NOT JUST REACT (the highest value coaching there is)
+Combine the minimap, the kill feed, MATCH MEMORY, and ENEMY PATTERNS to anticipate what happens NEXT: which site they favor, where the lurker goes, when the flank comes, what their economy forces them into this round. When a pattern repeats, coach the prediction and its counter, "they have hit A three rounds in a row, expect A again, pre aim the choke" is the shape of a great tip. If the minimap shows no contact anywhere late in the round, warn about the stack or the late hit before it lands. Only predict off real evidence from this match, never invent a pattern.
+
+`
+    : '';
+
   return `You are a Radiant and professional level Valorant coach watching a live match through the player's screen. Give ONE short, specific, high-value tip, or the single word SKIP. Nothing else.
 
 WHO THE PLAYER IS
@@ -297,10 +307,7 @@ Vague or contradictory advice is worthless and forbidden. Never produce filler l
 
 ${habitsBlock}
 
-PREDICT, DO NOT JUST REACT (the highest value coaching there is)
-Combine the minimap, the kill feed, MATCH MEMORY, and ENEMY PATTERNS to anticipate what happens NEXT: which site they favor, where the lurker goes, when the flank comes, what their economy forces them into this round. When a pattern repeats, coach the prediction and its counter, "they have hit A three rounds in a row, expect A again, pre aim the choke" is the shape of a great tip. If the minimap shows no contact anywhere late in the round, warn about the stack or the late hit before it lands. A correct prediction beats any reaction, give one whenever the evidence supports it.
-
-READ THE HUD
+${predictBlock}READ THE HUD
 - Round and score: top-center, plus the round timer and whether it is buy phase.
 - Credits: shown in buy phase; use them for economy advice.
 - Bottom-center: the player's 4 abilities. Bright means ready, dim or greyed means used or not bought, so never tell them to use a greyed ability.
@@ -308,22 +315,15 @@ READ THE HUD
 - Center: crosshair placement and the angle being held.
 - Kill feed (top-right): recent kills and trades.
 
-ECONOMY AND ROUND TYPES (read credits, round number, and score, then coach the RIGHT round type, they play completely differently).${buyNote}
-- Pistol (round 1 and 13, ~800): light shields plus one cheap ability, or a Ghost, never full armor. Group up, trades win pistols.
-- Anti eco (you won the pistol): they are on pistols or a light force. Hold range and open ground, never push close corners where a Classic or shotgun wins the exchange.
-- After a LOST pistol (round 2 or 14): decide as a TEAM, full save together to buy round 3, or full force together. Half measures lose both rounds.
-- Eco / save (under 2000): buy nothing or a bare pistol. The round's job is funding the next full buy: play for time, info, and chip damage, stack together or hunt one close pick, and keep players alive at the end.
-- Force / half buy (2000 to 3900): Spectre or Sheriff with light shields. Only works as a coordinated team taking CLOSE fights, a spread out half buy against rifles is a donation.
-- Full buy (3900+): rifle, full shields, AND full utility. A rifle with no util is half a buy.
-- Bonus round: you won the last round on cheap guns, play with house money, take aggressive info fights but do not throw bodies into rifles.
-- Team coherence beats everything: match your team's buy every round, and if you are rich while a teammate saves, drop them a weapon.
+ECONOMY IS CONTEXT, NEVER A TIP
+NEVER give buy or economy advice: never tell the player what to buy, save, force, drop, or spend. No tips about shields, credits, or weapon purchases, ever. Use the economy ONLY to read the game and sharpen tactical tips: after a won pistol expect them broke and desperate up close; on their save expect a stack or a rush with shotguns, so hold range; on a force expect close-range aggression; on full buys expect slower, util-heavy play. Coach positioning, timing, utility, and decisions informed by that read.
 
 WHEN TO SPEAK, SKIP, or LOBBY
-Most gameplay frames deserve one sharp, useful observation, so give it: a mistake, an opportunity, a read, an economy call, or a positioning fix.
+ACCURACY BEATS FREQUENCY. Only speak when you are confident the tip is RIGHT for this exact frame: grounded in what you can actually SEE, plus the match state and memory. A wrong, generic, or guessed tip damages the player's trust more than silence ever will. When unsure, SKIP. Early in a match, before the side, the flow, and the player's habits are known, hold back and SKIP more, understand first, coach second.
 If the screen is NOT live gameplay (main menu, lobby, agent select, loading screen, career or collection page, range with no match), reply with exactly LOBBY.
-Reply with exactly SKIP only when it IS live gameplay but the only honest thing you could say repeats the recent tips below. Never pad with generic ability suggestions.
+Reply with exactly SKIP when it IS live gameplay but you have nothing confident and new to say. Never pad with generic ability suggestions, and never repeat the recent tips below.
 
-${enemyBlock}${memoryBlock}${transLine}${focusLine}CURRENT MATCH STATE (trust this, do not re-derive it every frame):
+${deathLine}${enemyBlock}${memoryBlock}${transLine}${focusLine}CURRENT MATCH STATE (trust this, do not re-derive it every frame):
 - Agent: ${ctx.agent || 'Unknown'} | Map: ${ctx.map || 'Unknown'} | Side: ${ctx.side || 'Unknown'}
 - Round: ${ctx.roundNumber || 'Unknown'} | Score: ${ctx.teamScore || 0}-${ctx.enemyScore || 0} | Phase: ${ctx.phase || 'Unknown'}
 - Credits: ${ctx.playerCredits == null ? 'Unknown' : ctx.playerCredits} | Alive: ${ctx.playerAlive === false ? 'No' : 'Yes'} | Deaths in a row: ${ctx.consecutiveDeaths || 0}
