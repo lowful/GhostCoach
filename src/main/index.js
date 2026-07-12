@@ -107,6 +107,12 @@ const controller = {
       captureFunction: () => capture.captureScreenshot(store.get('captureQuality')),
       performanceMode: store.get('performanceMode'),
       badTips:         store.get('badTips'),
+      // Experimental toggles, read live so flipping them in Settings applies
+      // to the very next capture without restarting the session.
+      experiments: () => ({
+        proPlaybook: store.get('proPlaybook') === true,
+        frameMemory: store.get('frameMemory') === true,
+      }),
     });
     engine.on('tip',    (tip) => pushTip(tip));
     engine.on('status', (status) => {
@@ -231,6 +237,7 @@ const controller = {
       stats:        await fetchTrackerStats(),
       frameAgeMin:  frame ? Math.max(0, Math.round((Date.now() - frame.at) / 60000)) : null,
       noSessionYet: !hasSessionData,
+      proPlaybook:  store.get('proPlaybook') === true,   // experimental: curated habits in chat
     };
     try {
       const { ok, data } = await api.post('/api/coach/chat', { messages, context, image }, licenseKey, 30000);

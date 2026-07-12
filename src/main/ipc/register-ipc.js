@@ -78,6 +78,8 @@ function snapshotConfig() {
     tipPosition:     store.get('tipPosition'),
     tipScale:        store.get('tipScale'),
     showTips:        store.get('showTips'),
+    proPlaybook:     store.get('proPlaybook'),
+    frameMemory:     store.get('frameMemory'),
     panelMinimized:  store.get('panelMinimized'),
   };
 }

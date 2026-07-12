@@ -25,6 +25,9 @@ class CoachingEngine extends EventEmitter {
     // most recent ones are sent to the AI so it avoids similar advice.
     this.badTips = new Set(Array.isArray(opts.badTips) ? opts.badTips : []);
     this.playerStats = null;   // tracker profile (rank/KD/HS%), set async after start
+    // Experimental toggles, read live from the store so a settings flip applies
+    // to the very next capture: { proPlaybook, frameMemory }.
+    this.experiments = typeof opts.experiments === 'function' ? opts.experiments : () => ({});
 
     this.matchContext = freshContext();
 
@@ -160,7 +163,13 @@ class CoachingEngine extends EventEmitter {
       if (!shot) { this.onCaptureFailed(); return; }
       this.warnedCapture = false;   // capture is healthy
 
-      const data = await this.callServer(API.ANALYZE, { image: shot, context: this.buildOutgoingContext() });
+      const body = { image: shot, context: this.buildOutgoingContext() };
+      // Frame memory (experimental): attach the previous gameplay frame so the
+      // AI can read what changed between looks, not judge one frozen moment.
+      const prev = this.previousGameplayFrame();
+      if (prev) body.previousImage = prev;
+
+      const data = await this.callServer(API.ANALYZE, body);
       if (this.shouldAbort) return;
       if (!data) { this.onAnalyzeFailed(); return; }
       this.warnedFailure = false;   // server is healthy again
@@ -242,7 +251,10 @@ class CoachingEngine extends EventEmitter {
       if (this.shouldAbort) return;
       if (!shot) { this.onCaptureFailed(true); return; }
       this.warnedCapture = false;
-      const data = await this.callServer(API.ANALYZE, { image: shot, context: this.buildOutgoingContext() }, { forced: true });
+      const body = { image: shot, context: this.buildOutgoingContext() };
+      const prev = this.previousGameplayFrame();
+      if (prev) body.previousImage = prev;
+      const data = await this.callServer(API.ANALYZE, body, { forced: true });
       if (!data) {
         // Forced press must always produce something useful.
         this.onAnalyzeFailed(true);
@@ -343,6 +355,8 @@ class CoachingEngine extends EventEmitter {
       teammates:    this.matchContext.teammates || null, // passthrough if the server reports the comp
       buyInfoClear: tipLibrary.buyInfoClear(this.matchContext), // don't advise a buy on unclear numbers
       focus:        this.nextFocus(),
+      // Experimental: server retrieves situation-matched pro habits when set.
+      proPlaybook:  !!this.experiments().proPlaybook,
       // Tell the coach how we want advice phrased / scoped. Greyed-out (unbought
       // or on-cooldown) abilities show dimmed in-game; only the AI vision can read
       // that, so we ask it to respect it and to keep ability talk generic.
@@ -527,6 +541,16 @@ class CoachingEngine extends EventEmitter {
     if (this.recentFrames.length > 5) this.recentFrames.shift();
   }
 
+  /** Frame memory (experimental): the newest CONFIRMED gameplay frame, only
+   *  while it is fresh enough to still describe "a moment ago" (90s). Frames
+   *  land in recentFrames after the server verifies them, so a lobby or
+   *  desktop shot can never be sent as the previous frame. */
+  previousGameplayFrame() {
+    if (!this.experiments().frameMemory) return null;
+    const last = this.recentFrames[this.recentFrames.length - 1];
+    return last && Date.now() - last.at < 90000 ? last.image : null;
+  }
+
   /** Append one line to the match memory (deduped, capped) so the AI keeps a
    *  running picture of the match instead of judging every frame cold. */
   remember(line) {
@@ -660,7 +684,10 @@ class CoachingEngine extends EventEmitter {
   async requestMatchReview() {
     try {
       const tips = this.tipHistory.filter((t) => t.source === 'ai').map((t) => t.text);
-      const data = await this.callServer(API.MATCH_REVIEW, { tips, context: this.matchContext });
+      const data = await this.callServer(API.MATCH_REVIEW, {
+        tips,
+        context: { ...this.matchContext, proPlaybook: !!this.experiments().proPlaybook },
+      });
       if (data && data.review) this.emit('match-review', data.review);
     } catch (e) {
       console.error('[engine] match-review error:', e.message);

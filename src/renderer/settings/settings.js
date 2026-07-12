@@ -24,14 +24,20 @@ wireSeg(tipposSeg, 'tipPosition');
 const capqSeg = document.getElementById('capq');
 wireSeg(capqSeg, 'captureQuality');
 
-// Show tips: boolean under the hood, on/off buttons in the UI.
-const showTipsSeg = document.getElementById('showtips');
-showTipsSeg.addEventListener('click', async (e) => {
-  const btn = e.target.closest('button');
-  if (!btn) return;
-  markSeg(showTipsSeg, btn.dataset.val);
-  await window.ghost.setConfig({ showTips: btn.dataset.val === 'on' }).catch(() => {});
-});
+// Booleans under the hood, on/off buttons in the UI.
+function wireBoolSeg(id, key) {
+  const seg = document.getElementById(id);
+  seg.addEventListener('click', async (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    markSeg(seg, btn.dataset.val);
+    await window.ghost.setConfig({ [key]: btn.dataset.val === 'on' }).catch(() => {});
+  });
+  return seg;
+}
+const showTipsSeg = wireBoolSeg('showtips', 'showTips');
+const playbookSeg = wireBoolSeg('playbook', 'proPlaybook');   // experimental
+const frameMemSeg = wireBoolSeg('framemem', 'frameMemory');   // experimental
 
 // Tip size: live label, saved as a ratio (1 = normal).
 const scaleEl = document.getElementById('tipscale');
@@ -125,6 +131,8 @@ async function load() {
       markSeg(tipposSeg, cfg.tipPosition);
       markSeg(capqSeg, cfg.captureQuality || 'standard');
       markSeg(showTipsSeg, cfg.showTips === false ? 'off' : 'on');
+      markSeg(playbookSeg, cfg.proPlaybook === true ? 'on' : 'off');
+      markSeg(frameMemSeg, cfg.frameMemory === true ? 'on' : 'off');
       const pct = Math.round((Number(cfg.tipScale) || 1) * 100);
       scaleEl.value = String(pct);
       scaleLabel.textContent = scaleText(pct);
