@@ -239,8 +239,9 @@ const controller = {
     try {
       const { ok, data } = await api.post('/api/coach/chat', { messages, context, image }, licenseKey, 30000);
       if (ok && data && data.reply) {
-        // Hand the referenced frame back so the chat shows it with the reply.
-        return { ok: true, reply: data.reply, image: image || null };
+        // Show the frame ONLY when the coach's answer is actually about it
+        // (the server sets usedFrame when the model referenced this frame).
+        return { ok: true, reply: data.reply, image: data.usedFrame && image ? image : null };
       }
       return { ok: false, error: (data && data.error) || 'The coach had no answer. Try again.' };
     } catch (e) {

@@ -352,7 +352,7 @@ class CoachingEngine extends EventEmitter {
       enemyHistory: this.enemyHistory.slice(-6),
       phaseTransition: this.recentPhaseTransition(),
       badTips: [...this.badTips].slice(0, 6),
-      matchMemory: this.matchMemory.slice(-8),
+      matchMemory: this.matchMemory.slice(-10),
       playerStats: this.playerStats,
       agentRole:    agentData.getRole(confirmedAgent),
       teammates:    this.matchContext.teammates || null, // passthrough if the server reports the comp
@@ -559,7 +559,7 @@ class CoachingEngine extends EventEmitter {
   remember(line) {
     if (!line || this.matchMemory[this.matchMemory.length - 1] === line) return;
     this.matchMemory.push(line);
-    if (this.matchMemory.length > 12) this.matchMemory.shift();
+    if (this.matchMemory.length > 16) this.matchMemory.shift();
   }
 
   /** Player rated a tip as bad: blocklist it and avoid its topic for a while. */
