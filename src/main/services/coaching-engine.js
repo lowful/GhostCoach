@@ -44,6 +44,7 @@ class CoachingEngine extends EventEmitter {
 
     this.lastServerStatus = null; // last HTTP status (0 = network/unreachable)
     this.warnedFailure    = false; // one-time server "why no AI tips" notice
+    this.failStreak       = 0;     // consecutive analyze failures (1 is a hiccup, 2+ is real)
     this.warnedCapture    = false; // one-time capture-failure notice
     this.lastAuthSuspect  = 0;     // throttle for 401/403 -> license re-check
 
@@ -78,6 +79,7 @@ class CoachingEngine extends EventEmitter {
     this.libraryTipCount = 0;
     this.warnedFailure = false;
     this.warnedCapture = false;
+    this.failStreak = 0;
     this.enemyHistory = [];
     this.lastWarnedSpot = null;
     this.recentAbilities = [];
@@ -183,6 +185,7 @@ class CoachingEngine extends EventEmitter {
       if (this.shouldAbort) return;
       if (!data) { this.onAnalyzeFailed(); return; }
       this.warnedFailure = false;   // server is healthy again
+      this.failStreak = 0;
       this.analyzedFrames++;
       this.processAIResponse(data);
       if (!this.inLobby) this.pushFrame(shot);   // confirmed gameplay: keep for chat
@@ -272,6 +275,7 @@ class CoachingEngine extends EventEmitter {
         return;
       }
       this.warnedFailure = false;
+      this.failStreak = 0;
       if (data.context) this.updateMatchContext(data.context);
 
       const tip = String(data.tip || '').trim();
@@ -293,7 +297,10 @@ class CoachingEngine extends EventEmitter {
   async callServer(path, body, opts = {}) {
     try {
       const headers = opts.forced ? { 'X-Forced': 'true' } : undefined;
-      const { ok, status, data } = await api.post(path, body, this.licenseKey, undefined, headers);
+      // 22s: the server's own AI timeout is up to 13s (two-frame analysis),
+      // so the old 8s default made slow-but-successful replies look like
+      // network failures ("can't reach the coach server" while it worked).
+      const { ok, status, data } = await api.post(path, body, this.licenseKey, 22000, headers);
       this.lastServerStatus = status;
       if (!ok) { console.error('[engine] server', path, 'status', status); return null; }
       return data;
@@ -313,6 +320,11 @@ class CoachingEngine extends EventEmitter {
       this.lastAuthSuspect = Date.now();
       this.emit('auth-suspect');
     }
+    // One miss is a hiccup (a slow AI reply, a dropped packet), NOT an outage:
+    // stay quiet and let the next cycle succeed. Only a streak is worth a
+    // warning, so the player never sees "can't reach" while things still work.
+    this.failStreak++;
+    if (!force && this.failStreak < 2) return;
     if (!this.warnedFailure) {
       this.warnedFailure = true;
       let msg;
@@ -729,6 +741,7 @@ function freshContext() {
     agent: null, agentConfirmed: false, map: null, side: null, teammates: null,
     roundNumber: 0, teamScore: 0, enemyScore: 0,
     phase: 'unknown', playerCredits: null, playerWeapon: null, playerAlive: true,
+    teammatesAlive: null, enemiesAlive: null,   // reported by the AI from the HUD bar
     consecutiveDeaths: 0, consecutiveWins: 0, roundsPlayed: 0,
   };
 }
@@ -890,6 +903,10 @@ const UPDRAFT_BAN = /\bupdraft\b/i;
 const KNIFE_TIP   = /\bknife\b/i;
 const DEATH_WINDOW_MS = 15000;
 
+// Advice that requires living teammates: impossible in a solo clutch
+// (teammatesAlive reported as 0 by the AI from the HUD portraits).
+const TEAM_PLAY_TIP = /\btrad(?:e|es|ed|ing)\b|\bteammates?\b|\bcrossfire\b|\bswing (?:with|together)\b|\bas five\b|\bregroup\b|\btrade partner\b|\bentry with\b/i;
+
 // High-confidence situational guards only, never reject on a guess.
 function scenarioFits(text, source, ctx) {
   if (!ctx) return true;
@@ -903,6 +920,12 @@ function scenarioFits(text, source, ctx) {
   if (source === 'ai' && ECON_TIP.test(l)) return false;
   if (MOBILITY_MISUSE.test(l)) return false;
   if (source !== 'system' && PROMPT_LEAK.test(text)) return false;
+  // Solo clutch: nobody is alive to trade or crossfire with, so team-play
+  // advice is impossible and gets dropped no matter how good it sounds.
+  if (ctx.playerAlive !== false && ctx.teammatesAlive === 0 && TEAM_PLAY_TIP.test(l)) {
+    return false;
+  }
+
   // Updraft advice: never. Knife advice: only right after a death it may have caused.
   if (source !== 'system' && UPDRAFT_BAN.test(l)) return false;
   if (source !== 'system' && KNIFE_TIP.test(l)

@@ -213,7 +213,7 @@ const LIBRARY = {
 
 // Buckets safe on ANY side / unknown context. Side-specific buckets (entry,
 // default, lurk = attack; retake = defense) and situation-specific ones
-// (clutch: we can't detect a clutch, so never guess it) are only reachable
+// (clutch: only when the AI reports 0 living teammates) are only reachable
 // when the context actually supports them.
 const NEUTRAL = ['crosshair', 'trade', 'util', 'positioning', 'info', 'rotate', 'mental', 'general'];
 
@@ -237,6 +237,10 @@ function chooseBucket(ctx) {
   if (ctx.consecutiveDeaths >= 3) return 'deathstreak';
   if (ctx.consecutiveWins   >= 3) return 'winstreak';
   if (ctx.phase === 'dead')       return 'dead';
+
+  // Solo clutch (the AI reported 0 living teammates): team-play buckets are
+  // impossible, this is exactly what the clutch bucket exists for.
+  if (ctx.teammatesAlive === 0 && ctx.playerAlive !== false) return 'clutch';
 
   if (ctx.phase === 'postplant') {
     if (sideOf(ctx) === 'defense') return 'retake';
