@@ -49,7 +49,9 @@ const PLAYBOOK = [
   { text: 'Isolate your duels, fight where only one enemy can see you, back off when two can shoot you at once.', weight: 2 },
   { text: 'Play your life when your gun matters, throwing away a rifle costs your team this round and the next.', weight: 1 },
   { text: 'Win the fights you choose, not the fights they offer, if a peek feels forced, back off and reset.', weight: 1 },
-  { text: 'In a clutch, isolate one duel at a time and use the spike timer to force them to come to you.', weight: 1 },
+  { situations: ['clutch'], text: 'In a clutch, isolate one duel at a time and use the spike timer to force them to come to you.', weight: 3 },
+  { situations: ['clutch'], text: 'Solo means nobody can trade you, only take fights you choose, play the time, and make them walk into your crosshair.', weight: 3 },
+  { situations: ['clutch'], text: 'In a 1vX play for information first, sound and the minimap tell you which duel is actually isolated.', weight: 2 },
   { text: 'Patterns repeat until punished, if they hit the same site twice in a row, expect it again and pre stack util there.', weight: 2 },
   { text: 'Read the minimap for absence, no contact anywhere by mid round means a stack or a late hit, call it before the timer forces panic.', weight: 1 },
   { text: 'Call enemy positions in three words, place, number, action, "two B main pushing" wins rounds, essays lose them.', weight: 1 },
@@ -295,6 +297,9 @@ try {
 
 const ALL = PLAYBOOK.concat(EXTRA);
 
+// Team-dependent advice, excluded from retrieval during a solo clutch.
+const TEAM_PLAY = /\btrad(?:e|es|ed|ing)\b|\bteammates?\b|\bcrossfire\b|\bswing (?:with|together)\b|\bas five\b|\bregroup\b|\btrade partner\b|\bentry\b|\bretake as\b|\byour team\b/i;
+
 // Agent -> role, so role notes fire off the confirmed agent.
 const ROLE_OF = {
   jett: 'duelist', reyna: 'duelist', phoenix: 'duelist', raze: 'duelist',
@@ -338,6 +343,8 @@ function situationOf(ctx) {
   if ((Number(ctx.consecutiveWins)   || 0) >= 2) flags.add('winstreak');
   if (sideKey === 'defense' && phase === 'postplant') flags.add('retake');
   if (round > 0 && round <= 3) flags.add('early');
+  // Solo clutch: the AI reported 0 living teammates while the player is alive.
+  if (ctx.teammatesAlive === 0 && ctx.playerAlive !== false && phase !== 'dead') flags.add('clutch');
 
   const agent  = typeof ctx.agent === 'string' && ctx.agent ? ctx.agent : null;
   const role   = agent ? ROLE_OF[agent.toLowerCase()] || null : null;
@@ -357,8 +364,12 @@ function retrieve(ctx, limit = 8) {
   const s = situationOf(ctx || {});
   const scored = [];
 
+  // Solo clutch: notes built on living teammates are impossible right now.
+  const solo = s.flags.has('clutch');
+
   for (const note of ALL) {
     // Exclusions: a tagged note never fires outside its tags.
+    if (solo && TEAM_PLAY.test(note.text)) continue;
     if (note.side  && s.side  && note.side  !== s.side)  continue;
     if (note.side  && !s.side) continue;                     // side unknown: skip side notes
     if (note.phase && note.phase !== s.phase) continue;

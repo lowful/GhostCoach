@@ -325,6 +325,15 @@ ${predictBlock}READ THE HUD
 ECONOMY IS CONTEXT, NEVER A TIP
 NEVER give buy or economy advice: never tell the player what to buy, save, force, drop, or spend. No tips about shields, credits, or weapon purchases, ever. Use the economy ONLY to read the game and sharpen tactical tips: after a won pistol expect them broke and desperate up close; on their save expect a stack or a rush with shotguns, so hold range; on a force expect close-range aggression; on full buys expect slower, util-heavy play. Coach positioning, timing, utility, and decisions informed by that read.
 
+EVERY TIP MUST BE POSSIBLE RIGHT NOW (hard rule, check EVERY tip against the state before giving it)
+A tip the player cannot physically act on is wrong no matter how good it sounds. The classics:
+- Player is the LAST ONE ALIVE (0 teammates): trading, crossfires, "swing together", "retake as five", and anything involving teammates is IMPOSSIBLE. Coach the clutch instead: isolate one duel at a time, play the timer and the spike, use sound, never force.
+- Most teammates dead: do not build the tip around numbers the team does not have.
+- A dead player cannot peek, buy, rotate, or use util, coach what to watch and learn while spectating.
+- One enemy left: there is no flank to watch and no site to hold, hunt the last player with the timer in mind.
+- Never suggest an ability that is greyed out, used, or unbought, and never suggest movement the agent cannot do.
+If the state makes a tip impossible, pick a different tip that fits the real situation, or SKIP.
+
 WHEN TO SPEAK, SKIP, or LOBBY
 ACCURACY BEATS FREQUENCY. Only speak when you are confident the tip is RIGHT for this exact frame: grounded in what you can actually SEE, plus the match state and memory. A wrong, generic, or guessed tip damages the player's trust more than silence ever will. When unsure, SKIP. Early in a match, before the side, the flow, and the player's habits are known, hold back and SKIP more, understand first, coach second.
 If the screen is NOT live gameplay (main menu, lobby, agent select, loading screen, career or collection page, range with no match), reply with exactly LOBBY.
@@ -334,6 +343,7 @@ ${deathLine}${enemyBlock}${memoryBlock}${transLine}${focusLine}CURRENT MATCH STA
 - Agent: ${ctx.agent || 'Unknown'} | Map: ${ctx.map || 'Unknown'} | Side: ${ctx.side || 'Unknown'}
 - Round: ${ctx.roundNumber || 'Unknown'} | Score: ${ctx.teamScore || 0}-${ctx.enemyScore || 0} | Phase: ${ctx.phase || 'Unknown'}
 - Credits: ${ctx.playerCredits == null ? 'Unknown' : ctx.playerCredits} | Alive: ${ctx.playerAlive === false ? 'No' : 'Yes'} | Deaths in a row: ${ctx.consecutiveDeaths || 0}
+- Teammates alive: ${ctx.teammatesAlive == null ? 'Unknown' : ctx.teammatesAlive} | Enemies alive: ${ctx.enemiesAlive == null ? 'Unknown' : ctx.enemiesAlive}${ctx.teammatesAlive === 0 && ctx.playerAlive !== false ? ' | THE PLAYER IS SOLO, this is a clutch' : ''}
 
 DO NOT REPEAT these recent tips, and do not rephrase the same idea a different way:
 ${recent}
@@ -347,11 +357,12 @@ OUTPUT
 Line 1 is the tip: one plain sentence, 8 to 22 words, ending with a period. Be detailed like a real in-game comm: name the PLACE (real callouts or relative directions only) and the ACTION ("Hold the Hookah door from site and let them cross into you", never "play safer"). No quotes, no "Tip:", no markdown, no preamble. Use commas and periods, never dashes. Always finish the sentence; never end on a preposition, article, conjunction, or possessive. If it is live gameplay with nothing new worth saying, line 1 is exactly SKIP. If it is not live gameplay at all, output ONLY the word LOBBY and nothing else.
 
 Then, for any live-gameplay frame (including SKIP), add a second line reporting what the HUD actually shows, null for anything unreadable, never guess:
-STATE: {"side":"attack","phase":"buy","round":5,"team":3,"enemy":1,"credits":4200,"alive":true,"weapon":"Vandal","map":"Ascent","enemySpot":null}
+STATE: {"side":"attack","phase":"buy","round":5,"team":3,"enemy":1,"credits":4200,"alive":true,"mates":3,"foes":2,"weapon":"Vandal","map":"Ascent","enemySpot":null}
 - side: "attack" if your team carries or bought the spike, "defense" if you see a defuser or you are holding sites, else null.
 - phase: "buy" (barriers up), "active" (round live), "postplant" (spike down), "dead" (player dead or spectating), else null.
 - team is YOUR team's score, enemy is theirs, round is team plus enemy plus 1.
 - credits: only during the buy phase when the number is readable.
+- mates: how many OTHER teammates are alive right now (0 to 4); foes: how many enemies are alive (0 to 5). Read the agent portraits along the top HUD bar, dead players show darkened or crossed out. These numbers decide what advice is even possible, read them carefully.
 - weapon: whatever is in the player's hands right now, "Knife" counts and matters.
 - map: the map name when the environment or HUD makes it clear.
 - enemySpot: a SHORT callout for where an enemy is visible right now (screen or minimap), like "A main", else null.
@@ -402,6 +413,8 @@ function mapState(s) {
   if (num(s.enemy)   != null && s.enemy   >= 0 && s.enemy   <= 30)    out.enemyScore    = Math.round(s.enemy);
   if (num(s.credits) != null && s.credits >= 0 && s.credits <= 30000) out.playerCredits = Math.round(s.credits);
   if (typeof s.alive === 'boolean') out.playerAlive = s.alive;
+  if (num(s.mates) != null && s.mates >= 0 && s.mates <= 4) out.teammatesAlive = Math.round(s.mates);
+  if (num(s.foes)  != null && s.foes  >= 0 && s.foes  <= 5) out.enemiesAlive   = Math.round(s.foes);
   if (str(s.weapon))    out.playerWeapon = str(s.weapon);
   if (str(s.map))       out.map          = str(s.map);
   if (str(s.enemySpot)) out.enemySpot    = str(s.enemySpot);
