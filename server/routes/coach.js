@@ -770,6 +770,142 @@ router.get('/player-stats', async (req, res) => {
   res.json({ error: reasons[0] || 'Could not load that profile. Check the Riot ID is exact.' });
 });
 
+// ─── Extended stats dashboard ─────────────────────────────────────────────────
+
+/** 0-100 match rating: base 50 for a loss, 65 for a win, plus a K/D bonus
+ *  capped at 35 so one lopsided game can never exceed 100. */
+function computeMatchRating(won, kd) {
+  const base  = won ? 65 : 50;
+  const bonus = Math.min(35, Math.round((Number(kd) || 0) * 12));
+  return Math.max(0, Math.min(100, base + bonus));
+}
+
+// Tracker responses cached in memory for 15 minutes per Riot ID (faster than
+// a DB table, no cleanup job, losing it on deploy costs nothing but staleness
+// budget). Manual refresh is honored at most once per 3 minutes per ID.
+const MATCHES_TTL_MS     = 15 * 60 * 1000;
+const MATCHES_REFRESH_MS = 3 * 60 * 1000;
+const matchesCache = new Map();   // riotId(lower) -> { data, fetchedAt, lastManualRefresh }
+
+// GET /api/coach/matches?username=Name%23TAG[&refresh=1]
+// The player's last 10 competitive matches with per-match 0-100 ratings.
+router.get('/matches', async (req, res) => {
+  const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
+  if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+  if (!process.env.HENRIKDEV_API_KEY) return res.json({ error: 'No stats provider configured.' });
+
+  const username = String(req.query.username || '');
+  if (!username.includes('#')) return res.json({ error: 'Riot ID must be Name#TAG.' });
+  const key = username.toLowerCase();
+  const now = Date.now();
+  const hit = matchesCache.get(key);
+
+  const wantsRefresh = req.query.refresh === '1'
+    && (!hit || now - hit.lastManualRefresh > MATCHES_REFRESH_MS);
+  if (hit && !wantsRefresh && now - hit.fetchedAt < MATCHES_TTL_MS) {
+    return res.json({ matches: hit.data, fetchedAt: hit.fetchedAt, cached: true });
+  }
+
+  const [name, tag] = username.split('#').map((s) => s.trim());
+  const enc = encodeURIComponent;
+  try {
+    const acct = await henrikGet(`/valorant/v2/account/${enc(name)}/${enc(tag)}`);
+    const region = acct.json?.data?.region;
+    if (!region) return res.json({ error: 'Account not found.' });
+
+    const sm = await henrikGet(`/valorant/v1/stored-matches/${region}/${enc(name)}/${enc(tag)}?mode=competitive&size=10`);
+    const rows = (sm.json && Array.isArray(sm.json.data)) ? sm.json.data : [];
+    const matches = [];
+    for (const m of rows) {
+      const st = m && m.stats;
+      if (!st) continue;
+      const teams   = m.teams || {};
+      const rounds  = (teams.red | 0) + (teams.blue | 0);
+      const mine    = String(st.team || '').toLowerCase();
+      const myScore = teams[mine] | 0;
+      const theirs  = teams[mine === 'red' ? 'blue' : 'red'] | 0;
+      const kills = st.kills | 0, deaths = st.deaths | 0, assists = st.assists | 0;
+      const kd  = deaths > 0 ? +(kills / deaths).toFixed(2) : kills;
+      const won = myScore > theirs;
+      const dmg = (st.damage && (st.damage.made != null ? st.damage.made : st.damage.dealt)) || 0;
+      matches.push({
+        id:      (m.meta && m.meta.id) || null,
+        map:     m.meta?.map?.name || 'Unknown',
+        agent:   st.character?.name || null,
+        result:  won ? 'Victory' : myScore < theirs ? 'Defeat' : 'Draw',
+        score:   myScore + '-' + theirs,
+        kills, deaths, assists, kd,
+        acs:     rounds ? Math.round((st.score | 0) / rounds) : 0,
+        adr:     rounds ? Math.round(dmg / rounds) : 0,
+        rating:  computeMatchRating(won, kd),
+        startedAt: m.meta?.started_at ? Date.parse(m.meta.started_at) : null,
+      });
+    }
+    const entry = { data: matches, fetchedAt: now, lastManualRefresh: wantsRefresh ? now : (hit ? hit.lastManualRefresh : 0) };
+    matchesCache.set(key, entry);
+    res.json({ matches, fetchedAt: now, cached: false });
+  } catch (e) {
+    console.error('[coach] matches error:', e.message);
+    // Serve the stale cache over an error page any day.
+    if (hit) return res.json({ matches: hit.data, fetchedAt: hit.fetchedAt, cached: true });
+    res.json({ error: 'Could not load matches.' });
+  }
+});
+
+// POST /api/coach/score-session, JSON body: { tips: string[], context: { map, agent } }
+// Grades a finished coached session across four categories (0-100) and writes
+// short strengths/weaknesses text, all grounded ONLY in that session's tips.
+// The app stores the result locally; nothing is kept server-side.
+router.post('/score-session', async (req, res) => {
+  try {
+    const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
+    if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+
+    const tips = Array.isArray(req.body && req.body.tips) ? req.body.tips.slice(0, 30).map((t) => String(t).slice(0, 160)) : [];
+    if (tips.length < 3) return res.json({ error: 'Not enough tips to score.' });
+    const ctx = (req.body && req.body.context) || {};
+
+    const prompt = `A Valorant player finished a coached session${ctx.map ? ' on ' + String(ctx.map).slice(0, 20) : ''}${ctx.agent ? ' playing ' + String(ctx.agent).slice(0, 16) : ''}. These coaching tips were shown during it:\n${tips.join('\n')}\n\nReturn ONLY valid JSON, no markdown:\n{"economy":70,"positioning":70,"utility":70,"aim":70,"strengths":"...","weaknesses":"..."}\nScore each category 0-100 from the tips alone: many corrections in a category means a LOWER score there, no mention means a neutral 70-75. strengths: 1-2 sentences on what the coaching did NOT have to correct or praised. weaknesses: 1-2 sentences on the most repeated corrections. Ground everything strictly in the tips, invent nothing. Use commas and periods, never dashes.`;
+
+    let out = null;
+    try {
+      const raw = await Promise.race([
+        textInfer(prompt, 260),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 12000)),
+      ]);
+      trackCall(licenseKey);
+      const parsed = JSON.parse(String(raw).replace(/```json|```/g, '').trim());
+      const n = (v) => Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
+      out = {
+        economy: n(parsed.economy), positioning: n(parsed.positioning),
+        utility: n(parsed.utility), aim: n(parsed.aim),
+        strengths:  sanitize(String(parsed.strengths  || '')).slice(0, 400),
+        weaknesses: sanitize(String(parsed.weaknesses || '')).slice(0, 400),
+      };
+    } catch (e) {
+      console.warn('[coach] score-session AI failed, using heuristic:', e.message);
+    }
+
+    // Heuristic fallback: more corrective tips in a category = lower score.
+    if (!out || !out.strengths) {
+      const count = (re) => tips.filter((t) => re.test(t)).length;
+      const score = (c) => Math.max(45, 80 - c * 6);
+      out = out || {
+        economy:     score(count(/eco|buy|credit|save|shield/i)),
+        positioning: score(count(/position|angle|peek|reposition|spot|corner|off angle/i)),
+        utility:     score(count(/util|smoke|flash|molly|recon|wall|drone|ability/i)),
+        aim:         score(count(/aim|crosshair|spray|headshot|strafe|whiff/i)),
+        strengths:  'You kept sessions going and took the coaching on board.',
+        weaknesses: 'See the tips from this session for the most repeated corrections.',
+      };
+    }
+    res.json(out);
+  } catch (e) {
+    console.error('[coach] score-session error:', e.message);
+    res.json({ error: 'Scoring failed.' });
+  }
+});
+
 // GET /api/coach/last-match?username=Name%23TAG
 // The player's most recent COMPLETED competitive match from the tracker, with
 // a simple performance grade. (There is no live in-match API; matches appear
