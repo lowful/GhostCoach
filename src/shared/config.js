@@ -78,14 +78,16 @@ const TIP_PACING = {
   battery:     { cooldown: 16000, silence: 26000 },
 };
 
-// Tip mix: AI tips must stay the majority. Fallback library tips that fire while
-// the AI IS available are suppressed if they'd push AI's share below this floor.
-// (Hard failures, server/capture down, ignore this, since AI isn't an option.)
+// Tip mix: AI tips should stay at least an even share. Fallback library tips
+// that fire while the AI IS available are suppressed if they'd push AI's share
+// below this floor. (Hard failures, server/capture down, ignore this.)
+// 0.5 (was 0.65): with the accuracy-first prompt the AI legitimately SKIPs
+// more, and a curated library tip in a quiet spell beats dead air.
 const COACHING = {
-  aiMinShare: 0.65,
+  aiMinShare: 0.5,
   // Allow this many library tips before the ratio governor kicks in, so the
   // overlay isn't dead-air early while the AI is still ramping up.
-  bootstrapLibrary: 2,
+  bootstrapLibrary: 3,
 };
 
 // ── electron-store schema defaults ──────────────────────────────────────────

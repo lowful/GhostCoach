@@ -176,9 +176,11 @@ class CoachingEngine extends EventEmitter {
       this.warnedCapture = false;   // capture is healthy
 
       const body = { image: shot, context: this.buildOutgoingContext() };
-      // Frame memory (experimental): attach the previous gameplay frame so the
-      // AI can read what changed between looks, not judge one frozen moment.
-      const prev = this.previousGameplayFrame();
+      // Frame memory only when it earns its latency (two images are ~2x slower
+      // per reply, and the loop is single-in-flight, so every slow reply costs
+      // future tips): right after a death, on a phase flip, or as a periodic
+      // pattern sample. Everything else sends one image and replies fast.
+      const prev = this.shouldSendFrameMemory() ? this.previousGameplayFrame() : null;
       if (prev) body.previousImage = prev;
 
       const data = await this.callServer(API.ANALYZE, body);
@@ -297,10 +299,11 @@ class CoachingEngine extends EventEmitter {
   async callServer(path, body, opts = {}) {
     try {
       const headers = opts.forced ? { 'X-Forced': 'true' } : undefined;
-      // 22s: the server's own AI timeout is up to 13s (two-frame analysis),
-      // so the old 8s default made slow-but-successful replies look like
-      // network failures ("can't reach the coach server" while it worked).
-      const { ok, status, data } = await api.post(path, body, this.licenseKey, 22000, headers);
+      // 16s: past the server's own worst-case AI timeout (13s on two-frame
+      // analyses) plus network, so slow successes never read as failures,
+      // while a genuinely hung request stalls the single-in-flight loop for
+      // as short a time as possible.
+      const { ok, status, data } = await api.post(path, body, this.licenseKey, 16000, headers);
       this.lastServerStatus = status;
       if (!ok) { console.error('[engine] server', path, 'status', status); return null; }
       return data;
@@ -475,7 +478,9 @@ class CoachingEngine extends EventEmitter {
 
     if (tip.toUpperCase() === 'SKIP' || tip.length < 20) {         // skip / too short
       this.skipCount++;
-      if (this.skipCount >= 2 && Date.now() - this.lastTipTime > this.pacing.silence) {
+      // One SKIP plus a real quiet spell is enough for the library to step in;
+      // waiting for two consecutive SKIPs starved the overlay of tips.
+      if (this.skipCount >= 1 && Date.now() - this.lastTipTime > this.pacing.silence) {
         this.skipCount = 0;
         // AI went quiet: fill in with a library tip, but keep it within the mix
         // budget so library stays a minority (<=35%). The player wants majority
@@ -586,6 +591,15 @@ class CoachingEngine extends EventEmitter {
   previousGameplayFrame() {
     const last = this.recentFrames[this.recentFrames.length - 1];
     return last && Date.now() - last.at < 90000 ? last.image : null;
+  }
+
+  /** Frame memory is worth the extra latency when change is the story: the
+   *  player just died (explain it), the phase just flipped, or every 3rd
+   *  frame as a pattern sample. The rest of the time one fast image wins. */
+  shouldSendFrameMemory() {
+    if (this.matchContext.lastDeathAt && Date.now() - this.matchContext.lastDeathAt < 15000) return true;
+    if (this.recentPhaseTransition()) return true;
+    return this.analyzedFrames % 3 === 2;
   }
 
   /** Append one line to the match memory (deduped, capped) so the AI keeps a
