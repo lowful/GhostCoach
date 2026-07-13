@@ -79,6 +79,26 @@ function applyState(s) {
 window.ghost.getState().then(applyState).catch(() => {});
 window.ghost.onState(applyState);
 
+// "Ask Coach about this" from the stats dashboard: a pending session seed is
+// auto-sent as the opening question so the AI speaks to that exact session.
+// Checked on load and on focus (covers the chat already being open); the seed
+// clears on read so it fires once.
+async function checkSeed() {
+  try {
+    const seed = await window.ghost.getSeed();
+    if (!seed || busy) return;
+    const sc = seed.scores || {};
+    const parts = [`Review my coached session${seed.date ? ' from ' + seed.date : ''}${seed.map ? ' on ' + seed.map : ''}.`];
+    if (sc.economy != null) parts.push(`Category scores, Economy ${sc.economy}, Positioning ${sc.positioning}, Utility ${sc.utility}, Aim ${sc.aim}${seed.overall != null ? ', overall ' + seed.overall : ''}.`);
+    if (seed.strengths)  parts.push(`Strengths noted: ${seed.strengths}`);
+    if (seed.weaknesses) parts.push(`Weaknesses noted: ${seed.weaknesses}`);
+    parts.push('What should I focus on first?');
+    send(parts.join(' '));
+  } catch {}
+}
+window.addEventListener('focus', () => { checkSeed(); });
+checkSeed();
+
 document.getElementById('close').addEventListener('click', () => window.close());
 inputEl.focus();
 console.log('[chat] ready');

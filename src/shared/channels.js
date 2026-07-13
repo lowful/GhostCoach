@@ -26,6 +26,9 @@ const CHANNELS = {
   STATS_TEST:       'stats:test',        // () → { ok, stats?, error? } tracker connect test
   SESSIONS_LIST:    'sessions:list',     // () → [{ file, endedAt, tipCount, agent }]
   SESSION_GET:      'sessions:get',      // (file) → archived session JSON | null
+  STATS_DASHBOARD:  'stats:dashboard',   // () → { categories, rank, winRate, sessions, sessionCount, matches, riotConnected }
+  STATS_REFRESH:    'stats:refreshMatches', // () → { matches, fetchedAt, refreshBlockedFor? } (3-min manual limit)
+  CHAT_SEED:        'chat:seed',         // () → pending session context for Ask Coach, cleared on read
 
   // ── renderer → main commands (ipcRenderer.send ⇄ ipcMain.on) ──────────────
   COACH_START:     'coach:start',
@@ -39,6 +42,8 @@ const CHANNELS = {
   OPEN_SETTINGS:   'window:openSettings',
   OPEN_HISTORY:    'window:openHistory',
   OPEN_CHAT:       'window:openChat',    // the Ask Coach chat window
+  OPEN_STATS:      'window:openStats',   // the extended stats dashboard window
+  OPEN_CHAT_SEEDED:'window:openChatSeeded', // (sessionSeed) open Ask Coach preloaded with a session's context
   TIP_RATE:        'tip:rate',           // ({ text, source, rating: good|bad })
   OPEN_PURCHASE:   'window:openPurchase',
   LICENSE_LOGOUT:  'license:logout',      // clear license + return to activation screen

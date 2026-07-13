@@ -21,6 +21,7 @@ const overlayWindow    = require('./windows/overlay-window');
 const panelWindow      = require('./windows/panel-window');
 const settingsWindow   = require('./windows/settings-window');
 const historyWindow    = require('./windows/history-window');
+const statsWindow      = require('./windows/stats-window');
 const dockWindow       = require('./windows/dock-window');
 const activationWindow = require('./windows/activation-window');
 const onboardingWindow = require('./windows/onboarding-window');
@@ -176,6 +177,14 @@ const controller = {
     if (!state.isCoaching) return;
     state.isCoaching = false;
     state.isPaused   = false;
+    // Score the session for the stats dashboard (server AI grades the four
+    // categories from the tips; result logged locally, fire and forget).
+    if (engine) {
+      logSessionPerformance(
+        state.tips.filter((t) => t.source === 'ai' || t.source === 'library').map((t) => t.text),
+        { map: engine.matchContext.map, agent: engine.matchContext.agent },
+      );
+    }
     // Archive the session before tearing the engine down (mix + memory live there).
     saveSessionArchive(engine ? {
       tipMix: engine.getMix(),
@@ -230,6 +239,97 @@ const controller = {
   openSettings()  { settingsWindow.open(); },
   openHistory()   { historyWindow.open(); },
   openChat()      { chatWindow.open(); },
+  openStats()     { statsWindow.open(); },
+
+  /** "Ask Coach about this" from the stats dashboard: stash the session's
+   *  context, then open chat; the chat window collects the seed via CHAT_SEED
+   *  and auto-sends it as the opening question. */
+  openChatSeeded(seed) {
+    if (seed && typeof seed === 'object') {
+      const n = (v) => (typeof v === 'number' && isFinite(v) ? Math.round(v) : null);
+      state.chatSeed = {
+        date:       String(seed.date || '').slice(0, 40),
+        map:        seed.map ? String(seed.map).slice(0, 24) : null,
+        overall:    n(seed.overall),
+        scores:     seed.scores && typeof seed.scores === 'object' ? {
+          economy: n(seed.scores.economy), positioning: n(seed.scores.positioning),
+          utility: n(seed.scores.utility), aim: n(seed.scores.aim),
+        } : null,
+        strengths:  String(seed.strengths  || '').slice(0, 400),
+        weaknesses: String(seed.weaknesses || '').slice(0, 400),
+      };
+    }
+    chatWindow.open();
+  },
+  takeChatSeed() {
+    const s = state.chatSeed || null;
+    state.chatSeed = null;
+    return s;
+  },
+
+  /** The assembled extended-stats dashboard: category trends from the local
+   *  performance log, rank/win-rate from the tracker profile, and the recent
+   *  match list (server-cached 15 min, client-cached alongside). */
+  async getStatsDashboard() {
+    const perf   = loadPerf();            // oldest -> newest
+    const recent = perf.slice(-10);
+    const prev   = perf.slice(-20, -10);
+    const avg = (rows, k) => rows.length
+      ? Math.round(rows.reduce((s, r) => s + ((r.scores && r.scores[k]) || 0), 0) / rows.length)
+      : null;
+    const categories = {};
+    for (const k of ['economy', 'positioning', 'utility', 'aim']) {
+      const a = avg(recent, k);
+      categories[k] = { avg: a, direction: prev.length ? trendDirection(a, avg(prev, k)) : 'flat' };
+    }
+
+    const stats     = store.get('playerStats') || null;
+    const prevStats = store.get('lastMatchStats') || null;
+    const rank = {
+      value: (stats && stats.rank) || null,
+      direction: stats && prevStats ? trendDirection(rankIndex(stats.rank), rankIndex(prevStats.rank), 0) : 'flat',
+    };
+    const winRate = {
+      value: stats && stats.winRate != null ? stats.winRate : null,
+      direction: stats && prevStats ? trendDirection(stats.winRate, prevStats.winRate) : 'flat',
+    };
+
+    return {
+      categories, rank, winRate,
+      sessions: perf.slice(-15).reverse(),   // newest first for the list
+      sessionCount: perf.length,
+      matches: await this.getMatches(false),
+      riotConnected: (store.get('riotId') || '').includes('#'),
+    };
+  },
+
+  /** Recent tracker matches with ratings. manual=true is the refresh button:
+   *  rate limited to once per 3 minutes, otherwise the cache serves. */
+  async getMatches(manual) {
+    const riotId = (store.get('riotId') || '').trim();
+    if (!riotId.includes('#')) return { matches: [], fetchedAt: 0, error: 'no-riot-id' };
+    const now = Date.now();
+    if (manual && now - matchesClient.lastManual < 3 * 60 * 1000) {
+      return { matches: matchesClient.data || [], fetchedAt: matchesClient.fetchedAt,
+               refreshBlockedFor: 3 * 60 * 1000 - (now - matchesClient.lastManual) };
+    }
+    if (!manual && matchesClient.data && now - matchesClient.fetchedAt < 15 * 60 * 1000) {
+      return { matches: matchesClient.data, fetchedAt: matchesClient.fetchedAt };
+    }
+    try {
+      const { ok, data } = await api.get('/api/coach/matches?username=' + encodeURIComponent(riotId)
+        + (manual ? '&refresh=1' : ''), store.get('licenseKey'), 20000);
+      if (ok && data && Array.isArray(data.matches)) {
+        matchesClient = { data: data.matches, fetchedAt: data.fetchedAt || now,
+                          lastManual: manual ? now : matchesClient.lastManual };
+        return { matches: data.matches, fetchedAt: matchesClient.fetchedAt };
+      }
+      return { matches: matchesClient.data || [], fetchedAt: matchesClient.fetchedAt,
+               error: (data && data.error) || 'unavailable' };
+    } catch {
+      return { matches: matchesClient.data || [], fetchedAt: matchesClient.fetchedAt, error: 'network' };
+    }
+  },
 
   /** Ask Coach: one conversation turn. Text-only: the coach works from the
    *  session's tips, match memory, and tracker stats, no screenshots. With no
@@ -364,6 +464,67 @@ async function fetchLastMatch() {
     if (!data.startedAt || Date.now() - data.startedAt > 3 * 60 * 60 * 1000) return null;
     return data;
   } catch { return null; }
+}
+
+// ── Session performance log (extended stats dashboard) ──────────────────────
+// One small record per coached session (four category scores + strengths and
+// weaknesses text). Kept in its own file, NOT the 7-day session archive, so
+// trends survive pruning. Capped at the last 100 sessions.
+let matchesClient = { data: null, fetchedAt: 0, lastManual: 0 };   // tracker match list cache
+
+function perfFile() { return path.join(app.getPath('userData'), 'performance.json'); }
+function loadPerf() {
+  try {
+    const a = JSON.parse(fs.readFileSync(perfFile(), 'utf8'));
+    return Array.isArray(a) ? a : [];
+  } catch { return []; }
+}
+function appendPerf(rec) {
+  try {
+    const all = loadPerf();
+    all.push(rec);
+    fs.writeFileSync(perfFile(), JSON.stringify(all.slice(-100), null, 2));
+  } catch (e) { console.error('[perf] save failed:', e.message); }
+}
+
+/** Have the server grade the finished session (0-100 per category plus
+ *  strengths/weaknesses from the tips), then log it locally. Fire and forget:
+ *  a failure just means this session shows no score card. */
+async function logSessionPerformance(tips, mctx) {
+  try {
+    if (!Array.isArray(tips) || tips.length < 3) return;
+    const { ok, data } = await api.post('/api/coach/score-session',
+      { tips: tips.slice(0, 30), context: { map: mctx.map, agent: mctx.agent } },
+      store.get('licenseKey'), 20000);
+    if (!ok || !data || data.error || data.economy == null) return;
+    const scores = { economy: data.economy, positioning: data.positioning,
+                     utility: data.utility, aim: data.aim };
+    appendPerf({
+      at: Date.now(),
+      map: mctx.map || null,
+      agent: mctx.agent || null,
+      scores,
+      overall: Math.round((scores.economy + scores.positioning + scores.utility + scores.aim) / 4),
+      strengths:  data.strengths  || '',
+      weaknesses: data.weaknesses || '',
+    });
+    console.log('[perf] session scored and logged');
+  } catch (e) { console.error('[perf] scoring failed:', e.message); }
+}
+
+// Rank ladder for trend arrows: "Gold 2" -> comparable number. Unknown -> null.
+const RANK_LADDER = ['iron', 'bronze', 'silver', 'gold', 'platinum', 'diamond', 'ascendant', 'immortal', 'radiant'];
+function rankIndex(r) {
+  const l = String(r || '').toLowerCase();
+  const i = RANK_LADDER.findIndex((t) => l.startsWith(t));
+  if (i < 0) return null;
+  const div = parseInt(l.replace(/[^\d]/g, ''), 10);
+  return i * 3 + (isNaN(div) ? 2 : div);
+}
+function trendDirection(cur, prev, deadband = 2) {
+  if (cur == null || prev == null) return 'flat';
+  const d = cur - prev;
+  return d > deadband ? 'up' : d < -deadband ? 'down' : 'flat';
 }
 
 /** Pro Playbook mode from the store, normalized: earlier builds stored a

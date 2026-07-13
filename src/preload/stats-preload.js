@@ -1,0 +1,15 @@
+'use strict';
+
+const { contextBridge, ipcRenderer } = require('electron');
+const C = require('../shared/channels');
+
+/**
+ * Stats dashboard bridge: read the assembled dashboard, refresh tracker
+ * matches (rate limited), and hand a session's context to Ask Coach.
+ */
+contextBridge.exposeInMainWorld('ghost', {
+  getDashboard:    () => ipcRenderer.invoke(C.STATS_DASHBOARD),
+  refreshMatches:  () => ipcRenderer.invoke(C.STATS_REFRESH),
+  openChat:        () => ipcRenderer.send(C.OPEN_CHAT),
+  askAboutSession: (seed) => ipcRenderer.send(C.OPEN_CHAT_SEEDED, seed),
+});

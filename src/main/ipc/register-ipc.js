@@ -49,6 +49,10 @@ function registerIpc(deps) {
   safeHandle(C.SESSIONS_LIST, async () => controller.listSessions());
   safeHandle(C.SESSION_GET, async (_e, file) => controller.getSession(file));
 
+  safeHandle(C.STATS_DASHBOARD, async () => controller.getStatsDashboard());
+  safeHandle(C.STATS_REFRESH, async () => controller.getMatches(true));
+  safeHandle(C.CHAT_SEED, async () => controller.takeChatSeed());
+
   // ── fire-and-forget commands ──────────────────────────────────────────────
   ipcMain.on(C.COACH_START,    () => guard('start',    () => controller.start()));
   ipcMain.on(C.COACH_STOP,     () => guard('stop',     () => controller.stop()));
@@ -61,6 +65,8 @@ function registerIpc(deps) {
   ipcMain.on(C.OPEN_SETTINGS,  () => guard('settings', () => controller.openSettings()));
   ipcMain.on(C.OPEN_HISTORY,   () => guard('history',  () => controller.openHistory()));
   ipcMain.on(C.OPEN_CHAT,      () => guard('chat',     () => controller.openChat()));
+  ipcMain.on(C.OPEN_STATS,     () => guard('stats',    () => controller.openStats()));
+  ipcMain.on(C.OPEN_CHAT_SEEDED, (_e, seed) => guard('chatSeeded', () => controller.openChatSeeded(seed)));
   ipcMain.on(C.TIP_RATE,       (_e, payload) => guard('rateTip', () => controller.rateTip(payload)));
   ipcMain.on(C.OPEN_PURCHASE,  () => guard('purchase', () => shell.openExternal(PURCHASE_URL)));
   ipcMain.on(C.LICENSE_LOGOUT, () => guard('logout',   () => controller.logout()));
