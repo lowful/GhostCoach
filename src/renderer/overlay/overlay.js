@@ -75,7 +75,7 @@ const SCALE_ORIGIN = {
   'top-left':     'top left',
   'bottom-right': 'bottom right',
   'bottom-left':  'bottom left',
-  'middle':       'top center',
+  'middle':       'bottom center',
 };
 function setTipScale(scale) {
   const s = Number(scale);
