@@ -36,6 +36,9 @@ section h3 { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
 .seg button:hover { color: var(--text); background: rgba(255,255,255,0.05); }
 .seg button.active { background: linear-gradient(135deg, var(--red), var(--red-2)); color: #fff; box-shadow: var(--glow-red); }
 
+/* Tip frequency slider end labels */
+.freq-ends { display: flex; justify-content: space-between; margin-top: 4px; font-size: 10.5px; color: var(--text-mute); }
+
 /* Tip size slider */
 .scale-row { display: flex; align-items: center; gap: 14px; }
 .scale-label { flex: none; min-width: 44px; font-size: 13px; color: var(--text); text-align: right; }

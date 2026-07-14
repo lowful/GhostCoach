@@ -12,6 +12,7 @@ html, body { width: 100%; height: 100%; background: transparent !important; over
 .tips[data-pos="top-left"]     { top: 28px;  left: 28px;  align-items: flex-start; }
 .tips[data-pos="bottom-right"] { bottom: 28px; right: 28px; flex-direction: column-reverse; align-items: flex-end; }
 .tips[data-pos="bottom-left"]  { bottom: 28px; left: 28px;  flex-direction: column-reverse; align-items: flex-start; }
+.tips[data-pos="middle"]       { top: 34%; left: 50%; margin-left: -174px; align-items: center; }
 
 .tip-card {
   position: relative;
@@ -49,25 +50,26 @@ html, body { width: 100%; height: 100%; background: transparent !important; over
 .tip-card.system .progress { color: var(--red); }
 @keyframes drain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 
-@keyframes cardIn  { from { opacity: 0; transform: translateX(26px) scale(0.98); } to { opacity: 1; transform: none; } }
-@keyframes cardOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(26px); } }
-.tips[data-pos$="-left"] .tip-card { animation-name: cardInL; }
-.tips[data-pos$="-left"] .tip-card.out { animation-name: cardOutL; }
-@keyframes cardInL  { from { opacity: 0; transform: translateX(-26px) scale(0.98); } to { opacity: 1; transform: none; } }
-@keyframes cardOutL { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(-26px); } }
-
-/* ── Status pill (bottom-left, ambient) ─────────────────────────────────────*/
-.pill {
-  position: fixed; bottom: 24px; left: 26px;
-  display: flex; align-items: center; gap: 8px;
-  padding: 7px 13px; border-radius: 999px;
-  background: var(--glass-fill); border: 1px solid var(--glass-border);
-  backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur));
-  box-shadow: var(--shadow);
-  font-size: 12px; font-weight: 500; color: var(--text-dim);
-  opacity: 0; transform: translateY(6px); transition: opacity var(--t-med) var(--ease), transform var(--t-med) var(--ease);
-}
-.pill.show { opacity: 1; transform: none; }
+/* Entry and exit flow FROM the spot the stack lives in: top-right slides in
+   from the top-right, bottom-left from the bottom-left, middle rises in place. */
+@keyframes cardIn  { from { opacity: 0; transform: translate(26px, -22px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes cardOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translate(26px, -22px); } }
+.tips[data-pos="top-left"] .tip-card          { animation-name: cardInTL; }
+.tips[data-pos="top-left"] .tip-card.out      { animation-name: cardOutTL; }
+.tips[data-pos="bottom-right"] .tip-card      { animation-name: cardInBR; }
+.tips[data-pos="bottom-right"] .tip-card.out  { animation-name: cardOutBR; }
+.tips[data-pos="bottom-left"] .tip-card       { animation-name: cardInBL; }
+.tips[data-pos="bottom-left"] .tip-card.out   { animation-name: cardOutBL; }
+.tips[data-pos="middle"] .tip-card            { animation-name: cardInM; }
+.tips[data-pos="middle"] .tip-card.out        { animation-name: cardOutM; }
+@keyframes cardInTL  { from { opacity: 0; transform: translate(-26px, -22px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes cardOutTL { from { opacity: 1; transform: none; } to { opacity: 0; transform: translate(-26px, -22px); } }
+@keyframes cardInBR  { from { opacity: 0; transform: translate(26px, 22px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes cardOutBR { from { opacity: 1; transform: none; } to { opacity: 0; transform: translate(26px, 22px); } }
+@keyframes cardInBL  { from { opacity: 0; transform: translate(-26px, 22px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes cardOutBL { from { opacity: 1; transform: none; } to { opacity: 0; transform: translate(-26px, 22px); } }
+@keyframes cardInM   { from { opacity: 0; transform: translateY(22px) scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes cardOutM  { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(22px) scale(0.96); } }
 
 /* ── Match review card ──────────────────────────────────────────────────────*/
 .review-wrap { position: fixed; top: 60px; left: 50%; transform: translateX(-50%); width: 460px; pointer-events: none; }
@@ -108,4 +110,4 @@ html, body { width: 100%; height: 100%; background: transparent !important; over
 @keyframes rise { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
 @keyframes fade { to { opacity: 0; transform: translateY(-8px); } }
 
-body.hidden-overlay .tips, body.hidden-overlay .pill, body.hidden-overlay .review-wrap { opacity: 0 !important; }
+body.hidden-overlay .tips, body.hidden-overlay .review-wrap { opacity: 0 !important; }

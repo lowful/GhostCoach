@@ -1,6 +1,5 @@
 'use strict';
 
-const perfSeg   = document.getElementById('perf');
 const tipposSeg = document.getElementById('tippos');
 
 function markSeg(seg, value) {
@@ -18,11 +17,17 @@ function wireSeg(seg, key) {
   });
 }
 
-wireSeg(perfSeg, 'performanceMode');
 wireSeg(tipposSeg, 'tipPosition');
 
-const capqSeg = document.getElementById('capq');
-wireSeg(capqSeg, 'captureQuality');
+// Tip frequency slider: far left = Minimal, far right = Max.
+const FREQ_ORDER  = ['battery', 'balanced', 'performance', 'ultra', 'rapid', 'turbo'];
+const FREQ_LABELS = ['Minimal', 'Default', 'Medium', 'High', 'High+', 'Max'];
+const freqEl    = document.getElementById('tipfreq');
+const freqLabel = document.getElementById('tipfreq-label');
+freqEl.addEventListener('input', () => { freqLabel.textContent = FREQ_LABELS[Number(freqEl.value)] || 'Default'; });
+freqEl.addEventListener('change', () => {
+  window.ghost.setConfig({ performanceMode: FREQ_ORDER[Number(freqEl.value)] || 'balanced' }).catch(() => {});
+});
 
 // Booleans under the hood, on/off buttons in the UI.
 function wireBoolSeg(id, key) {
@@ -37,7 +42,6 @@ function wireBoolSeg(id, key) {
 }
 const showTipsSeg = wireBoolSeg('showtips', 'showTips');
 const beginnerSeg = wireBoolSeg('beginner', 'beginnerTips');
-const forceBtnSeg = wireBoolSeg('forcebtn', 'forceTipButton');
 
 // Tip size: live label, saved as a ratio (1 = normal).
 const scaleEl = document.getElementById('tipscale');
@@ -131,12 +135,12 @@ async function load() {
   try {
     const cfg = await window.ghost.getConfig();
     if (cfg) {
-      markSeg(perfSeg, cfg.performanceMode);
+      const fi = FREQ_ORDER.indexOf(cfg.performanceMode);
+      freqEl.value = String(fi >= 0 ? fi : 1);
+      freqLabel.textContent = FREQ_LABELS[fi >= 0 ? fi : 1];
       markSeg(tipposSeg, cfg.tipPosition);
-      markSeg(capqSeg, cfg.captureQuality || 'standard');
       markSeg(showTipsSeg, cfg.showTips === false ? 'off' : 'on');
       markSeg(beginnerSeg, cfg.beginnerTips === false ? 'off' : 'on');
-      markSeg(forceBtnSeg, cfg.forceTipButton === true ? 'on' : 'off');
       const pct = Math.round((Number(cfg.tipScale) || 1) * 100);
       scaleEl.value = String(pct);
       scaleLabel.textContent = scaleText(pct);

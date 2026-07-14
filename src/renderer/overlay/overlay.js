@@ -1,15 +1,10 @@
 'use strict';
 
 const tipsEl   = document.getElementById('tips');
-const pillEl   = document.getElementById('status-pill');
-const dotEl    = document.getElementById('status-dot');
-const statusEl = document.getElementById('status-text');
 const reviewEl = document.getElementById('review');
 
 const TIP_TTL = 11000;     // auto-dismiss after 11s
 const MAX_VISIBLE = 4;
-
-const STATUS_LABEL = { idle: 'Idle', coaching: 'Coaching', paused: 'Paused', stopped: 'Stopped' };
 
 function sourceLabel(src) {
   if (src === 'ai') return 'Coach';
@@ -65,14 +60,9 @@ function dismiss(card) {
   setTimeout(() => card.remove(), 240);
 }
 
-function setStatus(status) {
-  if (!status) return;
-  dotEl.className = `dot ${status}`;
-  statusEl.textContent = STATUS_LABEL[status] || 'Idle';
-  // Hide the ambient status pill during active coaching so nothing sits in the
-  // bottom-left mid-game; only surface it for the transient paused/stopped states.
-  pillEl.classList.toggle('show', status === 'paused' || status === 'stopped');
-}
+// The old bottom-left status pill is gone for good: the overlay shows tips
+// and the match review, nothing else. Status lives on the panel.
+function setStatus() {}
 
 function setTipPosition(pos) {
   if (pos) tipsEl.dataset.pos = pos;
@@ -85,6 +75,7 @@ const SCALE_ORIGIN = {
   'top-left':     'top left',
   'bottom-right': 'bottom right',
   'bottom-left':  'bottom left',
+  'middle':       'top center',
 };
 function setTipScale(scale) {
   const s = Number(scale);

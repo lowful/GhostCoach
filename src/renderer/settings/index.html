@@ -22,24 +22,12 @@
     <div class="body">
       <section>
         <h3>Tip frequency</h3>
-        <p class="hint">How many tips your coach gives. More tips means more screenshots behind the scenes, Max looks at your game every second and gives the most tips it can. Every tip still has to pass the same quality gates, so more never means worse. No effect on game FPS.</p>
-        <div class="seg" id="perf">
-          <button data-val="turbo">Max</button>
-          <button data-val="rapid">High+</button>
-          <button data-val="ultra">High</button>
-          <button data-val="performance">Medium</button>
-          <button data-val="balanced">Default</button>
-          <button data-val="battery">Minimal</button>
+        <p class="hint">How many tips your coach gives. More tips means more screenshots behind the scenes, and every tip still passes the same quality gates, so more never means worse. No effect on game FPS.</p>
+        <div class="scale-row">
+          <input id="tipfreq" type="range" min="0" max="5" step="1" value="2" />
+          <b id="tipfreq-label" class="scale-label">Default</b>
         </div>
-      </section>
-
-      <section>
-        <h3>Screenshot quality</h3>
-        <p class="hint">High sends a sharper frame to the AI (slightly slower replies, no effect on game FPS).</p>
-        <div class="seg" id="capq">
-          <button data-val="standard">Standard</button>
-          <button data-val="high">High</button>
-        </div>
+        <div class="freq-ends"><span>Minimal</span><span>Max</span></div>
       </section>
 
       <section>
@@ -70,6 +58,7 @@
           <button data-val="top-right">Top-right</button>
           <button data-val="bottom-left">Bottom-left</button>
           <button data-val="bottom-right">Bottom-right</button>
+          <button data-val="middle">Middle</button>
         </div>
       </section>
 
@@ -86,15 +75,6 @@
         <h3>Beginner tips</h3>
         <p class="hint">Curated fundamentals from GhostCoach's library, mixed into the stream at roughly a quarter to a third of your tips. Turn off for AI-only coaching with no library tips at all.</p>
         <div class="seg" id="beginner">
-          <button data-val="on">On</button>
-          <button data-val="off">Off</button>
-        </div>
-      </section>
-
-      <section>
-        <h3>Force tip button</h3>
-        <p class="hint">Shows the ⚡ button on the panel for manually requesting a tip. The Ctrl+Shift+X hotkey works either way.</p>
-        <div class="seg" id="forcebtn">
           <button data-val="on">On</button>
           <button data-val="off">Off</button>
         </div>

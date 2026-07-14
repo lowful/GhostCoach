@@ -98,7 +98,6 @@ const STORE_DEFAULTS = {
   deviceId:      '',
   // preferences
   performanceMode: 'balanced',   // battery | balanced | performance | ultra
-  captureQuality:  'standard',   // standard | high (screenshot detail)
   riotId:          '',           // Name#TAG for tracker stats in Ask Coach
   playerStats:     null,         // last good tracker profile (persists = always connected)
   lastMatchStats:  null,         // stats snapshot from the previous match (delta arrows)
@@ -111,7 +110,6 @@ const STORE_DEFAULTS = {
   // (The pro playbook runs permanently in hybrid mode; frame memory is always
   // on and session-scoped. Neither is a setting anymore.)
   beginnerTips:    true,         // curated library tips in the stream (25-35% of tips); off = AI only
-  forceTipButton:  false,        // show the manual force-tip button on the panel (hotkey always works)
   panelBounds:     null,         // { x, y } remembered position of the control panel
   panelMinimized:  false,
   onboardingCompleted: false,

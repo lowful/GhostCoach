@@ -4,7 +4,6 @@ const toggleBtn = document.getElementById('toggle');
 const toggleIco = toggleBtn.querySelector('.t-ico');
 const toggleLbl = toggleBtn.querySelector('.t-label');
 const pauseBtn  = document.getElementById('pause');
-const forceBtn  = document.getElementById('force');
 const dotEl     = document.getElementById('dot');
 const statusEl  = document.getElementById('status-text');
 const tipCountEl = document.getElementById('tipcount');
@@ -44,7 +43,6 @@ function render() {
     toggleLbl.textContent = 'Subscription ended';
     toggleIco.textContent = '⚠';
     pauseBtn.disabled = true;
-    forceBtn.disabled = true;
     return;
   }
   statusEl.classList.remove('ended');
@@ -59,7 +57,6 @@ function render() {
   toggleIco.textContent = isCoaching ? '■' : '▶';
   toggleBtn.classList.toggle('active', isCoaching);
   pauseBtn.disabled = !isCoaching;
-  forceBtn.disabled = !isCoaching;
   pauseBtn.textContent = isPaused ? '▶' : '⏸';
 }
 
@@ -69,7 +66,6 @@ toggleBtn.addEventListener('click', () => {
   else            window.ghost.startCoaching();
 });
 pauseBtn.addEventListener('click', () => window.ghost.pauseResume());
-forceBtn.addEventListener('click', () => window.ghost.forceTip());
 document.getElementById('chat').addEventListener('click', () => window.ghost.openChat());
 document.getElementById('stats').addEventListener('click', () => window.ghost.openStats());
 document.getElementById('history').addEventListener('click', () => window.ghost.openHistory());
@@ -151,8 +147,6 @@ function applyState(s) {
   isPaused   = !!s.isPaused;
   if (typeof s.tipCount === 'number') tipCount = s.tipCount;
   if (typeof s.licenseActive === 'boolean') licenseActive = s.licenseActive;
-  // Force-tip button is opt-in via Settings (the Ctrl+Shift+X hotkey always works).
-  if (typeof s.forceTipButton === 'boolean') forceBtn.hidden = !s.forceTipButton;
   render();
   if (!isCoaching) { sessionActive = false; agentAnswered = false; hideAgentUI(); }
 }

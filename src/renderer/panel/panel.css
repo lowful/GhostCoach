@@ -10,13 +10,6 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
   display: flex; flex-direction: column; gap: 11px;
   overflow: hidden;
 }
-/* brand accent line along the top edge */
-.accent {
-  position: absolute; top: 0; left: 0; right: 0; height: 2px;
-  background: linear-gradient(90deg, var(--red), #ff7a85 40%, var(--cyan));
-  opacity: 0.9;
-}
-
 .head { display: flex; align-items: center; justify-content: space-between; height: 24px; }
 .brand { display: flex; align-items: center; gap: 9px; }
 .mark { filter: drop-shadow(0 2px 5px rgba(255,70,85,0.45)); }

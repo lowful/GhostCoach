@@ -23,7 +23,6 @@ const settingsWindow   = require('./windows/settings-window');
 const historyWindow    = require('./windows/history-window');
 const statsWindow      = require('./windows/stats-window');
 const audioWindow      = require('./windows/audio-window');
-const dockWindow       = require('./windows/dock-window');
 const activationWindow = require('./windows/activation-window');
 const onboardingWindow = require('./windows/onboarding-window');
 const chatWindow       = require('./windows/chat-window');
@@ -65,7 +64,6 @@ function buildState() {
     tipPosition:     store.get('tipPosition'),
     tipScale:        store.get('tipScale'),
     showTips:        store.get('showTips'),
-    forceTipButton:  store.get('forceTipButton') === true,
     overlayPosition: store.get('overlayPosition'),
     performanceMode: store.get('performanceMode'),
     licensePlan:     store.get('licensePlan'),
@@ -106,8 +104,7 @@ const controller = {
 
     engine = new CoachingEngine({
       licenseKey:      store.get('licenseKey'),
-      // Read the quality setting at capture time so a settings change applies live.
-      captureFunction: () => capture.captureScreenshot(store.get('captureQuality')),
+      captureFunction: () => capture.captureScreenshot('standard'),
       performanceMode: store.get('performanceMode'),
       badTips:         store.get('badTips'),
       // Experimental settings, read live so flipping them in Settings applies
@@ -242,15 +239,9 @@ const controller = {
   toggleOverlay() { overlayWindow.toggleVisible(); },
   setOverlayInteractive(on) { overlayWindow.setInteractive(!!on); },
   toggleMinimizePanel() {
-    const willMinimize = !panelWindow.isMinimized();
-    if (willMinimize) {
-      const anchor = panelWindow.getDockAnchor(dockWindow.SIZE); // capture before hiding
-      panelWindow.setMinimized(true);
-      dockWindow.showAt(anchor);
-    } else {
-      dockWindow.hide();
-      panelWindow.setMinimized(false);
-    }
+    // No dock bubble anymore: minimized means fully hidden, and Ctrl+Shift+M
+    // (or the tray) brings the panel back.
+    panelWindow.setMinimized(!panelWindow.isMinimized());
     tray.update(state.isCoaching, trayActions);
     return panelWindow.isMinimized();
   },
@@ -748,7 +739,7 @@ function teardownSession() {
   try { hotkeys.unregister(); } catch (e) {}
   try { tray.destroy(); } catch (e) {}
   try { capture.disposeWorker(); } catch (e) {}
-  for (const name of ['dock', 'history', 'settings', 'overlay', 'panel']) {
+  for (const name of ['history', 'settings', 'overlay', 'panel', 'stats', 'audio']) {
     const w = registry.get(name);
     if (w && !w.isDestroyed()) w.destroy();
   }

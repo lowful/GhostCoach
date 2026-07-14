@@ -79,7 +79,6 @@ function snapshotConfig() {
   const stats = store.get('playerStats');
   return {
     performanceMode: store.get('performanceMode'),
-    captureQuality:  store.get('captureQuality'),
     riotId:          store.get('riotId'),
     playerStats:     stats && stats._riotId === (store.get('riotId') || '').trim() ? stats : null,
     overlayPosition: store.get('overlayPosition'),
@@ -87,7 +86,6 @@ function snapshotConfig() {
     tipScale:        store.get('tipScale'),
     showTips:        store.get('showTips'),
     beginnerTips:    store.get('beginnerTips'),
-    forceTipButton:  store.get('forceTipButton'),
     panelMinimized:  store.get('panelMinimized'),
   };
 }
