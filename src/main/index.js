@@ -124,7 +124,7 @@ const controller = {
         const current = await fetchTrackerStats(true);
         if (current) {
           data.statsDelta = { current, prev: store.get('lastMatchStats') || null };
-          store.set('lastMatchStats', { ...current, _at: Date.now() });
+          store.set('lastMatchStats', { ...current, _at: Date.now(), _riotId: (store.get('riotId') || '').trim() });
         }
       } catch {}
       // The actual match from the tracker: result, KDA, ACS, ADR, and a grade.
@@ -170,6 +170,9 @@ const controller = {
     // bypasses the cache): the last match just changed the numbers, and once
     // it lands every analyze request calibrates to the up-to-date player.
     fetchTrackerStats(true).then((s) => { if (engine && s) engine.setPlayerStats(s); }).catch(() => {});
+    // The coach also sees the player's coached-session trends (the dashboard
+    // overview), so it knows which category is weakest and where it's heading.
+    engine.setPerformanceSummary(computeCategoryTrends(loadPerf()));
     setStatus('coaching');
     console.log('[coach] started');
   },
@@ -271,20 +274,16 @@ const controller = {
    *  performance log, rank/win-rate from the tracker profile, and the recent
    *  match list (server-cached 15 min, client-cached alongside). */
   async getStatsDashboard() {
-    const perf   = loadPerf();            // oldest -> newest
-    const recent = perf.slice(-10);
-    const prev   = perf.slice(-20, -10);
-    const avg = (rows, k) => rows.length
-      ? Math.round(rows.reduce((s, r) => s + ((r.scores && r.scores[k]) || 0), 0) / rows.length)
-      : null;
-    const categories = {};
-    for (const k of ['economy', 'positioning', 'utility', 'aim']) {
-      const a = avg(recent, k);
-      categories[k] = { avg: a, direction: prev.length ? trendDirection(a, avg(prev, k)) : 'flat' };
-    }
+    const perf = loadPerf();            // oldest -> newest
+    const categories = computeCategoryTrends(perf);
 
-    const stats     = store.get('playerStats') || null;
-    const prevStats = store.get('lastMatchStats') || null;
+    // Tracker-derived values only count if they belong to the CURRENT Riot ID,
+    // so switching accounts never shows the previous account's rank or matches.
+    const riotId = (store.get('riotId') || '').trim();
+    const rawStats = store.get('playerStats');
+    const stats     = rawStats && rawStats._riotId === riotId ? rawStats : null;
+    const rawPrev   = store.get('lastMatchStats');
+    const prevStats = rawPrev && (!rawPrev._riotId || rawPrev._riotId === riotId) ? rawPrev : null;
     const rank = {
       value: (stats && stats.rank) || null,
       direction: stats && prevStats ? trendDirection(rankIndex(stats.rank), rankIndex(prevStats.rank), 0) : 'flat',
@@ -345,6 +344,7 @@ const controller = {
       matchMemory:  engine ? engine.matchMemory.slice(-8) : [],
       stats:        await fetchTrackerStats(),
       noSessionYet: !hasSessionData,
+      coachTrend:   computeCategoryTrends(loadPerf()),   // dashboard overview for the coach
       proPlaybook:  playbookMode(),   // experimental: curated habits in chat
     };
     try {
@@ -396,6 +396,9 @@ const controller = {
     registry.broadcast(C.PUSH_STATE, buildState());
   },
   logout() {
+    // A fresh sign-in gets the tour again (new player on this machine, or a
+    // returning one who wants the refresher).
+    store.set('onboardingCompleted', false);
     logoutToActivation('You have been logged out. Enter a license key to sign back in.');
   },
   finishOnboarding() {
@@ -404,6 +407,17 @@ const controller = {
   },
   onConfigChanged() {
     if (engine) engine.setPerformanceMode(store.get('performanceMode'));
+    // Riot ID changed (new account connected): every tracker-derived cache is
+    // now the WRONG player's data, drop it all immediately. Fresh data flows
+    // back in on Connect, session start, or the next dashboard open.
+    const riotId = (store.get('riotId') || '').trim();
+    if (riotId !== lastRiotId) {
+      lastRiotId = riotId;
+      matchesClient = { data: null, fetchedAt: 0, lastManual: 0 };
+      statsCache = { at: 0, riotId: '', data: null, lastError: null };
+      if (engine) engine.setPlayerStats(null);
+      console.log('[stats] riot id changed, tracker caches cleared');
+    }
     registry.broadcast(C.PUSH_STATE, buildState());
   },
   quit() { cleanupAndQuit(); },
@@ -471,6 +485,7 @@ async function fetchLastMatch() {
 // weaknesses text). Kept in its own file, NOT the 7-day session archive, so
 // trends survive pruning. Capped at the last 100 sessions.
 let matchesClient = { data: null, fetchedAt: 0, lastManual: 0 };   // tracker match list cache
+let lastRiotId = (store.get('riotId') || '').trim();               // detects account switches
 
 function perfFile() { return path.join(app.getPath('userData'), 'performance.json'); }
 function loadPerf() {
@@ -485,6 +500,22 @@ function appendPerf(rec) {
     all.push(rec);
     fs.writeFileSync(perfFile(), JSON.stringify(all.slice(-100), null, 2));
   } catch (e) { console.error('[perf] save failed:', e.message); }
+}
+
+/** Category trends from the performance log: last 10 sessions vs the 10
+ *  before, per category. Shared by the dashboard and the live coach. */
+function computeCategoryTrends(perf) {
+  const recent = perf.slice(-10);
+  const prev   = perf.slice(-20, -10);
+  const avg = (rows, k) => rows.length
+    ? Math.round(rows.reduce((s, r) => s + ((r.scores && r.scores[k]) || 0), 0) / rows.length)
+    : null;
+  const out = {};
+  for (const k of ['economy', 'positioning', 'utility', 'aim']) {
+    const a = avg(recent, k);
+    out[k] = { avg: a, direction: prev.length ? trendDirection(a, avg(prev, k)) : 'flat' };
+  }
+  return out;
 }
 
 /** Have the server grade the finished session (0-100 per category plus

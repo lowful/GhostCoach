@@ -16,7 +16,7 @@ function create() {
 
   const win = new BrowserWindow({
     width:  480,
-    height: 620,
+    height: 680,   // fits the 4-step tour
     frame:       false,
     resizable:   false,
     transparent: true,

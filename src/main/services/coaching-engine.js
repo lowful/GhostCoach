@@ -27,6 +27,7 @@ class CoachingEngine extends EventEmitter {
     // most recent ones are sent to the AI so it avoids similar advice.
     this.badTips = new Set(Array.isArray(opts.badTips) ? opts.badTips : []);
     this.playerStats = null;   // tracker profile (rank/KD/HS%), set async after start
+    this.perfSummary = null;   // coached-session category trends (dashboard overview)
     // Experimental settings, read live from the store so a settings flip
     // applies to the very next capture: { proPlaybook: 'off'|'on'|'hybrid' }.
     this.experiments = typeof opts.experiments === 'function' ? opts.experiments : () => ({});
@@ -377,6 +378,7 @@ class CoachingEngine extends EventEmitter {
       badTips: [...this.badTips].slice(0, 6),
       matchMemory: this.matchMemory.slice(-10),
       playerStats: this.playerStats,
+      coachTrend:  this.perfSummary || null,   // dashboard category trends
       agentRole:    agentData.getRole(confirmedAgent),
       teammates:    this.matchContext.teammates || null, // passthrough if the server reports the comp
       // Death review: the player died moments ago, the server prompts for a
@@ -572,6 +574,12 @@ class CoachingEngine extends EventEmitter {
   setPlayerStats(stats) {
     this.playerStats = stats && !stats.error ? stats : null;
     if (this.playerStats) console.log('[engine] player stats loaded:', this.playerStats.rank || 'unknown rank');
+  }
+
+  /** Coached-session category trends (the dashboard overview): the AI uses
+   *  them to favor the weakest or falling category when the frame supports it. */
+  setPerformanceSummary(summary) {
+    this.perfSummary = summary && typeof summary === 'object' ? summary : null;
   }
 
   /** Keep the last few frames of REAL gameplay so the chat can show the player

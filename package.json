@@ -52,7 +52,8 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "GhostCoach 2.0",
-      "uninstallDisplayName": "GhostCoach 2.0"
+      "uninstallDisplayName": "GhostCoach 2.0",
+      "include": "build/uninstaller.nsh"
     },
     "directories": {
       "output": "dist",

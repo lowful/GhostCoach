@@ -22,6 +22,9 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
 .mark { filter: drop-shadow(0 2px 5px rgba(255,70,85,0.45)); }
 .name { font-weight: 700; font-size: 14.5px; letter-spacing: -0.2px; }
 .head-actions { display: flex; gap: 2px; }
+/* Six header actions must fit the 360px panel: compact them evenly so the
+   row never overflows and the quit button never hangs off the edge. */
+.head-actions .icon-btn { width: 28px; height: 28px; }
 
 /* Agent check "chat bubble": exactly one visible row at a time */
 .agent-bubble {
