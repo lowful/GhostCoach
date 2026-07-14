@@ -839,7 +839,10 @@ router.get('/matches', async (req, res) => {
       const kills = st.kills | 0, deaths = st.deaths | 0, assists = st.assists | 0;
       const kd  = deaths > 0 ? +(kills / deaths).toFixed(2) : kills;
       const won = myScore > theirs;
-      const dmg = (st.damage && (st.damage.made != null ? st.damage.made : st.damage.dealt)) || 0;
+      const dmg     = (st.damage && (st.damage.made != null ? st.damage.made : st.damage.dealt)) || 0;
+      const dmgRecv = (st.damage && st.damage.received) || 0;
+      const sh    = st.shots || {};
+      const shots = (sh.head | 0) + (sh.body | 0) + (sh.leg | 0);
       matches.push({
         id:      (m.meta && m.meta.id) || null,
         map:     m.meta?.map?.name || 'Unknown',
@@ -849,6 +852,12 @@ router.get('/matches', async (req, res) => {
         kills, deaths, assists, kd,
         acs:     rounds ? Math.round((st.score | 0) / rounds) : 0,
         adr:     rounds ? Math.round(dmg / rounds) : 0,
+        // expandable detail: the tracker's most important per-match numbers
+        headshotPct: shots ? Math.round(((sh.head | 0) / shots) * 100) : 0,
+        kpr:     rounds ? +(kills / rounds).toFixed(2)   : 0,
+        dpr:     rounds ? +(deaths / rounds).toFixed(2)  : 0,
+        apr:     rounds ? +(assists / rounds).toFixed(2) : 0,
+        dmgDelta: rounds ? Math.round((dmg - dmgRecv) / rounds) : 0,   // damage +/- per round
         rating:  computeMatchRating(won, kd),
         startedAt: m.meta?.started_at ? Date.parse(m.meta.started_at) : null,
       });
