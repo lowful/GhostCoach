@@ -31,6 +31,8 @@ class CoachingEngine extends EventEmitter {
     // Experimental settings, read live from the store so a settings flip
     // applies to the very next capture: { proPlaybook: 'off'|'on'|'hybrid' }.
     this.experiments = typeof opts.experiments === 'function' ? opts.experiments : () => ({});
+    // Death forensics: fresh rolling game-audio clip getter (null when absent).
+    this.audioClip = typeof opts.audioClip === 'function' ? opts.audioClip : () => null;
 
     this.matchContext = freshContext();
 
@@ -183,6 +185,14 @@ class CoachingEngine extends EventEmitter {
       // pattern sample. Everything else sends one image and replies fast.
       const prev = this.shouldSendFrameMemory() ? this.previousGameplayFrame() : null;
       if (prev) body.previousImage = prev;
+      // Death forensics: inside the death window the last seconds of game
+      // audio ride along. The sounds (footsteps, reloads, ult voice lines)
+      // usually explain a death better than any frame, and this is strictly
+      // explanation, never "right now" reaction.
+      if (this.matchContext.lastDeathAt && Date.now() - this.matchContext.lastDeathAt < 15000) {
+        const clip = this.audioClip();
+        if (clip) body.audio = clip;
+      }
 
       const data = await this.callServer(API.ANALYZE, body);
       if (this.shouldAbort) return;

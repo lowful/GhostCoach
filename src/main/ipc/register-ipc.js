@@ -71,6 +71,7 @@ function registerIpc(deps) {
   ipcMain.on(C.OPEN_PURCHASE,  () => guard('purchase', () => shell.openExternal(PURCHASE_URL)));
   ipcMain.on(C.LICENSE_LOGOUT, () => guard('logout',   () => controller.logout()));
   ipcMain.on(C.ONBOARDING_DONE,() => guard('onboarding', () => controller.finishOnboarding()));
+  ipcMain.on(C.AUDIO_CLIP,     (_e, b64) => guard('audioClip', () => controller.onAudioClip(b64)));
   ipcMain.on(C.APP_QUIT,       () => guard('quit',     () => controller.quit()));
 }
 

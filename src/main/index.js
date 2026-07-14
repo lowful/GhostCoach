@@ -22,6 +22,7 @@ const panelWindow      = require('./windows/panel-window');
 const settingsWindow   = require('./windows/settings-window');
 const historyWindow    = require('./windows/history-window');
 const statsWindow      = require('./windows/stats-window');
+const audioWindow      = require('./windows/audio-window');
 const dockWindow       = require('./windows/dock-window');
 const activationWindow = require('./windows/activation-window');
 const onboardingWindow = require('./windows/onboarding-window');
@@ -117,6 +118,9 @@ const controller = {
         // never includes them; a manual force press may still fall back to one.
         beginnerTips: store.get('beginnerTips') !== false,
       }),
+      // Death forensics: the freshest rolling game-audio clip (RAM only),
+      // attached by the engine only inside the death-review window.
+      audioClip: () => (latestAudio.b64 && Date.now() - latestAudio.at < 12000 ? latestAudio.b64 : null),
     });
     engine.on('tip',    (tip) => pushTip(tip));
     engine.on('status', (status) => {
@@ -179,6 +183,9 @@ const controller = {
     // The coach also sees the player's coached-session trends (the dashboard
     // overview), so it knows which category is weakest and where it's heading.
     engine.setPerformanceSummary(computeCategoryTrends(loadPerf()));
+    // Start the hidden game-audio listener (session-scoped, RAM only).
+    latestAudio = { b64: null, at: 0 };
+    try { audioWindow.create(); } catch (e) { console.log('[audio] listener unavailable:', e.message); }
     setStatus('coaching');
     console.log('[coach] started');
   },
@@ -200,6 +207,8 @@ const controller = {
       matchMemory: engine.matchMemory.slice(),
     } : {});
     if (engine) { engine.stop(); engine = null; }
+    audioWindow.destroy();                 // the audio memory dies with the session
+    latestAudio = { b64: null, at: 0 };
     state.agent = { agent: null, confirmed: false, role: null };
     registry.broadcast(C.PUSH_AGENT, state.agent); // hide the panel bubble/chip
     setStatus('stopped');
@@ -274,6 +283,14 @@ const controller = {
     const s = state.chatSeed || null;
     state.chatSeed = null;
     return s;
+  },
+
+  /** Fresh rolling game-audio clip from the hidden listener (size-sanity only,
+   *  the content never persists anywhere). */
+  onAudioClip(b64) {
+    if (typeof b64 === 'string' && b64.length > 1000 && b64.length < 900000) {
+      latestAudio = { b64, at: Date.now() };
+    }
   },
 
   /** The assembled extended-stats dashboard: category trends from the local
@@ -505,6 +522,7 @@ async function fetchLastMatch() {
 // trends survive pruning. Capped at the last 100 sessions.
 let matchesClient = { data: null, fetchedAt: 0, lastManual: 0 };   // tracker match list cache
 let lastRiotId = (store.get('riotId') || '').trim();               // detects account switches
+let latestAudio = { b64: null, at: 0 };                            // rolling game-audio clip (RAM only)
 
 function perfFile() { return path.join(app.getPath('userData'), 'performance.json'); }
 function loadPerf() {
