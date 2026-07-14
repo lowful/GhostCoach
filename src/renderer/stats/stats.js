@@ -236,6 +236,9 @@ function sessionRow(s, i) {
     chip.append(label + ' ', b);
     scores.append(chip);
   }
+  // The coach's spoken-style recap of the session, front and center.
+  const rl = document.createElement('div'); rl.className = 'd-label r'; rl.textContent = "Coach's recap";
+  const rp = document.createElement('p');   rp.textContent = s.summary || 'No recap recorded for this session.';
   const sl = document.createElement('div'); sl.className = 'd-label s'; sl.textContent = 'Strengths';
   const sp = document.createElement('p');   sp.textContent = s.strengths || 'No strengths recorded for this session.';
   const wl = document.createElement('div'); wl.className = 'd-label w'; wl.textContent = 'Weaknesses';
@@ -250,7 +253,7 @@ function sessionRow(s, i) {
       scores: s.scores, strengths: s.strengths, weaknesses: s.weaknesses,
     });
   });
-  detail.append(scores, sl, sp, wl, wp, ask);
+  detail.append(scores, rl, rp, sl, sp, wl, wp, ask);
   row.append(top, detail);
   row.addEventListener('click', () => row.classList.toggle('open'));
   return row;
@@ -259,8 +262,9 @@ function sessionRow(s, i) {
 function renderSessions(d) {
   sessionListEl.innerHTML = '';
   const sessions = d.sessions || [];
-  // Fewer than 3 coached sessions: a clean empty state beats a sparse list.
-  if ((d.sessionCount || 0) < 3) {
+  // Every graded session shows up (a session qualifies with multiple tips or
+  // 5+ minutes of coaching); the empty state only appears with none at all.
+  if (!sessions.length) {
     sessionEmptyEl.hidden = false;
     return;
   }

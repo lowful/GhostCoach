@@ -942,7 +942,7 @@ router.post('/score-session', async (req, res) => {
     if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
 
     const tips = Array.isArray(req.body && req.body.tips) ? req.body.tips.slice(0, 30).map((t) => String(t).slice(0, 160)) : [];
-    if (tips.length < 3) return res.json({ error: 'Not enough tips to score.' });
+    if (tips.length < 1) return res.json({ error: 'Not enough tips to score.' });
     const ctx = (req.body && req.body.context) || {};
 
     const prompt = `A Valorant player finished a coached session${ctx.map ? ' on ' + String(ctx.map).slice(0, 20) : ''}${ctx.agent ? ' playing ' + String(ctx.agent).slice(0, 16) : ''}. These coaching tips were shown during it:\n${tips.join('\n')}\n\nReturn ONLY valid JSON, no markdown:\n{"economy":70,"positioning":70,"utility":70,"aim":70,"strengths":"...","weaknesses":"..."}\nScore each category 0-100 from the tips alone: many corrections in a category means a LOWER score there, no mention means a neutral 70-75. strengths: 1-2 sentences on what the coaching did NOT have to correct or praised. weaknesses: 1-2 sentences on the most repeated corrections. Ground everything strictly in the tips, invent nothing. Use commas and periods, never dashes.`;
@@ -950,8 +950,8 @@ router.post('/score-session', async (req, res) => {
     let out = null;
     try {
       const raw = await Promise.race([
-        textInfer(prompt, 260),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 12000)),
+        textInfer(prompt, 420),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 14000)),
       ]);
       trackCall(licenseKey);
       const parsed = JSON.parse(String(raw).replace(/```json|```/g, '').trim());
@@ -959,6 +959,7 @@ router.post('/score-session', async (req, res) => {
       out = {
         economy: n(parsed.economy), positioning: n(parsed.positioning),
         utility: n(parsed.utility), aim: n(parsed.aim),
+        summary:    sanitize(String(parsed.summary    || '')).slice(0, 700),
         strengths:  sanitize(String(parsed.strengths  || '')).slice(0, 400),
         weaknesses: sanitize(String(parsed.weaknesses || '')).slice(0, 400),
       };
@@ -975,6 +976,7 @@ router.post('/score-session', async (req, res) => {
         positioning: score(count(/position|angle|peek|reposition|spot|corner|off angle/i)),
         utility:     score(count(/util|smoke|flash|molly|recon|wall|drone|ability/i)),
         aim:         score(count(/aim|crosshair|spray|headshot|strafe|whiff/i)),
+        summary:    'Solid session. The tips above show where the coaching focused, and the repeated ones are your fastest wins for next game.',
         strengths:  'You kept sessions going and took the coaching on board.',
         weaknesses: 'See the tips from this session for the most repeated corrections.',
       };

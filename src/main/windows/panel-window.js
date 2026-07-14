@@ -88,4 +88,12 @@ function setMinimized(value) {
 function toggleMinimized() { return setMinimized(!minimized); }
 function isMinimized() { return minimized; }
 
-module.exports = { create, get, setMinimized, toggleMinimized, isMinimized, setContentHeight };
+/** Where the dock badge should sit, the panel's top-right corner. */
+function getDockAnchor(dockSize = 56) {
+  const win = get();
+  if (!win) return null;
+  const b = win.getBounds();
+  return { x: b.x + b.width - dockSize, y: b.y };
+}
+
+module.exports = { create, get, setMinimized, toggleMinimized, isMinimized, getDockAnchor, setContentHeight };

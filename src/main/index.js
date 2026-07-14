@@ -23,6 +23,7 @@ const settingsWindow   = require('./windows/settings-window');
 const historyWindow    = require('./windows/history-window');
 const statsWindow      = require('./windows/stats-window');
 const audioWindow      = require('./windows/audio-window');
+const dockWindow       = require('./windows/dock-window');
 const activationWindow = require('./windows/activation-window');
 const onboardingWindow = require('./windows/onboarding-window');
 const chatWindow       = require('./windows/chat-window');
@@ -166,6 +167,7 @@ const controller = {
 
     state.isCoaching = true;
     state.isPaused   = false;
+    state.sessionStartedAt = Date.now();   // drives the 5-minute grading gate
     state.agent      = { agent: null, confirmed: false, role: null };
     state.tips       = [];   // fresh session; the previous one is archived on stop
     engine.start();
@@ -191,12 +193,15 @@ const controller = {
     state.isCoaching = false;
     state.isPaused   = false;
     // Score the session for the stats dashboard (server AI grades the four
-    // categories from the tips; result logged locally, fire and forget).
+    // categories AND writes a coach recap from the tips; logged locally).
+    // A session qualifies with multiple tips OR after 5+ minutes of coaching.
     if (engine) {
-      logSessionPerformance(
-        state.tips.filter((t) => t.source === 'ai' || t.source === 'library').map((t) => t.text),
-        { map: engine.matchContext.map, agent: engine.matchContext.agent },
-      );
+      const sessionTips  = state.tips.filter((t) => t.source === 'ai' || t.source === 'library').map((t) => t.text);
+      const durationMin  = state.sessionStartedAt ? (Date.now() - state.sessionStartedAt) / 60000 : 0;
+      if (sessionTips.length >= 3 || (durationMin >= 5 && sessionTips.length >= 1)) {
+        logSessionPerformance(sessionTips,
+          { map: engine.matchContext.map, agent: engine.matchContext.agent }, durationMin);
+      }
     }
     // Archive the session before tearing the engine down (mix + memory live there).
     saveSessionArchive(engine ? {
@@ -239,9 +244,16 @@ const controller = {
   toggleOverlay() { overlayWindow.toggleVisible(); },
   setOverlayInteractive(on) { overlayWindow.setInteractive(!!on); },
   toggleMinimizePanel() {
-    // No dock bubble anymore: minimized means fully hidden, and Ctrl+Shift+M
-    // (or the tray) brings the panel back.
-    panelWindow.setMinimized(!panelWindow.isMinimized());
+    // Minimized shows the small floating ghost (icon only, click-through,
+    // no status dot); Ctrl+Shift+M or the tray restores the panel.
+    if (!panelWindow.isMinimized()) {
+      const anchor = panelWindow.getDockAnchor(dockWindow.SIZE); // capture before hiding
+      panelWindow.setMinimized(true);
+      dockWindow.showAt(anchor);
+    } else {
+      dockWindow.hide();
+      panelWindow.setMinimized(false);
+    }
     tray.update(state.isCoaching, trayActions);
     return panelWindow.isMinimized();
   },
@@ -549,11 +561,11 @@ function computeCategoryTrends(perf) {
 /** Have the server grade the finished session (0-100 per category plus
  *  strengths/weaknesses from the tips), then log it locally. Fire and forget:
  *  a failure just means this session shows no score card. */
-async function logSessionPerformance(tips, mctx) {
+async function logSessionPerformance(tips, mctx, durationMin) {
   try {
-    if (!Array.isArray(tips) || tips.length < 3) return;
+    if (!Array.isArray(tips) || tips.length < 1) return;
     const { ok, data } = await api.post('/api/coach/score-session',
-      { tips: tips.slice(0, 30), context: { map: mctx.map, agent: mctx.agent } },
+      { tips: tips.slice(0, 30), context: { map: mctx.map, agent: mctx.agent, durationMin } },
       store.get('licenseKey'), 20000);
     if (!ok || !data || data.error || data.economy == null) return;
     const scores = { economy: data.economy, positioning: data.positioning,
@@ -562,8 +574,10 @@ async function logSessionPerformance(tips, mctx) {
       at: Date.now(),
       map: mctx.map || null,
       agent: mctx.agent || null,
+      durationMin: Math.round(durationMin || 0),
       scores,
       overall: Math.round((scores.economy + scores.positioning + scores.utility + scores.aim) / 4),
+      summary:    data.summary    || '',   // the coach's spoken-style recap
       strengths:  data.strengths  || '',
       weaknesses: data.weaknesses || '',
     });
@@ -739,7 +753,7 @@ function teardownSession() {
   try { hotkeys.unregister(); } catch (e) {}
   try { tray.destroy(); } catch (e) {}
   try { capture.disposeWorker(); } catch (e) {}
-  for (const name of ['history', 'settings', 'overlay', 'panel', 'stats', 'audio']) {
+  for (const name of ['dock', 'history', 'settings', 'overlay', 'panel', 'stats', 'audio']) {
     const w = registry.get(name);
     if (w && !w.isDestroyed()) w.destroy();
   }
