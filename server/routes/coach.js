@@ -1165,6 +1165,22 @@ Reading the numbers: 20%+ headshots is good aim. KPR 0.8+ is strong fragging, un
     const memLine = Array.isArray(ctx.matchMemory) && ctx.matchMemory.length
       ? 'Match flow so far: ' + ctx.matchMemory.slice(-8).map((m) => String(m).slice(0, 80)).join('; ') + '.'
       : '';
+    // The chat works WITH the stats dashboard: it sees the same recent matches
+    // and coached sessions the player sees, so "why did my last game rate 58"
+    // or "what happened on Lotus" gets a real answer.
+    const matchesBlock = Array.isArray(ctx.recentMatches) && ctx.recentMatches.length
+      ? 'Their recent matches (newest first, rating is 0-100):\n'
+        + ctx.recentMatches.slice(0, 5).map((m) =>
+            `- ${m.map || '?'} (${m.agent || '?'}): ${m.result || '?'} ${m.score || ''}, ${m.kills}/${m.deaths}/${m.assists}, ACS ${m.acs}, ADR ${m.adr}, HS ${m.headshotPct}%, rating ${m.rating}`).join('\n')
+      : '';
+    const sessionsBlock = Array.isArray(ctx.recentSessions) && ctx.recentSessions.length
+      ? 'Their recent coached sessions (scored 0-100 per category):\n'
+        + ctx.recentSessions.slice(0, 3).map((s) => {
+            const sc = s.scores || {};
+            return `- ${s.date || '?'}${s.map ? ' on ' + s.map : ''}: overall ${s.overall}, economy ${sc.economy}, positioning ${sc.positioning}, utility ${sc.utility}, aim ${sc.aim}. Strengths: ${s.strengths || 'n/a'} Weaknesses: ${s.weaknesses || 'n/a'}`;
+          }).join('\n')
+      : '';
+
     // Coached-session trends (the stats dashboard overview) so the chat can
     // speak to how the player is developing, not just this one session.
     const cTr = ctx.coachTrend;
@@ -1191,6 +1207,8 @@ Reading the numbers: 20%+ headshots is good aim. KPR 0.8+ is strong fragging, un
 
 ${statsLine}
 ${trendLine}
+${matchesBlock}
+${sessionsBlock}
 Player's agent this session: ${ctx.agent || 'unknown'}.
 ${memLine}
 ${playbookLine}
