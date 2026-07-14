@@ -264,6 +264,18 @@ Aim and game sense matter together: if their aim is fine, coach the tactical mis
     ? ('The player is ' + ctx.agent + '. This is confirmed. Only ever suggest ' + ctx.agent + "'s own abilities, never another agent's. Before naming an ability, make sure it belongs to " + ctx.agent + '; if not, give a positioning, economy, or aim tip with no ability name.')
     : "The player's agent is not known yet. Do NOT name any agent or any specific ability. Give general advice only: positioning, crosshair placement, economy, rotation, or game sense.";
 
+  // Coached-session category trends (the player's stats dashboard overview).
+  const ct = ctx.coachTrend;
+  const trendBlock = ct && ['economy', 'positioning', 'utility', 'aim'].some((k) => ct[k] && ct[k].avg != null)
+    ? ('COACHING TREND (this player\'s recent coached sessions, scored 0-100 per category):\n'
+       + ['economy', 'positioning', 'utility', 'aim'].map((k) => {
+           const c = ct[k] || {};
+           return '- ' + k.charAt(0).toUpperCase() + k.slice(1) + ': '
+             + (c.avg == null ? 'no data yet' : c.avg + ' (trending ' + (c.direction || 'flat') + ')');
+         }).join('\n')
+       + '\nThe weakest category is where improvement pays most, favor it when the frame supports it. A falling category deserves attention even when its number still looks decent.\n\n')
+    : '';
+
   // Pro Playbook (experimental) modes:
   //   'off'    -> the classic static habits list (default)
   //   'on'     -> retrieved situation-matched habits replace the static list
@@ -295,7 +307,7 @@ The player is whoever the first-person view belongs to. Their agent is the one w
 
 ${agentRule}
 
-${profileBlock}${sideBlock}
+${profileBlock}${trendBlock}${sideBlock}
 
 COACH LIKE A RADIANT PRO
 Identify the single biggest thing the player is doing WRONG this frame, or the clearest opportunity, then give the fix. Prioritise what actually wins games at high elo: trading, crossfires, using util before peeking, crosshair placement, positioning and off-angles, timing, minimap and sound awareness, and economy discipline.
@@ -1144,6 +1156,18 @@ Reading the numbers: 20%+ headshots is good aim. KPR 0.8+ is strong fragging, un
     const memLine = Array.isArray(ctx.matchMemory) && ctx.matchMemory.length
       ? 'Match flow so far: ' + ctx.matchMemory.slice(-8).map((m) => String(m).slice(0, 80)).join('; ') + '.'
       : '';
+    // Coached-session trends (the stats dashboard overview) so the chat can
+    // speak to how the player is developing, not just this one session.
+    const cTr = ctx.coachTrend;
+    const trendLine = cTr && ['economy', 'positioning', 'utility', 'aim'].some((k) => cTr[k] && cTr[k].avg != null)
+      ? 'Their coached-session trend (0-100 per category, last 10 sessions vs the 10 before): '
+        + ['economy', 'positioning', 'utility', 'aim'].map((k) => {
+            const c = cTr[k] || {};
+            return k + ' ' + (c.avg == null ? 'n/a' : c.avg + ' ' + (c.direction || 'flat'));
+          }).join(', ')
+        + '. Target the weakest or falling category when giving drills.'
+      : '';
+
     // Pro Playbook (experimental): pull the player-relevant habits into the
     // conversation so drills and fixes come from the curated knowledge base.
     // ('on' and 'hybrid' both retrieve here; chat has no static block to layer.)
@@ -1157,6 +1181,7 @@ Reading the numbers: 20%+ headshots is good aim. KPR 0.8+ is strong fragging, un
     const prompt = `You are GhostCoach, a Radiant-level Valorant coach talking directly with your player after (or during) a session. Be honest, specific, and encouraging, like a real coach in a VOD review. Casual tone, no fluff.
 
 ${statsLine}
+${trendLine}
 Player's agent this session: ${ctx.agent || 'unknown'}.
 ${memLine}
 ${playbookLine}
