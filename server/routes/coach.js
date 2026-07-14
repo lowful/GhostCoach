@@ -176,6 +176,41 @@ async function geminiCall(imageB64, prompt, maxTokens, jsonMode) {
   throw lastError || new Error('All Gemini models failed');
 }
 
+// ─── Game-audio understanding (death forensics) ──────────────────────────────
+// Turns the last seconds of game audio into VERIFIED sound facts. Runs on
+// Gemini (the only configured provider with audio ears); when no Gemini key
+// is set, audio silently adds nothing. Strictly no-guess: unsure = omit.
+async function geminiAudioEvents(audioB64) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return '';
+
+  const prompt = 'This is the last few seconds of Valorant GAME AUDIO from right before and as a player died. List ONLY the sounds you can clearly identify, one short line each, in the order they happen: running or walking footsteps, gunfire (and roughly how long or how many shots), reload sounds, ability sounds, ult voice lines, spike plant or defuse beeps, a death sound. Ignore music, lobby sounds, and human voice chat entirely. If you cannot clearly identify a sound, leave it out, never guess. Maximum 6 lines, plain text, no dashes, no preamble.';
+  const body = JSON.stringify({
+    contents: [{ parts: [
+      { text: prompt },
+      { inlineData: { mimeType: 'audio/wav', data: audioB64 } },
+    ] }],
+    generationConfig: { maxOutputTokens: 130, temperature: 0.2 },
+  });
+
+  let lastError;
+  for (const model of MODELS) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    try {
+      const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+      if (response.status === 404) { lastError = new Error(`404 for model ${model}`); continue; }
+      if (!response.ok) throw new Error(`Gemini audio ${response.status}`);
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      return text.replace(/[\u2014\u2013]/g, ', ').trim();
+    } catch (err) {
+      if (String(err.message).startsWith('404 for model')) { lastError = err; continue; }
+      throw err;
+    }
+  }
+  throw lastError || new Error('All Gemini models failed');
+}
+
 // ─── Text-only Gemini call (for match summary) ────────────────────────────────
 async function geminiTextCall(prompt, maxTokens) {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -468,18 +503,42 @@ router.post('/analyze', async (req, res) => {
     ? '\n\nFRAME MEMORY: two screenshots are attached in order. The FIRST is the PREVIOUS frame from moments earlier; the SECOND is the CURRENT frame. Coach ONLY the current frame. Use the previous one to read what just changed: movement, a fight, damage taken, a rotation, or the spike state. If the player held the same angle in both frames too long, or repeeked the same spot, or has not moved since a kill, call that out, it is exactly the kind of mistake one frame cannot show.'
     : '';
 
+  // Death forensics: the client attaches the last seconds of game audio only
+  // inside the death window. It becomes verified sound FACTS for explanation,
+  // never "right now" reactions, and an unclear clip simply adds nothing.
+  const audio = (typeof req.body.audio === 'string' && req.body.audio.length > 1000 && req.body.audio.length < 900000)
+    ? req.body.audio : null;
+  let audioBlock = '';
+  if (audio) {
+    try {
+      const events = await Promise.race([
+        geminiAudioEvents(audio),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('audio timeout')), 3500)),
+      ]);
+      const lines = String(events || '').split('\n').map((l) => l.trim()).filter((l) => l.length > 3).slice(0, 6);
+      if (lines.length) {
+        audioBlock = '\n\nGAME AUDIO from the seconds around the death (verified sound facts, in order):\n'
+          + lines.map((l) => '- ' + l).join('\n')
+          + '\nUse these to EXPLAIN what happened, especially the death, the sounds are usually the real story (their footsteps heard or not, an ult voice line before the peek, a reload in the open, a spray that went too long). Never use them for "right now" reactions.';
+      }
+    } catch (e) { console.warn('[coach] audio events skipped:', e.message); }
+  }
+
   const isForced = req.headers['x-forced'] === 'true';
-  const prompt   = buildContextPrompt(context) + frameMemoryBlock + (isForced
+  const prompt   = buildContextPrompt(context) + frameMemoryBlock + audioBlock + (isForced
     ? '\n\nOVERRIDE: The player manually requested coaching. Always give a real tip, do not respond with SKIP.'
     : '');
 
   const t0 = Date.now();
   try {
+    // When audio already spent up to 3.5s, trim the vision budget so the
+    // whole request stays inside the client's timeout.
+    const visionTimeout = (prevImage ? 13000 : 10000) - (audioBlock ? 2500 : 0);
     const raw = await Promise.race([
       visionInfer(prevImage ? [prevImage, image] : image, prompt, 220, false),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('Gemini timeout')), prevImage ? 13000 : 10000)),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('Gemini timeout')), visionTimeout)),
     ]);
-    trackCall(licenseKey, prevImage ? 2 : 1);
+    trackCall(licenseKey, (prevImage ? 2 : 1) + (audio ? 1 : 0));
 
     let finalTip     = null;
     let finalContext = {};
