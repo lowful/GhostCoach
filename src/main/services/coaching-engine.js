@@ -282,13 +282,22 @@ class CoachingEngine extends EventEmitter {
       if (data.context) this.updateMatchContext(data.context);
 
       const tip = String(data.tip || '').trim();
-      if (tip.toUpperCase() !== 'LOBBY') this.pushFrame(shot);   // keep gameplay frame for chat
-      if (tip.length > 10 && tip.toUpperCase() !== 'SKIP' && tip.toUpperCase() !== 'LOBBY') {
-        this.emitTip(agentData.genericizeAbilities(cleanTip(tip)), 'ai');
-      } else {
-        // Forced and nothing from AI → guarantee a relevant library tip.
-        this.emitLibraryTip({ force: true, ignoreRatio: true });
+      if (tip.toUpperCase() === 'LOBBY') {
+        // Not in a match (loading screen, agent select, menu): never coach it,
+        // even on a manual press, but the button still deserves an answer.
+        this.inLobby = true;
+        this.emitTip('No live round on screen. Coaching kicks in the moment your match does.', 'system');
+        return;
       }
+      this.inLobby = false;
+      this.pushFrame(shot);   // confirmed gameplay: keep for chat
+      if (tip.length > 10 && tip.toUpperCase() !== 'SKIP') {
+        const sent = this.emitTip(agentData.genericizeAbilities(cleanTip(tip)), 'ai');
+        if (sent) return;
+        // Verify gate dropped the forced tip. This used to end in SILENCE (the
+        // "force tip does nothing" bug); fall through to a guaranteed library tip.
+      }
+      this.emitLibraryTip({ force: true, ignoreRatio: true });
     } catch (e) {
       console.error('[engine] forced tip error:', e.message);
       this.emitLibraryTip({ force: true, ignoreRatio: true }); // manual press always returns something
@@ -451,10 +460,12 @@ class CoachingEngine extends EventEmitter {
 
     if (tip.startsWith('{') || tip.includes('"tip"')) {            // raw JSON
       console.log('[engine] reject: JSON-looking tip');
+      this.fillQuietSpell();
       return;
     }
     if (PREAMBLE.some((re) => re.test(tip))) {                     // AI preamble
       console.log('[engine] reject: preamble');
+      this.fillQuietSpell();
       return;
     }
 
@@ -491,20 +502,20 @@ class CoachingEngine extends EventEmitter {
       }
       return;
     }
-    if (TRUNCATION.some((re) => re.test(tip))) { console.log('[engine] reject: truncated'); return; }
-    if (!/[.!?"]$/.test(tip))                  { console.log('[engine] reject: incomplete'); return; }
-    if (tip.split(/\s+/).length > 24)          { console.log('[engine] reject: too long'); return; }
+    if (TRUNCATION.some((re) => re.test(tip))) { console.log('[engine] reject: truncated'); this.fillQuietSpell(); return; }
+    if (!/[.!?"]$/.test(tip))                  { console.log('[engine] reject: incomplete'); this.fillQuietSpell(); return; }
+    if (tip.split(/\s+/).length > 24)          { console.log('[engine] reject: too long'); this.fillQuietSpell(); return; }
     // A fresh phase flip (round start, spike planted) opens a short window where
     // a timely tip beats the normal pacing, so the cooldown relaxes.
     const cooldown = this.recentPhaseTransition() ? Math.min(6000, this.pacing.cooldown) : this.pacing.cooldown;
     if (Date.now() - this.lastTipTime < cooldown) { console.log('[engine] reject: cooldown'); return; }
 
     const cleaned = agentData.genericizeAbilities(cleanTip(tip));
-    if (this.isSimilarToRecent(cleaned)) { console.log('[engine] reject: similar'); return; }
+    if (this.isSimilarToRecent(cleaned)) { console.log('[engine] reject: similar'); this.fillQuietSpell(); return; }
 
     const topic = topicOf(cleaned);
     const recent = this.tipHistory.slice(-3).map((t) => topicOf(t.text));
-    if (recent.filter((t) => t === topic).length >= 2) { console.log('[engine] reject: topic cooldown'); return; }
+    if (recent.filter((t) => t === topic).length >= 2) { console.log('[engine] reject: topic cooldown'); this.fillQuietSpell(); return; }
 
     if (!this.validateTipForAgent(cleaned)) {
       console.log('[engine] reject: wrong-agent ability');
@@ -541,7 +552,7 @@ class CoachingEngine extends EventEmitter {
    */
   emitLibraryTip(opts = {}) {
     const { force = false, ignoreRatio = false } = (typeof opts === 'boolean' ? { force: opts } : opts);
-    if (this.inLobby && !force) return;   // in a menu/lobby: no filler tips at all
+    if (this.inLobby) return;   // loading screen / agent select / menu: NO tips, ever, forced or not
     if (this.analyzedFrames < 2 && !force) return;   // warm-up: context before coaching
     if (!force && Date.now() - this.lastTipTime < this.pacing.cooldown) return;
 
@@ -599,6 +610,13 @@ class CoachingEngine extends EventEmitter {
   previousGameplayFrame() {
     const last = this.recentFrames[this.recentFrames.length - 1];
     return last && Date.now() - last.at < 90000 ? last.image : null;
+  }
+
+  /** A rejected tip leaves the same silence a SKIP does. If the quiet spell
+   *  has outlasted the pacing budget, cover it with a library tip, the same
+   *  treatment SKIP responses already get. */
+  fillQuietSpell() {
+    if (Date.now() - this.lastTipTime > this.pacing.silence) this.emitLibraryTip();
   }
 
   /** Frame memory is worth the extra latency when change is the story: the
