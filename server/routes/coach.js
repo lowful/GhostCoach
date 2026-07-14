@@ -945,7 +945,9 @@ router.post('/score-session', async (req, res) => {
     if (tips.length < 1) return res.json({ error: 'Not enough tips to score.' });
     const ctx = (req.body && req.body.context) || {};
 
-    const prompt = `A Valorant player finished a coached session${ctx.map ? ' on ' + String(ctx.map).slice(0, 20) : ''}${ctx.agent ? ' playing ' + String(ctx.agent).slice(0, 16) : ''}. These coaching tips were shown during it:\n${tips.join('\n')}\n\nReturn ONLY valid JSON, no markdown:\n{"economy":70,"positioning":70,"utility":70,"aim":70,"strengths":"...","weaknesses":"..."}\nScore each category 0-100 from the tips alone: many corrections in a category means a LOWER score there, no mention means a neutral 70-75. strengths: 1-2 sentences on what the coaching did NOT have to correct or praised. weaknesses: 1-2 sentences on the most repeated corrections. Ground everything strictly in the tips, invent nothing. Use commas and periods, never dashes.`;
+    const prompt = `A Valorant player finished a coached session${ctx.map ? ' on ' + String(ctx.map).slice(0, 20) : ''}${ctx.agent ? ' playing ' + String(ctx.agent).slice(0, 16) : ''}${ctx.durationMin ? ', about ' + Math.round(ctx.durationMin) + ' minutes long' : ''}. These coaching tips were shown during it:\n${tips.join('\n')}\n\nReturn ONLY valid JSON, no markdown:\n{"economy":70,"positioning":70,"utility":70,"aim":70,"summary":"...","strengths":"...","weaknesses":"..."}\nScore each category 0-100 from the tips alone: many corrections in a category means a LOWER score there, no mention means a neutral 70-75.
+summary: 3-4 sentences spoken directly TO the player like a real coach after the game, honest and encouraging: how the session went overall, the clearest thing they did well, what hurt them most, and the one habit to bring into the next game. Ground it strictly in the tips, invent nothing.
+strengths: 1-2 sentences on what the coaching did NOT have to correct or praised. weaknesses: 1-2 sentences on the most repeated corrections. Ground everything strictly in the tips, invent nothing. Use commas and periods, never dashes.`;
 
     let out = null;
     try {
