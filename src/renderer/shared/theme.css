@@ -21,8 +21,8 @@
   --text-mute: #5b6b7a;
 
   /* Glass */
-  --glass-fill:   rgba(18, 28, 38, 0.72);
-  --glass-fill-2: rgba(24, 36, 48, 0.55);
+  --glass-fill:   rgba(14, 21, 29, 0.90);   /* darker, less translucent: readability first */
+  --glass-fill-2: rgba(19, 29, 39, 0.80);
   --glass-border: rgba(255, 255, 255, 0.08);
   --glass-blur:   18px;
   /* --shadow is for full-bleed surfaces (overlay). Windowed surfaces use

@@ -151,6 +151,8 @@ function applyState(s) {
   isPaused   = !!s.isPaused;
   if (typeof s.tipCount === 'number') tipCount = s.tipCount;
   if (typeof s.licenseActive === 'boolean') licenseActive = s.licenseActive;
+  // Force-tip button is opt-in via Settings (the Ctrl+Shift+X hotkey always works).
+  if (typeof s.forceTipButton === 'boolean') forceBtn.hidden = !s.forceTipButton;
   render();
   if (!isCoaching) { sessionActive = false; agentAnswered = false; hideAgentUI(); }
 }

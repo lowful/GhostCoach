@@ -64,6 +64,7 @@ function buildState() {
     tipPosition:     store.get('tipPosition'),
     tipScale:        store.get('tipScale'),
     showTips:        store.get('showTips'),
+    forceTipButton:  store.get('forceTipButton') === true,
     overlayPosition: store.get('overlayPosition'),
     performanceMode: store.get('performanceMode'),
     licensePlan:     store.get('licensePlan'),
@@ -110,7 +111,12 @@ const controller = {
       badTips:         store.get('badTips'),
       // Experimental settings, read live so flipping them in Settings applies
       // to the very next capture without restarting the session.
-      experiments: () => ({ proPlaybook: playbookMode() }),
+      experiments: () => ({
+        proPlaybook:  playbookMode(),
+        // Beginner tips (the curated library): off means the automatic stream
+        // never includes them; a manual force press may still fall back to one.
+        beginnerTips: store.get('beginnerTips') !== false,
+      }),
     });
     engine.on('tip',    (tip) => pushTip(tip));
     engine.on('status', (status) => {
@@ -345,7 +351,20 @@ const controller = {
       stats:        await fetchTrackerStats(),
       noSessionYet: !hasSessionData,
       coachTrend:   computeCategoryTrends(loadPerf()),   // dashboard overview for the coach
-      proPlaybook:  playbookMode(),   // experimental: curated habits in chat
+      // The chat works WITH the stats dashboard: it sees the same recent
+      // matches (with ratings) and coached sessions the player is looking at.
+      recentMatches: (await this.getMatches(false)).matches.slice(0, 5).map((m) => ({
+        map: m.map, agent: m.agent, result: m.result, score: m.score,
+        kills: m.kills, deaths: m.deaths, assists: m.assists,
+        kd: m.kd, acs: m.acs, adr: m.adr, headshotPct: m.headshotPct, rating: m.rating,
+      })),
+      recentSessions: loadPerf().slice(-3).reverse().map((s) => ({
+        date: new Date(s.at).toLocaleDateString([], { month: 'short', day: 'numeric' }),
+        map: s.map, overall: s.overall, scores: s.scores,
+        strengths: String(s.strengths || '').slice(0, 200),
+        weaknesses: String(s.weaknesses || '').slice(0, 200),
+      })),
+      proPlaybook:  playbookMode(),
     };
     try {
       const { ok, data } = await api.post('/api/coach/chat', { messages, context }, licenseKey, 30000);
@@ -558,12 +577,10 @@ function trendDirection(cur, prev, deadband = 2) {
   return d > deadband ? 'up' : d < -deadband ? 'down' : 'flat';
 }
 
-/** Pro Playbook mode from the store, normalized: earlier builds stored a
- *  boolean (true meant on); the setting is now 'off' | 'on' | 'hybrid'. */
+/** The Pro Playbook is no longer a setting: hybrid (classic brief plus
+ *  situation-retrieved habits) proved the strongest mode and is now standard. */
 function playbookMode() {
-  const v = store.get('proPlaybook');
-  if (v === true) return 'on';
-  return v === 'on' || v === 'hybrid' ? v : 'off';
+  return 'hybrid';
 }
 
 // ── Session archive ──────────────────────────────────────────────────────────

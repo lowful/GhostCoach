@@ -78,13 +78,11 @@ const TIP_PACING = {
   battery:     { cooldown: 16000, silence: 26000 },
 };
 
-// Tip mix: AI tips should stay at least an even share. Fallback library tips
-// that fire while the AI IS available are suppressed if they'd push AI's share
-// below this floor. (Hard failures, server/capture down, ignore this.)
-// 0.5 (was 0.65): with the accuracy-first prompt the AI legitimately SKIPs
-// more, and a curated library tip in a quiet spell beats dead air.
+// Tip mix: beginner (library) tips target 25-35% of the stream, so AI tips
+// keep a 65% floor. Library tips that would push AI below it are suppressed.
+// (Hard failures, server/capture down, ignore this.)
 const COACHING = {
-  aiMinShare: 0.5,
+  aiMinShare: 0.65,
   // Allow this many library tips before the ratio governor kicks in, so the
   // overlay isn't dead-air early while the AI is still ramping up.
   bootstrapLibrary: 3,
@@ -110,10 +108,10 @@ const STORE_DEFAULTS = {
   tipPosition:     'top-right',  // top-left | top-right | bottom-left | bottom-right
   tipScale:        1,            // tip card size ratio; 1 = normal (0.8 to 1.3)
   showTips:        true,         // false = tips hidden on the overlay but still recorded
-  // experimental: pro playbook mode. off = classic static habits,
-  // on = retrieved situation-matched habits, hybrid = both layered together.
-  // (Frame memory is always on and session-scoped, no setting.)
-  proPlaybook:     'off',        // off | on | hybrid
+  // (The pro playbook runs permanently in hybrid mode; frame memory is always
+  // on and session-scoped. Neither is a setting anymore.)
+  beginnerTips:    true,         // curated library tips in the stream (25-35% of tips); off = AI only
+  forceTipButton:  false,        // show the manual force-tip button on the panel (hotkey always works)
   panelBounds:     null,         // { x, y } remembered position of the control panel
   panelMinimized:  false,
   onboardingCompleted: false,

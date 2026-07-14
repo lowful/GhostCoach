@@ -553,6 +553,9 @@ class CoachingEngine extends EventEmitter {
   emitLibraryTip(opts = {}) {
     const { force = false, ignoreRatio = false } = (typeof opts === 'boolean' ? { force: opts } : opts);
     if (this.inLobby) return;   // loading screen / agent select / menu: NO tips, ever, forced or not
+    // Beginner tips off: the automatic stream is AI-only. A manual force press
+    // is an explicit request for A tip, so its fallback still may answer.
+    if (!force && this.experiments().beginnerTips === false) return;
     if (this.analyzedFrames < 2 && !force) return;   // warm-up: context before coaching
     if (!force && Date.now() - this.lastTipTime < this.pacing.cooldown) return;
 
