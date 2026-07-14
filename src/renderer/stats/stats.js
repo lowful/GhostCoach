@@ -48,11 +48,44 @@ function renderCards(d) {
 // ── Recent matches ────────────────────────────────────────────────────────────
 function ratingClass(r) { return r >= 85 ? 'great' : r >= 70 ? 'good' : r >= 55 ? 'mid' : 'low'; }
 
+// Grade a per-match stat for the tile colors: g = good, y = okay, r = bad.
+// Thresholds follow common tracker expectations for competitive play.
+function grade(kind, v) {
+  if (v == null) return '';
+  switch (kind) {
+    case 'kd':   return v >= 1.2 ? 'g' : v >= 0.9  ? 'y' : 'r';
+    case 'acs':  return v >= 230 ? 'g' : v >= 180  ? 'y' : 'r';
+    case 'adr':  return v >= 150 ? 'g' : v >= 120  ? 'y' : 'r';
+    case 'hs':   return v >= 20  ? 'g' : v >= 12   ? 'y' : 'r';
+    case 'kpr':  return v >= 0.8 ? 'g' : v >= 0.6  ? 'y' : 'r';
+    case 'dpr':  return v <= 0.7 ? 'g' : v <= 0.85 ? 'y' : 'r';   // lower is better
+    case 'apr':  return v >= 0.4 ? 'g' : v >= 0.2  ? 'y' : 'r';
+    case 'dmg':  return v >= 20  ? 'g' : v >= -20  ? 'y' : 'r';   // damage +/- per round
+    default:     return '';
+  }
+}
+
+function statTile(label, value, gradeClass) {
+  const tile = document.createElement('div');
+  tile.className = 'tile';
+  const l = document.createElement('span');
+  l.className = 't-label';
+  l.textContent = label;
+  const v = document.createElement('span');
+  v.className = `t-val ${gradeClass || ''}`;
+  v.textContent = value == null ? '·' : value;
+  tile.append(l, v);
+  return tile;
+}
+
 function matchRow(m) {
   const row = document.createElement('div');
-  row.className = `row ${m.result === 'Victory' ? 'win' : m.result === 'Defeat' ? 'loss' : ''}`;
+  row.className = `row expandable ${m.result === 'Victory' ? 'win' : m.result === 'Defeat' ? 'loss' : ''}`;
   const top = document.createElement('div');
   top.className = 'top';
+  const chev = document.createElement('span');
+  chev.className = 'chev';
+  chev.textContent = '▶';
   const place = document.createElement('span');
   place.className = 'place';
   place.textContent = m.map || 'Unknown';
@@ -71,8 +104,27 @@ function matchRow(m) {
   rating.className = `rating ${ratingClass(m.rating)}`;
   rating.textContent = m.rating;
   rating.title = 'Match rating (0-100)';
-  top.append(place, sub, spacer, kda, res, rating);
-  row.append(top);
+  top.append(chev, place, sub, spacer, kda, res, rating);
+
+  // Drop-down: the tracker's most important stats, graded green/yellow/red.
+  const detail = document.createElement('div');
+  detail.className = 'detail';
+  const tiles = document.createElement('div');
+  tiles.className = 'tiles';
+  const dmgVal = m.dmgDelta == null ? null : (m.dmgDelta > 0 ? '+' + m.dmgDelta : String(m.dmgDelta));
+  tiles.append(
+    statTile('K/D',        m.kd,          grade('kd',  m.kd)),
+    statTile('ACS',        m.acs,         grade('acs', m.acs)),
+    statTile('ADR',        m.adr,         grade('adr', m.adr)),
+    statTile('HS%',        m.headshotPct != null ? m.headshotPct + '%' : null, grade('hs', m.headshotPct)),
+    statTile('Kills/Rd',   m.kpr,         grade('kpr', m.kpr)),
+    statTile('Deaths/Rd',  m.dpr,         grade('dpr', m.dpr)),
+    statTile('Assists/Rd', m.apr,         grade('apr', m.apr)),
+    statTile('Dmg +/- Rd', dmgVal,        grade('dmg', m.dmgDelta)),
+  );
+  detail.append(tiles);
+  row.append(top, detail);
+  row.addEventListener('click', () => row.classList.toggle('open'));
   return row;
 }
 
@@ -150,7 +202,7 @@ function revealScore(el, target, delay) {
 
 function sessionRow(s, i) {
   const row = document.createElement('div');
-  row.className = 'row session';
+  row.className = 'row expandable session';
   const top = document.createElement('div');
   top.className = 'top';
   const chev = document.createElement('span');

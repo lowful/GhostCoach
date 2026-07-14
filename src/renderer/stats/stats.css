@@ -66,12 +66,25 @@ section h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; lette
 .rating.mid   { color: #f5c451; background: rgba(245,196,81,0.10); border: 1px solid rgba(245,196,81,0.3); }
 .rating.low   { color: #ff9aa3; background: rgba(255,70,85,0.10); border: 1px solid rgba(255,70,85,0.3); }
 
-/* ── Sessions: expandable rows with score reveal ── */
-.session { cursor: pointer; }
-.session .chev { font-size: 10px; color: var(--text-mute); transition: transform var(--t-fast) var(--ease); }
-.session.open .chev { transform: rotate(90deg); }
-.session .detail { display: none; margin-top: 9px; border-top: 1px solid var(--glass-border); padding-top: 9px; }
-.session.open .detail { display: block; }
+/* ── Expandable rows (matches + sessions share the pattern) ── */
+.expandable { cursor: pointer; }
+.expandable .chev { font-size: 10px; color: var(--text-mute); transition: transform var(--t-fast) var(--ease); }
+.expandable.open .chev { transform: rotate(90deg); }
+.expandable .detail { display: none; margin-top: 9px; border-top: 1px solid var(--glass-border); padding-top: 9px; }
+.expandable.open .detail { display: block; }
+
+/* tracker-style stat tiles inside an expanded match: 4x2 symmetric grid,
+   values graded green / yellow / red */
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+.tile {
+  background: rgba(0,0,0,0.26); border: 1px solid var(--glass-border);
+  border-radius: 9px; padding: 8px 4px 7px; text-align: center;
+}
+.tile .t-label { display: block; font-size: 8.5px; font-weight: 700; letter-spacing: 0.7px; text-transform: uppercase; color: var(--text-mute); margin-bottom: 4px; white-space: nowrap; }
+.tile .t-val { font-size: 14px; font-weight: 800; color: var(--text); }
+.tile .t-val.g { color: #4fd394; }
+.tile .t-val.y { color: #f5c451; }
+.tile .t-val.r { color: #ff8a95; }
 .detail .d-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 3px; }
 .detail .d-label.s { color: #4fd394; }
 .detail .d-label.w { color: #ff9aa3; }
