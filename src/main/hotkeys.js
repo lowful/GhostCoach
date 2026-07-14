@@ -7,11 +7,9 @@ const { globalShortcut } = require('electron');
  * already grabbed by another app) are logged, never thrown.
  */
 const BINDINGS = {
-  'CommandOrControl+Shift+C': 'toggleOverlay',
   'CommandOrControl+Shift+X': 'forceTip',
   'CommandOrControl+Shift+P': 'pauseResume',
   'CommandOrControl+Shift+M': 'minimizePanel',
-  'CommandOrControl+Shift+H': 'openHistory',
   'CommandOrControl+Shift+S': 'openSettings',
 };
 
