@@ -1,6 +1,6 @@
 {
   "name": "ghostcoach",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Real-time Valorant AI coaching overlay",
   "main": "src/main/index.js",
   "scripts": {
@@ -9,7 +9,8 @@
     "generate-icon": "node scripts/generate-icon.js",
     "dist:win": "electron-builder --win",
     "dist:mac": "electron-builder --mac",
-    "dist": "electron-builder --win --mac"
+    "dist": "electron-builder --win --mac",
+    "release": "electron-builder --win --publish always"
   },
   "build": {
     "appId": "com.ghostcoach.app2",
@@ -59,10 +60,17 @@
       "output": "dist",
       "buildResources": "assets"
     },
-    "asar": true
+    "asar": true,
+    "publish": {
+      "provider": "github",
+      "owner": "lowful",
+      "repo": "GhostCoach-releases",
+      "releaseType": "release"
+    }
   },
   "dependencies": {
-    "electron-store": "^8.2.0"
+    "electron-store": "^8.2.0",
+    "electron-updater": "^6.8.9"
   },
   "devDependencies": {
     "electron": "^41.3.0",

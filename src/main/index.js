@@ -33,6 +33,7 @@ const hotkeys  = require('./hotkeys');
 const registerIpc = require('./ipc/register-ipc');
 const licenseService = require('./services/license-service');
 const agentData = require('./services/agent-data');
+const updater  = require('./updater');
 const C = require('../shared/channels');
 
 // ── Session state ────────────────────────────────────────────────────────────
@@ -868,6 +869,7 @@ function launchMainApp() {
   panelWindow.create();
   tray.create(trayActions);
   hotkeys.register(hotkeyActions);
+  updater.init();   // background update checks + in-app restart prompt
 
   // Send an initial state snapshot once the panel has loaded.
   const panel = panelWindow.get();
