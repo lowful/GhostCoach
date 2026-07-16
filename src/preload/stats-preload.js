@@ -9,7 +9,8 @@ const C = require('../shared/channels');
  */
 contextBridge.exposeInMainWorld('ghost', {
   getDashboard:    () => ipcRenderer.invoke(C.STATS_DASHBOARD),
-  refreshMatches:  () => ipcRenderer.invoke(C.STATS_REFRESH),
+  refreshMatches:  (mode) => ipcRenderer.invoke(C.STATS_REFRESH, mode),
+  matchesFor:      (mode) => ipcRenderer.invoke(C.STATS_MATCHES, mode),
   openChat:        () => ipcRenderer.send(C.OPEN_CHAT),
   askAboutSession: (seed) => ipcRenderer.send(C.OPEN_CHAT_SEEDED, seed),
 });

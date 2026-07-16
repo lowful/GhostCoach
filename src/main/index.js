@@ -201,7 +201,8 @@ const controller = {
       const durationMin  = state.sessionStartedAt ? (Date.now() - state.sessionStartedAt) / 60000 : 0;
       if (sessionTips.length >= 3 || (durationMin >= 5 && sessionTips.length >= 1)) {
         logSessionPerformance(sessionTips,
-          { map: engine.matchContext.map, agent: engine.matchContext.agent }, durationMin);
+          { map: engine.matchContext.map, agent: engine.matchContext.agent }, durationMin,
+          engine.playerNotes.slice(-20));   // observed facts keep the grading honest
       }
     }
     // Archive the session before tearing the engine down (mix + memory live there).
@@ -318,36 +319,38 @@ const controller = {
       categories, rank, winRate,
       sessions: perf.slice(-15).reverse(),   // newest first for the list
       sessionCount: perf.length,
-      matches: await this.getMatches(false),
+      matches: await this.getMatches(false, 'competitive'),   // dashboard always opens on comp
       riotConnected: (store.get('riotId') || '').includes('#'),
     };
   },
 
   /** Recent tracker matches with ratings. manual=true is the refresh button:
    *  rate limited to once per 3 minutes, otherwise the cache serves. */
-  async getMatches(manual) {
+  async getMatches(manual, mode) {
+    const m = mode === 'unrated' ? 'unrated' : 'competitive';
+    const bucket = matchesClient[m];
     const riotId = (store.get('riotId') || '').trim();
-    if (!riotId.includes('#')) return { matches: [], fetchedAt: 0, error: 'no-riot-id' };
+    if (!riotId.includes('#')) return { matches: [], fetchedAt: 0, mode: m, error: 'no-riot-id' };
     const now = Date.now();
-    if (manual && now - matchesClient.lastManual < 3 * 60 * 1000) {
-      return { matches: matchesClient.data || [], fetchedAt: matchesClient.fetchedAt,
-               refreshBlockedFor: 3 * 60 * 1000 - (now - matchesClient.lastManual) };
+    if (manual && now - bucket.lastManual < 3 * 60 * 1000) {
+      return { matches: bucket.data || [], fetchedAt: bucket.fetchedAt, mode: m,
+               refreshBlockedFor: 3 * 60 * 1000 - (now - bucket.lastManual) };
     }
-    if (!manual && matchesClient.data && now - matchesClient.fetchedAt < 15 * 60 * 1000) {
-      return { matches: matchesClient.data, fetchedAt: matchesClient.fetchedAt };
+    if (!manual && bucket.data && now - bucket.fetchedAt < 15 * 60 * 1000) {
+      return { matches: bucket.data, fetchedAt: bucket.fetchedAt, mode: m };
     }
     try {
       const { ok, data } = await api.get('/api/coach/matches?username=' + encodeURIComponent(riotId)
-        + (manual ? '&refresh=1' : ''), store.get('licenseKey'), 20000);
+        + '&mode=' + m + (manual ? '&refresh=1' : ''), store.get('licenseKey'), 20000);
       if (ok && data && Array.isArray(data.matches)) {
-        matchesClient = { data: data.matches, fetchedAt: data.fetchedAt || now,
-                          lastManual: manual ? now : matchesClient.lastManual };
-        return { matches: data.matches, fetchedAt: matchesClient.fetchedAt };
+        matchesClient[m] = { data: data.matches, fetchedAt: data.fetchedAt || now,
+                             lastManual: manual ? now : bucket.lastManual };
+        return { matches: data.matches, fetchedAt: matchesClient[m].fetchedAt, mode: m };
       }
-      return { matches: matchesClient.data || [], fetchedAt: matchesClient.fetchedAt,
+      return { matches: bucket.data || [], fetchedAt: bucket.fetchedAt, mode: m,
                error: (data && data.error) || 'unavailable' };
     } catch {
-      return { matches: matchesClient.data || [], fetchedAt: matchesClient.fetchedAt, error: 'network' };
+      return { matches: bucket.data || [], fetchedAt: bucket.fetchedAt, mode: m, error: 'network' };
     }
   },
 
@@ -447,7 +450,7 @@ const controller = {
     const riotId = (store.get('riotId') || '').trim();
     if (riotId !== lastRiotId) {
       lastRiotId = riotId;
-      matchesClient = { data: null, fetchedAt: 0, lastManual: 0 };
+      matchesClient = { competitive: emptyMatchBucket(), unrated: emptyMatchBucket() };
       statsCache = { at: 0, riotId: '', data: null, lastError: null };
       if (engine) engine.setPlayerStats(null);
       console.log('[stats] riot id changed, tracker caches cleared');
@@ -518,15 +521,18 @@ async function fetchLastMatch() {
 // One small record per coached session (four category scores + strengths and
 // weaknesses text). Kept in its own file, NOT the 7-day session archive, so
 // trends survive pruning. Capped at the last 100 sessions.
-let matchesClient = { data: null, fetchedAt: 0, lastManual: 0 };   // tracker match list cache
+function emptyMatchBucket() { return { data: null, fetchedAt: 0, lastManual: 0 }; }
+let matchesClient = { competitive: emptyMatchBucket(), unrated: emptyMatchBucket() };   // per-mode tracker cache
 let lastRiotId = (store.get('riotId') || '').trim();               // detects account switches
 let latestAudio = { b64: null, at: 0 };                            // rolling game-audio clip (RAM only)
 
+const PERF_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;   // sessions expire after a week, like the archives
 function perfFile() { return path.join(app.getPath('userData'), 'performance.json'); }
 function loadPerf() {
   try {
     const a = JSON.parse(fs.readFileSync(perfFile(), 'utf8'));
-    return Array.isArray(a) ? a : [];
+    const cutoff = Date.now() - PERF_MAX_AGE_MS;
+    return Array.isArray(a) ? a.filter((r) => r && typeof r.at === 'number' && r.at >= cutoff) : [];
   } catch { return []; }
 }
 function appendPerf(rec) {
@@ -537,10 +543,16 @@ function appendPerf(rec) {
   } catch (e) { console.error('[perf] save failed:', e.message); }
 }
 
-/** Tracker-derived category levels, the heavier half of the ratings: aim
- *  from headshot % and kills per round, positioning inversely from deaths
- *  per round, utility from assists per round. Economy has no tracker
- *  signal, so the coached-session scores own it. */
+/** Tracker-derived category levels, the heavier half of the ratings.
+ *  Rubric (what the numbers mean, anchored to competitive reality):
+ *    Aim         = HS% * 2.6 + KPR * 25
+ *                  elite 90+ (27% HS, 0.9 kills/rd) · solid 70 (20%, 0.7) · weak under 50 (12%, 0.5)
+ *    Positioning = 140 - deaths-per-round * 100 (dying less = positioned better)
+ *                  elite 85 (0.55 DPR) · average 65 (0.75) · weak 45 (0.95)
+ *    Utility     = 30 + assists-per-round * 150 (assists track util that enabled kills)
+ *                  elite 90 (0.40 APR) · average 65 (0.23) · weak 45 (0.10)
+ *    Economy     has no tracker signal, the coached-session scores own it.
+ *  Values clamp to 5..95: nobody is a 0 or a 100 over ten games. */
 function trackerCategoryScores(st) {
   if (!st || st.kpr == null) return {};
   const clamp = (v) => Math.max(5, Math.min(95, Math.round(v)));
@@ -591,11 +603,12 @@ function computeCategoryTrends(perf, stats, prevStats) {
 /** Have the server grade the finished session (0-100 per category plus
  *  strengths/weaknesses from the tips), then log it locally. Fire and forget:
  *  a failure just means this session shows no score card. */
-async function logSessionPerformance(tips, mctx, durationMin) {
+async function logSessionPerformance(tips, mctx, durationMin, notes) {
   try {
     if (!Array.isArray(tips) || tips.length < 1) return;
     const { ok, data } = await api.post('/api/coach/score-session',
-      { tips: tips.slice(0, 30), context: { map: mctx.map, agent: mctx.agent, durationMin } },
+      { tips: tips.slice(0, 30), notes: Array.isArray(notes) ? notes.slice(0, 20) : [],
+        context: { map: mctx.map, agent: mctx.agent, durationMin } },
       store.get('licenseKey'), 20000);
     if (!ok || !data || data.error || data.economy == null) return;
     const scores = { economy: data.economy, positioning: data.positioning,

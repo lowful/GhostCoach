@@ -25,6 +25,15 @@ section h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; lette
 .mini-btn:hover:not(:disabled) { color: var(--text); border-color: rgba(0,240,255,0.35); }
 .mini-btn:disabled { opacity: 0.45; cursor: default; }
 
+/* Competitive / Unrated toggle */
+.mode-seg { display: flex; gap: 2px; background: rgba(0,0,0,0.28); border: 1px solid var(--glass-border); border-radius: 8px; padding: 2px; }
+.mode-seg button {
+  font-family: var(--font); font-size: 10px; font-weight: 700; color: var(--text-mute);
+  background: transparent; border: none; border-radius: 6px; padding: 3px 8px; cursor: pointer;
+  transition: all var(--t-fast) var(--ease);
+}
+.mode-seg button.active { color: #fff; background: linear-gradient(135deg, var(--red), var(--red-2)); }
+
 /* ── Overview cards: 3x2 symmetric grid ── */
 .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .card {

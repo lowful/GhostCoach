@@ -60,6 +60,7 @@ class CoachingEngine extends EventEmitter {
     this.lastPhaseChange = null;  // { from, to, at }: round-transition awareness
     this.inLobby        = false;  // server saw a menu/lobby: silence ALL tips
     this.matchMemory    = [];     // running log of the match (rounds, streaks, reads)
+    this.playerNotes    = [];     // observed FACTS about what the player did on screen
     this.recentFrames   = [];     // last few REAL gameplay frames (never lobby/desktop)
     this.focusIndex     = -1;     // rotates analysis emphasis (map/enemies/…)
     this.analyzedFrames = 0;      // frames analyzed this session (warm-up gate)
@@ -89,6 +90,7 @@ class CoachingEngine extends EventEmitter {
     this.lastPhaseChange = null;
     this.inLobby = false;
     this.matchMemory = [];
+    this.playerNotes = [];
     this.recentFrames = [];
     this.analyzedFrames = 0;
     this.lastDeathAt = 0;
@@ -462,7 +464,13 @@ class CoachingEngine extends EventEmitter {
 
   // ── response processing + guardrails ────────────────────────────────────────
   processAIResponse(response) {
-    if (response.context) { this.updateMatchContext(response.context); this.trackEnemy(response.context); }
+    if (response.context) {
+      this.updateMatchContext(response.context);
+      this.trackEnemy(response.context);
+      // Observed fact about what the player actually DID (from the screen,
+      // reported in STATE.note): the honest record reviews are written from.
+      if (response.context.playerNote) this.addPlayerNote(response.context.playerNote);
+    }
 
     const raw = response.tip;
     if (!raw) return;
@@ -641,6 +649,18 @@ class CoachingEngine extends EventEmitter {
     return this.analyzedFrames % 3 === 2;
   }
 
+  /** Observed facts about the player's actual play, deduped and capped.
+   *  Unlike tips (advice that was merely SHOWN), these describe what really
+   *  happened on screen, so reviews and session grades stay honest. */
+  addPlayerNote(note) {
+    const n = String(note).trim().slice(0, 90);
+    if (!n || n.length < 8) return;
+    const lower = n.toLowerCase();
+    if (this.playerNotes.some((x) => x.toLowerCase() === lower)) return;
+    this.playerNotes.push(n);
+    if (this.playerNotes.length > 25) this.playerNotes.shift();
+  }
+
   /** Append one line to the match memory (deduped, capped) so the AI keeps a
    *  running picture of the match instead of judging every frame cold. */
   remember(line) {
@@ -740,7 +760,7 @@ class CoachingEngine extends EventEmitter {
         if (!this.matchContext[key]) this.matchContext[key] = v;
         continue;
       }
-      if (key === 'recentTopics') continue;
+      if (key === 'recentTopics' || key === 'playerNote') continue;   // handled separately, never persisted
       this.matchContext[key] = v;
     }
 
@@ -786,6 +806,7 @@ class CoachingEngine extends EventEmitter {
       const tips = this.tipHistory.filter((t) => t.source === 'ai').map((t) => t.text);
       const data = await this.callServer(API.MATCH_REVIEW, {
         tips,
+        notes: this.playerNotes.slice(-20),   // observed facts ground the review
         context: { ...this.matchContext, proPlaybook: this.experiments().proPlaybook || 'off' },
       });
       if (data && data.review) this.emit('match-review', data.review);

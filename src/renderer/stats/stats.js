@@ -11,6 +11,18 @@ const refreshBtn     = document.getElementById('refresh');
 const ARROW = { up: '▲', down: '▼', flat: '-' };
 let lastFetchedAt = 0;
 let refreshBlockedUntil = 0;
+let matchMode = 'competitive';   // always opens on Competitive; Unrated = unrated + swiftplay
+
+// Mode toggle: same ratings, same treatment, just not ranked.
+const modeSeg = document.getElementById('modeseg');
+modeSeg.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button');
+  if (!btn || btn.dataset.mode === matchMode) return;
+  matchMode = btn.dataset.mode;
+  for (const b of modeSeg.querySelectorAll('button')) b.classList.toggle('active', b === btn);
+  refreshBlockedUntil = 0;
+  try { renderMatches(await window.ghost.matchesFor(matchMode)); } catch {}
+});
 
 // ── Overview cards ────────────────────────────────────────────────────────────
 function card(label, value, direction, small) {
@@ -173,7 +185,7 @@ function matchRow(m) {
   place.textContent = m.map || 'Unknown';
   const sub = document.createElement('span');
   sub.className = 'sub';
-  sub.textContent = m.agent || '';
+  sub.textContent = [m.agent, m.queue && m.queue !== 'Competitive' ? m.queue : null].filter(Boolean).join(' · ');
   const spacer = document.createElement('span');
   spacer.className = 'spacer';
   const kda = document.createElement('span');
@@ -239,7 +251,7 @@ refreshBtn.addEventListener('click', async () => {
   refreshBtn.disabled = true;
   refreshBtn.textContent = 'Refreshing';
   try {
-    const res = await window.ghost.refreshMatches();
+    const res = await window.ghost.refreshMatches(matchMode);
     if (!(res && res.refreshBlockedFor)) refreshBlockedUntil = Date.now() + 3 * 60 * 1000;
     renderMatches(res);
   } catch {}

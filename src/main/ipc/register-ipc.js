@@ -50,7 +50,8 @@ function registerIpc(deps) {
   safeHandle(C.SESSION_GET, async (_e, file) => controller.getSession(file));
 
   safeHandle(C.STATS_DASHBOARD, async () => controller.getStatsDashboard());
-  safeHandle(C.STATS_REFRESH, async () => controller.getMatches(true));
+  safeHandle(C.STATS_REFRESH, async (_e, mode) => controller.getMatches(true, mode));
+  safeHandle(C.STATS_MATCHES, async (_e, mode) => controller.getMatches(false, mode));
   safeHandle(C.CHAT_SEED, async () => controller.takeChatSeed());
 
   // ── fire-and-forget commands ──────────────────────────────────────────────

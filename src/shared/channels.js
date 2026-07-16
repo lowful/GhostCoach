@@ -27,7 +27,8 @@ const CHANNELS = {
   SESSIONS_LIST:    'sessions:list',     // () → [{ file, endedAt, tipCount, agent }]
   SESSION_GET:      'sessions:get',      // (file) → archived session JSON | null
   STATS_DASHBOARD:  'stats:dashboard',   // () → { categories, rank, winRate, sessions, sessionCount, matches, riotConnected }
-  STATS_REFRESH:    'stats:refreshMatches', // () → { matches, fetchedAt, refreshBlockedFor? } (3-min manual limit)
+  STATS_REFRESH:    'stats:refreshMatches', // (mode) → { matches, fetchedAt, mode, refreshBlockedFor? } (3-min manual limit)
+  STATS_MATCHES:    'stats:matches',       // (mode) → { matches, fetchedAt, mode } cached fetch for mode switching
   CHAT_SEED:        'chat:seed',         // () → pending session context for Ask Coach, cleared on read
 
   // ── renderer → main commands (ipcRenderer.send ⇄ ipcMain.on) ──────────────
