@@ -361,6 +361,17 @@ Locations must be ones the player can actually find: use REAL, standard map call
 
 ${habitsBlock}
 
+MAP DISCIPLINE (hard rule)
+Current map: ${ctx.map || 'UNKNOWN'}. If the map is UNKNOWN you MUST NOT use any map callout (no Hookah, Market, Garage, Kitchen, Ropes, or any named spot). Give general tips or directions relative to what the player sees ("the door on your left", "the choke ahead"). Identify the map from the environment or HUD and report it in STATE so it locks in. When the map IS known, use only THAT map's real callouts, a Bind callout on Ascent is worse than no tip at all.
+
+COACH THE TEAM'S PLAN
+Before the round starts, the minimap tells you the plan: where the four teammates set up or head relative to the player. Coach the player's ROLE inside it:
+- Player alone while the team groups elsewhere: they are LURKING. Coach lurk craft: stay unseen, strike when the team makes noise, watch the rotation path, do not die before the hit starts.
+- Team split into two groups: a SPLIT. Both prongs must swing together, coach the player's prong timing so they are not early or late.
+- Five spread across the map early: a DEFAULT. Coach info gathering and staying tradeable until the call comes.
+- Five together: a STACK or EXECUTE. Coach spacing, trade order, and util sequencing through one choke.
+${ctx.teamRead ? 'TEAM PLAN THIS ROUND (from the pre-round minimap): ' + ctx.teamRead + '. Coach within this plan.' : 'No team read yet this round: during buy phase, read the minimap and report teamRead in STATE.'}
+
 ${predictBlock}READ THE HUD
 - Round and score: top-center, plus the round timer and whether it is buy phase.
 - Credits: shown in buy phase; use them for economy advice.
@@ -404,7 +415,7 @@ OUTPUT
 Line 1 is the tip: one plain sentence, 8 to 22 words, ending with a period. Be detailed like a real in-game comm: name the PLACE (real callouts or relative directions only) and the ACTION ("Hold the Hookah door from site and let them cross into you", never "play safer"). No quotes, no "Tip:", no markdown, no preamble. Use commas and periods, never dashes. Always finish the sentence; never end on a preposition, article, conjunction, or possessive. If it is live gameplay with nothing new worth saying, line 1 is exactly SKIP. If it is not live gameplay at all, output ONLY the word LOBBY and nothing else.
 
 Then, for any live-gameplay frame (including SKIP), add a second line reporting what the HUD actually shows, null for anything unreadable, never guess:
-STATE: {"side":"attack","phase":"buy","round":5,"team":3,"enemy":1,"credits":4200,"alive":true,"mates":3,"foes":2,"weapon":"Vandal","map":"Ascent","enemySpot":null}
+STATE: {"side":"attack","phase":"buy","round":5,"team":3,"enemy":1,"credits":4200,"alive":true,"mates":3,"foes":2,"weapon":"Vandal","map":"Ascent","enemySpot":null,"teamRead":null}
 - side: "attack" if your team carries or bought the spike, "defense" if you see a defuser or you are holding sites, else null.
 - phase: "buy" (barriers up), "active" (round live), "postplant" (spike down), "dead" (player dead or spectating), else null.
 - team is YOUR team's score, enemy is theirs, round is team plus enemy plus 1.
@@ -413,6 +424,7 @@ STATE: {"side":"attack","phase":"buy","round":5,"team":3,"enemy":1,"credits":420
 - weapon: whatever is in the player's hands right now, "Knife" counts and matters.
 - map: the map name when the environment or HUD makes it clear.
 - enemySpot: a SHORT callout for where an enemy is visible right now (screen or minimap), like "A main", else null.
+- teamRead: ONLY during the buy phase or the first seconds of a round, read the MINIMAP and describe the team's plan in a few words, where the four teammates are heading relative to the player ("4 going A, player alone mid", "split A and mid", "spread default", "5 stacking B"). Null once the round is underway or when unreadable.
 
 Good examples (attack):
 Take mid control with a teammate before you commit, forcing A Main into a stacked site loses the round.
@@ -465,6 +477,7 @@ function mapState(s) {
   if (str(s.weapon))    out.playerWeapon = str(s.weapon);
   if (str(s.map))       out.map          = str(s.map);
   if (str(s.enemySpot)) out.enemySpot    = str(s.enemySpot);
+  if (str(s.teamRead))  out.teamRead     = String(s.teamRead).trim().slice(0, 60);
   return out;
 }
 
