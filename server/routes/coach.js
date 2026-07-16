@@ -415,7 +415,7 @@ OUTPUT
 Line 1 is the tip: one plain sentence, 8 to 22 words, ending with a period. Be detailed like a real in-game comm: name the PLACE (real callouts or relative directions only) and the ACTION ("Hold the Hookah door from site and let them cross into you", never "play safer"). No quotes, no "Tip:", no markdown, no preamble. Use commas and periods, never dashes. Always finish the sentence; never end on a preposition, article, conjunction, or possessive. If it is live gameplay with nothing new worth saying, line 1 is exactly SKIP. If it is not live gameplay at all, output ONLY the word LOBBY and nothing else.
 
 Then, for any live-gameplay frame (including SKIP), add a second line reporting what the HUD actually shows, null for anything unreadable, never guess:
-STATE: {"side":"attack","phase":"buy","round":5,"team":3,"enemy":1,"credits":4200,"alive":true,"mates":3,"foes":2,"weapon":"Vandal","map":"Ascent","enemySpot":null,"teamRead":null}
+STATE: {"side":"attack","phase":"buy","round":5,"team":3,"enemy":1,"credits":4200,"alive":true,"mates":3,"foes":2,"weapon":"Vandal","map":"Ascent","enemySpot":null,"teamRead":null,"note":null}
 - side: "attack" if your team carries or bought the spike, "defense" if you see a defuser or you are holding sites, else null.
 - phase: "buy" (barriers up), "active" (round live), "postplant" (spike down), "dead" (player dead or spectating), else null.
 - team is YOUR team's score, enemy is theirs, round is team plus enemy plus 1.
@@ -425,6 +425,7 @@ STATE: {"side":"attack","phase":"buy","round":5,"team":3,"enemy":1,"credits":420
 - map: the map name when the environment or HUD makes it clear.
 - enemySpot: a SHORT callout for where an enemy is visible right now (screen or minimap), like "A main", else null.
 - teamRead: ONLY during the buy phase or the first seconds of a round, read the MINIMAP and describe the team's plan in a few words, where the four teammates are heading relative to the player ("4 going A, player alone mid", "split A and mid", "spread default", "5 stacking B"). Null once the round is underway or when unreadable.
+- note: ONE short factual observation of something the PLAYER actually DID this frame, good or bad ("repeeked the same angle after a kill", "planted the spike in the open", "held a solid off angle with a teammate crossfiring", "pushed alone with no trade"). Only facts you can SEE on screen, never guesses, null when nothing notable happened. These notes become the honest record the match review is written from.
 
 Good examples (attack):
 Take mid control with a teammate before you commit, forcing A Main into a stacked site loses the round.
@@ -478,6 +479,7 @@ function mapState(s) {
   if (str(s.map))       out.map          = str(s.map);
   if (str(s.enemySpot)) out.enemySpot    = str(s.enemySpot);
   if (str(s.teamRead))  out.teamRead     = String(s.teamRead).trim().slice(0, 60);
+  if (str(s.note))      out.playerNote   = String(s.note).trim().slice(0, 90);
   return out;
 }
 
@@ -871,8 +873,11 @@ const MATCHES_TTL_MS     = 15 * 60 * 1000;
 const MATCHES_REFRESH_MS = 3 * 60 * 1000;
 const matchesCache = new Map();   // riotId(lower) -> { data, fetchedAt, lastManualRefresh }
 
-// GET /api/coach/matches?username=Name%23TAG[&refresh=1]
-// The player's last 10 competitive matches with per-match 0-100 ratings.
+// GET /api/coach/matches?username=Name%23TAG[&refresh=1][&mode=competitive|unrated]
+// The player's last 10 matches with per-match 0-100 ratings. mode=unrated
+// merges unrated and swiftplay, rated and treated the same, just not ranked.
+const MODE_QUEUES = { competitive: ['competitive'], unrated: ['unrated', 'swiftplay'] };
+
 router.get('/matches', async (req, res) => {
   const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
   if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
@@ -880,7 +885,8 @@ router.get('/matches', async (req, res) => {
 
   const username = String(req.query.username || '');
   if (!username.includes('#')) return res.json({ error: 'Riot ID must be Name#TAG.' });
-  const key = username.toLowerCase();
+  const modeKey = req.query.mode === 'unrated' ? 'unrated' : 'competitive';
+  const key = username.toLowerCase() + '|' + modeKey;
   const now = Date.now();
   const hit = matchesCache.get(key);
 
@@ -897,12 +903,16 @@ router.get('/matches', async (req, res) => {
     const region = acct.json?.data?.region;
     if (!region) return res.json({ error: 'Account not found.' });
 
-    const sm = await henrikGet(`/valorant/v1/stored-matches/${region}/${enc(name)}/${enc(tag)}?mode=competitive&size=10`);
-    const rows = (sm.json && Array.isArray(sm.json.data)) ? sm.json.data : [];
+    const rows = [];
+    for (const q of MODE_QUEUES[modeKey]) {
+      const sm = await henrikGet(`/valorant/v1/stored-matches/${region}/${enc(name)}/${enc(tag)}?mode=${q}&size=10`);
+      const arr = (sm.json && Array.isArray(sm.json.data)) ? sm.json.data : [];
+      for (const m of arr) if (m && m.stats) { m._queue = q; rows.push(m); }
+    }
+    rows.sort((a, b) => (Date.parse(b.meta?.started_at || 0) || 0) - (Date.parse(a.meta?.started_at || 0) || 0));
     const matches = [];
-    for (const m of rows) {
-      const st = m && m.stats;
-      if (!st) continue;
+    for (const m of rows.slice(0, 10)) {
+      const st = m.stats;
       const teams   = m.teams || {};
       const rounds  = (teams.red | 0) + (teams.blue | 0);
       const mine    = String(st.team || '').toLowerCase();
@@ -919,6 +929,7 @@ router.get('/matches', async (req, res) => {
         id:      (m.meta && m.meta.id) || null,
         map:     m.meta?.map?.name || 'Unknown',
         agent:   st.character?.name || null,
+        queue:   m._queue === 'swiftplay' ? 'Swiftplay' : m._queue === 'unrated' ? 'Unrated' : 'Competitive',
         result:  won ? 'Victory' : myScore < theirs ? 'Defeat' : 'Draw',
         score:   myScore + '-' + theirs,
         kills, deaths, assists, kd,
@@ -957,8 +968,13 @@ router.post('/score-session', async (req, res) => {
     const tips = Array.isArray(req.body && req.body.tips) ? req.body.tips.slice(0, 30).map((t) => String(t).slice(0, 160)) : [];
     if (tips.length < 1) return res.json({ error: 'Not enough tips to score.' });
     const ctx = (req.body && req.body.context) || {};
+    const notes = Array.isArray(req.body && req.body.notes)
+      ? req.body.notes.slice(0, 20).map((n) => String(n).slice(0, 90)) : [];
+    const notesBlock = notes.length
+      ? '\nOBSERVED FACTS (what the player was actually SEEN doing on screen, weigh these ABOVE the tips):\n' + notes.map((n) => '- ' + n).join('\n') + '\n'
+      : '';
 
-    const prompt = `A Valorant player finished a coached session${ctx.map ? ' on ' + String(ctx.map).slice(0, 20) : ''}${ctx.agent ? ' playing ' + String(ctx.agent).slice(0, 16) : ''}${ctx.durationMin ? ', about ' + Math.round(ctx.durationMin) + ' minutes long' : ''}. These coaching tips were shown during it:\n${tips.join('\n')}\n\nReturn ONLY valid JSON, no markdown:\n{"economy":70,"positioning":70,"utility":70,"aim":70,"summary":"...","strengths":"...","weaknesses":"..."}\nScore each category 0-100 from the tips alone: many corrections in a category means a LOWER score there, no mention means a neutral 70-75.
+    const prompt = `A Valorant player finished a coached session${ctx.map ? ' on ' + String(ctx.map).slice(0, 20) : ''}${ctx.agent ? ' playing ' + String(ctx.agent).slice(0, 16) : ''}${ctx.durationMin ? ', about ' + Math.round(ctx.durationMin) + ' minutes long' : ''}. These coaching tips were shown during it:\n${tips.join('\n')}\n${notesBlock}\nReturn ONLY valid JSON, no markdown:\n{"economy":70,"positioning":70,"utility":70,"aim":70,"summary":"...","strengths":"...","weaknesses":"..."}\nScore each category 0-100. When OBSERVED FACTS are provided they are the primary evidence, they describe what the player actually did; the tips only show what the coaching focused on and do NOT prove the player did or failed anything. Many corrections in a category still suggests a lower score there, but never state the player did something unless an observed fact shows it. No signal for a category means a neutral 70-75.
 summary: 3-4 sentences spoken directly TO the player like a real coach after the game, honest and encouraging: how the session went overall, the clearest thing they did well, what hurt them most, and the one habit to bring into the next game. Ground it strictly in the tips, invent nothing.
 strengths: 1-2 sentences on what the coaching did NOT have to correct or praised. weaknesses: 1-2 sentences on the most repeated corrections. Ground everything strictly in the tips, invent nothing. Use commas and periods, never dashes.`;
 
@@ -1067,6 +1083,11 @@ router.post('/match-review', async (req, res) => {
 
     const tips = Array.isArray(req.body && req.body.tips) ? req.body.tips.slice(0, 30) : [];
     if (tips.length < 3) return res.json({ review: 'Not enough data for a review.' });
+    const notes = Array.isArray(req.body && req.body.notes)
+      ? req.body.notes.slice(0, 20).map((n) => String(n).slice(0, 90)) : [];
+    const notesBlock = notes.length
+      ? '\n\nOBSERVED FACTS (what the player was actually SEEN doing on screen, this is the honest record):\n' + notes.map((n) => '- ' + n).join('\n')
+      : '';
 
     // Pro Playbook (experimental): ground the next-match drill in curated habits.
     const reviewCtx = (req.body && req.body.context) || {};
@@ -1077,7 +1098,7 @@ router.post('/match-review', async (req, res) => {
         })()
       : '';
 
-    const prompt = `Here are the coaching tips shown to a Valorant player during one match:\n${tips.join('\n')}${playbookBlock}\n\nWrite a 3-sentence match review. Sentence 1: the area the coaching pushed most, framed as what to keep building on. Sentence 2: the most repeated correction, that is their most common issue. Sentence 3: the single focus for next match, stated as a concrete habit or drill they can actually do (for example a minimap glance every 5 seconds, or trading every teammate fight), not a vague goal.\n\nCRITICAL GROUNDING RULE: these tips are the ONLY thing you know about the match. Do not invent or assume specific plays, kills, clutches, or moments, and do not claim the player DID something unless the tips clearly show it. Talk about what the coaching focused on, not fabricated events. If the tips do not support a claim, leave it out. Do not use dashes. End each sentence with a period.`;
+    const prompt = `Here are the coaching tips shown to a Valorant player during one match:\n${tips.join('\n')}${notesBlock}${playbookBlock}\n\nWrite a 3-sentence match review. Sentence 1: the area the coaching pushed most, framed as what to keep building on. Sentence 2: the most repeated correction, that is their most common issue. Sentence 3: the single focus for next match, stated as a concrete habit or drill they can actually do (for example a minimap glance every 5 seconds, or trading every teammate fight), not a vague goal.\n\nCRITICAL GROUNDING RULE: the tips are only the advice that was SHOWN, they do NOT prove the player did or failed to do anything. Claims about what the player actually DID must come from the OBSERVED FACTS when provided, those are direct observations from watching the screen. With no observed fact to support a claim, talk about what the coaching focused on instead, and never fabricate plays, kills, or moments. Do not use dashes. End each sentence with a period.`;
 
     const review = await Promise.race([
       textInfer(prompt, 200),
