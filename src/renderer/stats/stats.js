@@ -32,15 +32,97 @@ function card(label, value, direction, small) {
   return el;
 }
 
+// Per-rank field notes: what the rank is about and the mistakes that keep
+// players hardstuck there, distilled from Radiant coaching material.
+const RANK_NOTES = {
+  iron: { summary: 'The foundations rank, rounds are decided by raw gun handling before anything else.',
+    issues: ['Spamming pistols instead of respecting each gun\'s reset time, the Ghost, Classic, and Sheriff each have their own rhythm between accurate shots',
+      'Crosshair drifting to the floor or walls between fights',
+      'Fix it in the Range at 10 meters: slow down until your shots stop flying up, then speed back up'] },
+  bronze: { summary: 'Utility exists here, but it works against the team as often as for it.',
+    issues: ['Panic dumping abilities the moment enemies are seen or heard, a solo dart at round start that nobody can swing on helps no one',
+      'Bad utility is worse than none, a bad smoke blocks your own team\'s crossfires and gives free space',
+      'Before every ability, ask what it does for the team right now. No answer in one sentence, do not press the key'] },
+  silver: { summary: 'Aim starts landing, and confidence becomes the trap.',
+    issues: ['Ego peeking and overheating: one kill, then an instant swing for more into someone you missed',
+      'Chasing clips instead of winning rounds',
+      'The fix is disciplined aggression: after a kill ask if more is risky, and if yes, reposition and play with your team'] },
+  gold: { summary: 'Just enough map awareness to talk yourself into bad rotations.',
+    issues: ['Panic rotating off one utility sound or a few footsteps, gold is the easiest rank in the game to fake',
+      'Leaving your site free the moment noise happens elsewhere',
+      'Learn to anchor: pick your site and do not leave until enemies are actually confirmed hitting the other one'] },
+  platinum: { summary: 'The duels are fine, the economy and macro are out of sync with the team.',
+    issues: ['Hero buys while the team saves, one selfish rifle creates two or three mismatched rounds after it',
+      'Buying on feeling instead of what the team can afford together',
+      'Press Tab before every buy and match the team: save together, buy together'] },
+  diamond: { summary: 'Skilled but predictable, the same script every round gets pre aimed.',
+    issues: ['Running the same "if X then Y" in the same spot every round, enemies need only a few rounds to read it',
+      'Feeling constantly one tapped is often just being predictable',
+      'Condition your opponents: teach them a pattern, then break it, and rotate your setups between rounds'] },
+  ascendant: { summary: 'The accidental baiter rank: smart positioning that leaves teammates fighting alone.',
+    issues: ['Sitting too far behind the entry to trade, arriving after the duelist is already dead',
+      'The trade window is 1 to 2 seconds after contact, outside it the trade is gone forever',
+      'Stay within a step or two of your entry on attack, and pair up on defense so every fight gets answered'] },
+  immortal: { summary: 'Mechanics are Radiant level, the gap is mental endurance and consistency.',
+    issues: ['Checking out after unlucky clutches or toxic teammates, then throwing the rounds that decide the game',
+      'Inconsistency across a full match, not a lack of skill',
+      'Play every round like the score is 12 to 12: three seconds of breath before each buy phase, then the best play'] },
+  radiant: { summary: 'The top. Staying here is pure consistency, every round played like overtime.',
+    issues: ['Complacency, streaks end on relaxed rounds',
+      'Keep the 12 to 12 mindset that got you here'] },
+};
+
+function rankTier(rankValue) {
+  const l = String(rankValue || '').toLowerCase();
+  return Object.keys(RANK_NOTES).find((t) => l.startsWith(t)) || null;
+}
+
+const rankNotesEl = document.getElementById('rank-notes');
+function toggleRankNotes(rankValue) {
+  if (!rankNotesEl.hidden) { rankNotesEl.hidden = true; return; }
+  const tier = rankTier(rankValue);
+  rankNotesEl.innerHTML = '';
+  const title = document.createElement('h4');
+  const body  = document.createElement('p');
+  if (!tier) {
+    title.textContent = 'Rank insights';
+    body.textContent = 'Connect your Riot ID in Settings and play ranked to see what typically holds players back at your rank.';
+    rankNotesEl.append(title, body);
+  } else {
+    const n = RANK_NOTES[tier];
+    title.textContent = `About ${tier.charAt(0).toUpperCase() + tier.slice(1)}`;
+    body.textContent = n.summary;
+    const label = document.createElement('div');
+    label.className = 'rn-label';
+    label.textContent = 'Why players get stuck here';
+    const ul = document.createElement('ul');
+    for (const issue of n.issues) {
+      const li = document.createElement('li');
+      li.textContent = issue;
+      ul.append(li);
+    }
+    rankNotesEl.append(title, body, label, ul);
+  }
+  rankNotesEl.hidden = false;
+}
+
 function renderCards(d) {
   cardsEl.innerHTML = '';
+  const rankCard = card('Rank', d.rank?.value, d.rank?.direction, true);
+  rankCard.classList.add('clickable');
+  const chev = document.createElement('span');
+  chev.className = 'rank-chev';
+  chev.textContent = '▾';
+  rankCard.querySelector('.label').append(' ', chev);
+  rankCard.title = 'What holds players back at this rank';
+  rankCard.addEventListener('click', () => toggleRankNotes(d.rank && d.rank.value));
   const c = d.categories || {};
   cardsEl.append(
     card('Economy',     c.economy?.avg,     c.economy?.direction),
     card('Positioning', c.positioning?.avg, c.positioning?.direction),
     card('Utility',     c.utility?.avg,     c.utility?.direction),
     card('Aim',         c.aim?.avg,         c.aim?.direction),
-    card('Rank',        d.rank?.value,      d.rank?.direction, true),
+    rankCard,
     card('Win Rate',    d.winRate?.value != null ? d.winRate.value + '%' : null, d.winRate?.direction),
   );
 }

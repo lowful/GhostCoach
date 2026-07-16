@@ -751,6 +751,13 @@ class CoachingEngine extends EventEmitter {
     // so the next request coaches the NEW phase and the cooldown briefly relaxes.
     if (updates.phase && updates.phase !== prevPhase) {
       this.lastPhaseChange = { from: prevPhase, to: updates.phase, at: Date.now() };
+      // A new buy phase means a new plan: drop last round's team read so a
+      // stale "4 stacking A" never coaches this round.
+      if (updates.phase === 'buy') this.matchContext.teamRead = null;
+      // The round going live locks the plan into match memory for continuity.
+      if (updates.phase === 'active' && prevPhase === 'buy' && this.matchContext.teamRead) {
+        this.remember(`Round plan: ${this.matchContext.teamRead}`);
+      }
     }
     if (updates.phase === 'dead' && prevPhase !== 'dead') {
       this.matchContext.consecutiveDeaths++;
@@ -795,6 +802,7 @@ function freshContext() {
     roundNumber: 0, teamScore: 0, enemyScore: 0,
     phase: 'unknown', playerCredits: null, playerWeapon: null, playerAlive: true,
     teammatesAlive: null, enemiesAlive: null,   // reported by the AI from the HUD bar
+    teamRead: null,   // pre-round minimap read of the team's plan ("4 A, player alone mid")
     consecutiveDeaths: 0, consecutiveWins: 0, roundsPlayed: 0,
   };
 }
@@ -960,6 +968,35 @@ const DEATH_WINDOW_MS = 15000;
 // (teammatesAlive reported as 0 by the AI from the HUD portraits).
 const TEAM_PLAY_TIP = /\btrad(?:e|es|ed|ing)\b|\bteammates?\b|\bcrossfire\b|\bswing (?:with|together)\b|\bas five\b|\bregroup\b|\btrade partner\b|\bentry with\b/i;
 
+// Map-specific callouts and where they belong. A tip naming a callout from
+// the WRONG map, or any distinctive callout while the map is still unknown,
+// is dropped outright: "hold the cross in Hookah" on Ascent is worse than
+// silence. Only distinctive names are listed; shared words (mid, heaven,
+// main, site) are never gated.
+const MAP_CALLOUTS = {
+  hookah: ['bind'], showers: ['bind'], lamps: ['bind'],
+  catwalk: ['ascent'], market: ['ascent', 'sunset'], tree: ['ascent', 'lotus'],
+  garage: ['haven'],
+  ropes: ['split'], vents: ['split'], mail: ['split'], sewer: ['split'],
+  kitchen: ['icebox'], boiler: ['icebox'], nest: ['icebox'], fridge: ['icebox'],
+  pyramids: ['breeze'], cave: ['breeze'],
+  dish: ['fracture'], arcade: ['fracture'], canteen: ['fracture'],
+  flowers: ['pearl'],
+  rubble: ['lotus'], waterfall: ['lotus'],
+  boba: ['sunset'],
+};
+const CALLOUT_RE = new RegExp('\\b(' + Object.keys(MAP_CALLOUTS).join('|') + ')\\b', 'gi');
+function wrongMapCallout(text, map) {
+  const found = String(text || '').toLowerCase().match(CALLOUT_RE);
+  if (!found) return null;
+  const m = String(map || '').toLowerCase();
+  for (const c of new Set(found)) {
+    const homes = MAP_CALLOUTS[c] || [];
+    if (!m || !homes.includes(m)) return c;   // unknown map or a foreign callout
+  }
+  return null;
+}
+
 // High-confidence situational guards only, never reject on a guess.
 function scenarioFits(text, source, ctx) {
   if (!ctx) return true;
@@ -977,6 +1014,13 @@ function scenarioFits(text, source, ctx) {
   // advice is impossible and gets dropped no matter how good it sounds.
   if (ctx.playerAlive !== false && ctx.teammatesAlive === 0 && TEAM_PLAY_TIP.test(l)) {
     return false;
+  }
+
+  // Map discipline: a callout from another map, or any distinctive callout
+  // while the map is unknown, makes the tip wrong by definition.
+  if (source !== 'system') {
+    const bad = wrongMapCallout(l, ctx.map);
+    if (bad) { console.log(`[engine] reject: callout "${bad}" vs map ${ctx.map || 'unknown'}`); return false; }
   }
 
   // Updraft advice: never. Knife advice: only right after a death it may have caused.

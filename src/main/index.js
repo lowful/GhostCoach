@@ -181,7 +181,7 @@ const controller = {
     fetchTrackerStats(true).then((s) => { if (engine && s) engine.setPlayerStats(s); }).catch(() => {});
     // The coach also sees the player's coached-session trends (the dashboard
     // overview), so it knows which category is weakest and where it's heading.
-    engine.setPerformanceSummary(computeCategoryTrends(loadPerf()));
+    { const tp = guardedTrackerPair(); engine.setPerformanceSummary(computeCategoryTrends(loadPerf(), tp.stats, tp.prevStats)); }
     // Start the hidden game-audio listener (session-scoped, RAM only).
     latestAudio = { b64: null, at: 0 };
     try { audioWindow.create(); } catch (e) { console.log('[audio] listener unavailable:', e.message); }
@@ -301,15 +301,9 @@ const controller = {
    *  match list (server-cached 15 min, client-cached alongside). */
   async getStatsDashboard() {
     const perf = loadPerf();            // oldest -> newest
-    const categories = computeCategoryTrends(perf);
+    const { stats, prevStats } = guardedTrackerPair();
+    const categories = computeCategoryTrends(perf, stats, prevStats);
 
-    // Tracker-derived values only count if they belong to the CURRENT Riot ID,
-    // so switching accounts never shows the previous account's rank or matches.
-    const riotId = (store.get('riotId') || '').trim();
-    const rawStats = store.get('playerStats');
-    const stats     = rawStats && rawStats._riotId === riotId ? rawStats : null;
-    const rawPrev   = store.get('lastMatchStats');
-    const prevStats = rawPrev && (!rawPrev._riotId || rawPrev._riotId === riotId) ? rawPrev : null;
     const rank = {
       value: (stats && stats.rank) || null,
       direction: stats && prevStats ? trendDirection(rankIndex(stats.rank), rankIndex(prevStats.rank), 0) : 'flat',
@@ -370,7 +364,7 @@ const controller = {
       matchMemory:  engine ? engine.matchMemory.slice(-8) : [],
       stats:        await fetchTrackerStats(),
       noSessionYet: !hasSessionData,
-      coachTrend:   computeCategoryTrends(loadPerf()),   // dashboard overview for the coach
+      coachTrend:   (() => { const tp = guardedTrackerPair(); return computeCategoryTrends(loadPerf(), tp.stats, tp.prevStats); })(),
       // The chat works WITH the stats dashboard: it sees the same recent
       // matches (with ratings) and coached sessions the player is looking at.
       recentMatches: (await this.getMatches(false)).matches.slice(0, 5).map((m) => ({
@@ -542,18 +536,53 @@ function appendPerf(rec) {
   } catch (e) { console.error('[perf] save failed:', e.message); }
 }
 
-/** Category trends from the performance log: last 10 sessions vs the 10
- *  before, per category. Shared by the dashboard and the live coach. */
-function computeCategoryTrends(perf) {
+/** Tracker-derived category levels, the heavier half of the ratings: aim
+ *  from headshot % and kills per round, positioning inversely from deaths
+ *  per round, utility from assists per round. Economy has no tracker
+ *  signal, so the coached-session scores own it. */
+function trackerCategoryScores(st) {
+  if (!st || st.kpr == null) return {};
+  const clamp = (v) => Math.max(5, Math.min(95, Math.round(v)));
+  return {
+    aim:         clamp((st.headshotPct || 0) * 2.6 + (st.kpr || 0) * 25),
+    positioning: clamp(140 - (st.dpr != null ? st.dpr : 0.85) * 100),
+    utility:     clamp(30 + (st.apr || 0) * 150),
+  };
+}
+
+/** Riot-ID-guarded tracker snapshots (current profile + last-match snapshot). */
+function guardedTrackerPair() {
+  const riotId  = (store.get('riotId') || '').trim();
+  const raw     = store.get('playerStats');
+  const rawPrev = store.get('lastMatchStats');
+  return {
+    stats:     raw && raw._riotId === riotId ? raw : null,
+    prevStats: rawPrev && (!rawPrev._riotId || rawPrev._riotId === riotId) ? rawPrev : null,
+  };
+}
+
+/** Category ratings for the dashboard and the live coach: coached-session
+ *  averages blended with tracker reality. The tracker carries the heavier
+ *  weight (60/40) wherever it can speak; with only one source, that source
+ *  stands alone. Direction compares the same blend against the previous
+ *  10 sessions and the previous tracker snapshot. */
+function computeCategoryTrends(perf, stats, prevStats) {
   const recent = perf.slice(-10);
   const prev   = perf.slice(-20, -10);
   const avg = (rows, k) => rows.length
     ? Math.round(rows.reduce((s, r) => s + ((r.scores && r.scores[k]) || 0), 0) / rows.length)
     : null;
+  const tNow  = trackerCategoryScores(stats);
+  const tPrev = trackerCategoryScores(prevStats);
+  const blend = (sessionAvg, trackerVal) =>
+    trackerVal == null ? sessionAvg
+    : sessionAvg == null ? trackerVal
+    : Math.round(trackerVal * 0.6 + sessionAvg * 0.4);
   const out = {};
   for (const k of ['economy', 'positioning', 'utility', 'aim']) {
-    const a = avg(recent, k);
-    out[k] = { avg: a, direction: prev.length ? trendDirection(a, avg(prev, k)) : 'flat' };
+    const nowV  = blend(avg(recent, k), tNow[k]);
+    const prevV = blend(prev.length ? avg(prev, k) : null, tPrev[k]);
+    out[k] = { avg: nowV, direction: trendDirection(nowV, prevV) };
   }
   return out;
 }
