@@ -263,6 +263,9 @@ function buildContextPrompt(context) {
     ? ('MATCH MEMORY (what has happened so far, use it for continuity, momentum reads, and predictions):\n'
        + ctx.matchMemory.slice(-10).map((m) => '- ' + String(m).slice(0, 90)).join('\n') + '\n\n')
     : '';
+  const roundLostLine = !ctx.justDied && ctx.justLostRound
+    ? 'YOUR TEAM JUST LOST THE ROUND. If the frames and match memory CLEARLY show why the round slipped (a lost man advantage, a failed retake, spike left too late, the player caught somewhere useless), give the round review: start line 1 with exactly "DEATH: " then name what lost the round and the fix in one sentence. If you cannot actually see why it was lost, do NOT guess, coach something else or SKIP.\n\n'
+    : '';
   const deathLine = ctx.justDied
     ? 'THE PLAYER JUST DIED. If the frames, match memory, and state CLEARLY show why (a dry peek, no trade partner in range, repeeking the same angle, a bad position, fighting without util), make this tip the DEATH REVIEW: start line 1 with exactly "DEATH: " then name the cause and the exact fix in one sentence. This is also where held-back observations belong, if you noticed a mistake earlier, chose not to interrupt, and it just got them killed, say it now. But if the death looks unlucky, a fair duel simply lost, or you cannot actually see the cause, do NOT guess and do NOT invent a reason, coach something else or SKIP. A wrong death explanation is worse than none.\n\n'
     : '';
@@ -387,6 +390,7 @@ ${predictBlock}READ THE HUD
 - Bottom-center: the player's 4 abilities. Bright means ready, dim or greyed means used or not bought, so never tell them to use a greyed ability.
 - Minimap (top-left): the player's position, teammates, and the spike.
 - Center: crosshair placement and the angle being held.
+- Ability icons (bottom-center, beside the HP bar): lit or colored icons are AVAILABLE, dark or greyed icons are USED or never bought. Check them before EVERY utility tip; telling the player to smoke with no smoke left destroys trust in you.
 - Kill feed (top-right): recent kills and trades.
 
 ECONOMY IS CONTEXT, NEVER A TIP
@@ -408,7 +412,7 @@ Small mistakes are allowed to WAIT. If you spot something real but not urgent en
 Reply with exactly SKIP only when you genuinely have nothing accurate and new: nothing coachable in the frame, or the only honest tip would repeat the recent ones below. SKIP is for real uncertainty, not caution.
 If the screen is NOT live gameplay (main menu, lobby, agent select, loading screen, career or collection page, range with no match), reply with exactly LOBBY.
 
-${deathLine}${enemyBlock}${memoryBlock}${transLine}${focusLine}CURRENT MATCH STATE (trust this, do not re-derive it every frame):
+${deathLine}${roundLostLine}${enemyBlock}${memoryBlock}${transLine}${focusLine}CURRENT MATCH STATE (trust this, do not re-derive it every frame):
 - Agent: ${ctx.agent || 'Unknown'} | Map: ${ctx.map || 'Unknown'} | Side: ${ctx.side || 'Unknown'}
 - Round: ${ctx.roundNumber || 'Unknown'} | Score: ${ctx.teamScore || 0}-${ctx.enemyScore || 0} | Phase: ${ctx.phase || 'Unknown'}
 - Credits: ${ctx.playerCredits == null ? 'Unknown' : ctx.playerCredits} | Alive: ${ctx.playerAlive === false ? 'No' : 'Yes'} | Deaths in a row: ${ctx.consecutiveDeaths || 0}${ctx.playerAlive === false ? '\n- THE PLAYER IS DEAD RIGHT NOW. They cannot move, peek, rotate, buy, or use util this round. The ONLY valid tips are why they died and what to change, or what to watch and learn while spectating. Any tip telling a dead player to act is automatically wrong.' : ''}
@@ -424,12 +428,13 @@ Jett: smokes, updraft, dash. Reyna: blind, heal, dismiss. Phoenix: flash, molly,
 
 OUTPUT
 Line 1 is the tip: one plain sentence, 8 to 22 words, ending with a period. Be detailed like a real in-game comm: name the PLACE (real callouts or relative directions only) and the ACTION ("Hold the Hookah door from site and let them cross into you", never "play safer"). No quotes, no "Tip:", no markdown, no preamble. Use commas and periods, never dashes. Always finish the sentence; never end on a preposition, article, conjunction, or possessive. If it is live gameplay with nothing new worth saying, line 1 is exactly SKIP. If it is not live gameplay at all, output ONLY the word LOBBY and nothing else.
+When (and ONLY when) the tip explains why the player died or why the round was lost, line 1 starts with exactly "DEATH: " before the sentence. The app renders those as a special review card, so never use the marker on ordinary tips and never skip it on a death or round review.
 
 Then, for any live-gameplay frame (including SKIP), add a second line reporting what the HUD actually shows, null for anything unreadable, never guess:
 STATE: {"side":"attack","phase":"buy","round":5,"team":3,"enemy":1,"credits":4200,"alive":true,"mates":3,"foes":2,"weapon":"Vandal","map":"Ascent","enemySpot":null,"teamRead":null,"note":null}
 - side: during the buy phase the banner at the TOP of the screen says ATTACKING or DEFENDING, read it there first, it is authoritative. Otherwise "attack" if your team carries or bought the spike, "defense" if you see a defuser or you are holding sites, else null.
 - phase: "buy" (barriers up), "active" (round live), "postplant" (spike down), "dead" (player dead or spectating), else null.
-- alive: false the MOMENT the player is dead or spectating. The signs: "Spectating" with a teammate's name on screen, a death recap or killcam, no green HP bar at the bottom center, or a grey desaturated view. Read this every frame, it decides whether any action tip is even possible.
+- alive: false the MOMENT the player is dead or spectating. Dead signs: "Spectating" with a teammate's name on screen, a death recap or killcam, no HP number at the bottom center, a grey desaturated view. Alive signs that OVERRIDE everything: the player's own weapon or hands in first person view at the bottom of the screen plus a readable HP number bottom center. Check both directions every frame and never carry alive over from memory when the screen disagrees; getting this wrong makes every other tip wrong.
 - team is YOUR team's score, enemy is theirs, round is team plus enemy plus 1.
 - credits: only during the buy phase when the number is readable.
 - mates: how many OTHER teammates are alive right now (0 to 4); foes: how many enemies are alive (0 to 5). Read the agent portraits along the top HUD bar, dead players show darkened or crossed out. These numbers decide what advice is even possible, read them carefully.
@@ -749,8 +754,9 @@ async function henrikGet(pathPart) {
 // matches for the FULL picture: K/D, win rate, headshot and bodyshot %, kills/
 // deaths/assists per round, ADR, ACS, and the actually-most-played agent.
 // Returns { stats } or { fail: 'reason' }.
-async function henrikStats(name, tag) {
+async function henrikStats(name, tag, modeKey) {
   const enc = encodeURIComponent;
+  const queues = MODE_QUEUES[modeKey === 'unrated' ? 'unrated' : 'competitive'];
   const acct = await henrikGet(`/valorant/v2/account/${enc(name)}/${enc(tag)}`);
   if (acct.status === 401 || acct.status === 403) return { fail: 'HenrikDev key rejected (401/403). Check HENRIKDEV_API_KEY.' };
   if (acct.status === 404) return { fail: 'HenrikDev could not find that Riot ID. Check Name#TAG is exact.' };
@@ -764,10 +770,14 @@ async function henrikStats(name, tag) {
 
   let agg = null;
   try {
-    const sm = await henrikGet(`/valorant/v1/stored-matches/${region}/${enc(name)}/${enc(tag)}?mode=competitive&size=10`);
-    const matches = (sm.json && Array.isArray(sm.json.data)) ? sm.json.data : [];
+    const matches = [];
+    for (const q of queues) {
+      const sm = await henrikGet(`/valorant/v1/stored-matches/${region}/${enc(name)}/${enc(tag)}?mode=${q}&size=25`);
+      const arr = (sm.json && Array.isArray(sm.json.data)) ? sm.json.data : [];
+      for (const m of arr) matches.push(m);
+    }
     let k = 0, d = 0, a = 0, score = 0, head = 0, body = 0, leg = 0, dmg = 0, rounds = 0, wins = 0, counted = 0;
-    const agents = {};
+    const agents = {};   // per-agent: matches, wins, kills, deaths, score, rounds
     for (const m of matches) {
       const st = m && m.stats;
       if (!st) continue;
@@ -779,14 +789,29 @@ async function henrikStats(name, tag) {
       const r = (teams.red | 0) + (teams.blue | 0);
       rounds += r;
       const mine = String(st.team || '').toLowerCase();
-      if (r && (mine === 'red' || mine === 'blue') && (teams[mine] | 0) > (teams[mine === 'red' ? 'blue' : 'red'] | 0)) wins++;
+      const won = !!(r && (mine === 'red' || mine === 'blue') && (teams[mine] | 0) > (teams[mine === 'red' ? 'blue' : 'red'] | 0));
+      if (won) wins++;
       const agent = st.character && st.character.name;
-      if (agent) agents[agent] = (agents[agent] || 0) + 1;
+      if (agent) {
+        const g = agents[agent] || (agents[agent] = { matches: 0, wins: 0, kills: 0, deaths: 0, score: 0, rounds: 0 });
+        g.matches++; if (won) g.wins++;
+        g.kills += st.kills || 0; g.deaths += st.deaths || 0; g.score += st.score || 0; g.rounds += r;
+      }
       counted++;
     }
     if (counted) {
       const shots = head + body + leg;
-      const top = Object.entries(agents).sort((x, y) => y[1] - x[1])[0];
+      const topAgents = Object.entries(agents)
+        .sort((x, y) => y[1].matches - x[1].matches)
+        .slice(0, 3)
+        .map(([nm, g]) => ({
+          name:    nm,
+          matches: g.matches,
+          pct:     Math.round((g.matches / counted) * 100),
+          winRate: Math.round((g.wins / g.matches) * 100),
+          kd:      g.deaths > 0 ? +(g.kills / g.deaths).toFixed(2) : g.kills,
+          acs:     g.rounds ? Math.round(g.score / g.rounds) : 0,
+        }));
       agg = {
         matches:     counted,
         kd:          d > 0 ? +(k / d).toFixed(2) : k,
@@ -798,14 +823,15 @@ async function henrikStats(name, tag) {
         apr:         rounds ? +(a / rounds).toFixed(2) : 0,   // assists per round
         adr:         rounds ? Math.round(dmg / rounds) : 0,   // average damage per round
         acs:         rounds ? Math.round(score / rounds) : 0, // average combat score
-        topAgent:    top ? top[0] : 'Unknown',
+        topAgent:    topAgents.length ? topAgents[0].name : 'Unknown',
+        topAgents,
       };
     }
   } catch { /* rank-only is still useful */ }
 
   if (!rank && !agg) return { fail: 'HenrikDev found the account but no rank or match data yet.' };
-  return { stats: { source: 'henrikdev', rank: rank || 'Unranked', peakRank,
-    ...(agg || { kd: 0, winRate: 0, headshotPct: 0, topAgent: 'Unknown' }) } };
+  return { stats: { source: 'henrikdev', rank: rank || 'Unranked', peakRank, mode: modeKey === 'unrated' ? 'unrated' : 'competitive',
+    ...(agg || { kd: 0, winRate: 0, headshotPct: 0, topAgent: 'Unknown', topAgents: [] }) } };
 }
 
 async function trackerStats(name, tag) {
@@ -853,7 +879,7 @@ router.get('/player-stats', async (req, res) => {
 
   // 1) HenrikDev first: it actually works from Railway/cloud IPs.
   if (process.env.HENRIKDEV_API_KEY) {
-    const r = await henrikStats(name, tag).catch((e) => ({ fail: 'HenrikDev error: ' + e.message }));
+    const r = await henrikStats(name, tag, req.query.mode).catch((e) => ({ fail: 'HenrikDev error: ' + e.message }));
     if (r.stats) { console.log('[stats] henrikdev ok:', r.stats.rank); return res.json(r.stats); }
     if (r.fail) reasons.push(r.fail);
   }
