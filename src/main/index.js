@@ -50,6 +50,26 @@ const state = {
 
 let mainLaunched = false;
 
+// One-time reset of X-rated tips (shipped with the 3-strike system): the old
+// single-strike blocklist punished tips too hard, so everyone starts clean.
+if (!store.get('badTipsResetV2')) {
+  store.set('badTipCounts', {});
+  store.set('tipFeedback', []);
+  try { store.delete('badTips'); } catch {}
+  const ratings = store.get('tipRatings') || {};
+  for (const k of Object.keys(ratings)) if (ratings[k] === 'bad') delete ratings[k];
+  store.set('tipRatings', ratings);
+  state.tipRatings = ratings;
+  store.set('badTipsResetV2', true);
+  console.log('[tips] X-ratings reset for the 3-strike system');
+}
+
+/** Tips blocked by the 3-strike rule: same tip rated X three or more times. */
+function blockedBadTips() {
+  const counts = store.get('badTipCounts') || {};
+  return Object.keys(counts).filter((t) => counts[t] >= 3);
+}
+
 function buildState() {
   return {
     isCoaching: state.isCoaching,
@@ -108,7 +128,8 @@ const controller = {
       licenseKey:      store.get('licenseKey'),
       captureFunction: () => capture.captureScreenshot('standard'),
       performanceMode: store.get('performanceMode'),
-      badTips:         store.get('badTips'),
+      badTips:         blockedBadTips(),   // only 3-strike tips are blocked
+      getFeedback:     () => store.get('tipFeedback') || [],
       // Experimental settings, read live so flipping them in Settings applies
       // to the very next capture without restarting the session.
       experiments: () => ({
@@ -409,24 +430,32 @@ const controller = {
     return { ok: false, error: statsCache.lastError || 'Could not reach the stats service. Try again in a minute.' };
   },
 
-  /** Player rated a tip (live or archived session). Ratings persist to disk
-   *  so ✓/✗ marks survive restarts; bad tips feed the avoidance loop. */
+  /** Player rated a tip (live or archived session). Ratings persist to disk.
+   *  X-ratings are 3-strike: the SAME tip must be rated X three times before
+   *  it is blocked; a single X just records the signal. The written reason
+   *  goes to the AI so it understands WHY the tip missed. */
   rateTip(payload) {
     const text   = payload && String(payload.text || '').trim();
     const rating = payload && payload.rating;
+    const reason = payload && String(payload.reason || '').trim().slice(0, 200);
     if (!text || (rating !== 'good' && rating !== 'bad')) return;
     state.tipRatings[text] = rating;
     const keys = Object.keys(state.tipRatings);
     if (keys.length > 400) delete state.tipRatings[keys[0]];   // oldest-first trim
     store.set('tipRatings', state.tipRatings);
     if (rating === 'bad') {
-      const bad = store.get('badTips') || [];
-      if (!bad.includes(text)) {
-        bad.unshift(text);
-        store.set('badTips', bad.slice(0, 200));   // persistent blocklist
+      const counts = store.get('badTipCounts') || {};
+      counts[text] = (counts[text] || 0) + 1;
+      const ckeys = Object.keys(counts);
+      if (ckeys.length > 300) delete counts[ckeys[0]];
+      store.set('badTipCounts', counts);
+      if (reason) {
+        const fb = store.get('tipFeedback') || [];
+        fb.push({ text: text.slice(0, 140), reason, at: Date.now() });
+        store.set('tipFeedback', fb.slice(-40));
       }
-      if (engine) engine.noteBadTip(text);
-      console.log('[tips] rated BAD:', text.slice(0, 60));
+      if (counts[text] >= 3 && engine) engine.noteBadTip(text);   // 3rd strike blocks it
+      console.log(`[tips] rated BAD x${counts[text]}${reason ? ' ("' + reason.slice(0, 50) + '")' : ''}:`, text.slice(0, 60));
     } else {
       console.log('[tips] rated good:', text.slice(0, 60));
     }

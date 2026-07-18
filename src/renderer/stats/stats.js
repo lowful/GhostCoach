@@ -14,14 +14,32 @@ let refreshBlockedUntil = 0;
 let matchMode = 'competitive';   // always opens on Competitive; Unrated = unrated + swiftplay
 
 // Mode toggle: same ratings, same treatment, just not ranked.
+// Sequenced so a slow older response can never overwrite a newer mode, and
+// re-clicking always retries (the old early-return left it stuck when the
+// first fetch failed, the "have to click a couple times" glitch).
+let matchSeq = 0;
+async function loadMatches(mode) {
+  const seq = ++matchSeq;
+  matchListEl.innerHTML = '';
+  matchEmptyEl.hidden = false;
+  matchEmptyEl.textContent = 'Loading matches...';
+  try {
+    const res = await window.ghost.matchesFor(mode);
+    if (seq !== matchSeq || mode !== matchMode) return;   // superseded by a newer click
+    renderMatches(res);
+  } catch {
+    if (seq === matchSeq) matchEmptyEl.textContent = 'Could not load matches. Click the mode again to retry.';
+  }
+}
+
 const modeSeg = document.getElementById('modeseg');
-modeSeg.addEventListener('click', async (e) => {
+modeSeg.addEventListener('click', (e) => {
   const btn = e.target.closest('button');
-  if (!btn || btn.dataset.mode === matchMode) return;
-  matchMode = btn.dataset.mode;
+  if (!btn) return;
+  matchMode = btn.dataset.mode;   // re-clicking the same mode retries on purpose
   for (const b of modeSeg.querySelectorAll('button')) b.classList.toggle('active', b === btn);
   refreshBlockedUntil = 0;
-  try { renderMatches(await window.ghost.matchesFor(matchMode)); } catch {}
+  loadMatches(matchMode);
 });
 
 // ── Overview cards ────────────────────────────────────────────────────────────
@@ -251,9 +269,10 @@ refreshBtn.addEventListener('click', async () => {
   refreshBtn.disabled = true;
   refreshBtn.textContent = 'Refreshing';
   try {
+    const seq = ++matchSeq;
     const res = await window.ghost.refreshMatches(matchMode);
     if (!(res && res.refreshBlockedFor)) refreshBlockedUntil = Date.now() + 3 * 60 * 1000;
-    renderMatches(res);
+    if (seq === matchSeq && (!res.mode || res.mode === matchMode)) renderMatches(res);
   } catch {}
   tickRefresh();
 });

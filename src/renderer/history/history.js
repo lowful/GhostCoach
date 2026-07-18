@@ -57,17 +57,66 @@ function rowFor(tip) {
       bad.className = 'rate-btn bad';
       bad.title = 'Bad tip, show fewer like this';
       bad.textContent = '✗';
-      const rate = (rating) => {
-        ratings[tip.text] = rating;               // instant local feedback
-        window.ghost.rateTip({ text: tip.text, source: tip.source, rating });
-      };
-      good.addEventListener('click', () => rate('good'));
-      bad.addEventListener('click', () => rate('bad'));
+      good.addEventListener('click', () => {
+        ratings[tip.text] = 'good';               // instant local feedback
+        window.ghost.rateTip({ text: tip.text, source: tip.source, rating: 'good' });
+      });
+      // X asks WHY: the written reason teaches the AI what actually went
+      // wrong, and the same tip only gets blocked after 3 separate X ratings.
+      bad.addEventListener('click', () => openFeedbackForm(row, col, tip, actions));
       actions.append(good, bad);
       row.append(actions);
     }
   }
   return row;
+}
+
+// ── X-rating feedback form (inline, one open at a time) ──────────────────────
+let fbOpen = false;   // pause live re-renders while the player is typing
+
+function openFeedbackForm(row, col, tip, actions) {
+  if (fbOpen) return;
+  fbOpen = true;
+  actions.hidden = true;
+
+  const fb = document.createElement('div');
+  fb.className = 'fb';
+  const label = document.createElement('span');
+  label.className = 'fb-label';
+  label.textContent = 'What was wrong with this tip?';
+  const rowEl = document.createElement('div');
+  rowEl.className = 'fb-row';
+  const input = document.createElement('input');
+  input.className = 'fb-input';
+  input.type = 'text';
+  input.maxLength = 200;
+  input.placeholder = 'e.g. I had no smokes left, this was impossible';
+  const send = document.createElement('button');
+  send.className = 'fb-btn send';
+  send.textContent = 'Send';
+  send.disabled = true;
+  const cancel = document.createElement('button');
+  cancel.className = 'fb-btn';
+  cancel.textContent = 'Cancel';
+
+  input.addEventListener('input', () => { send.disabled = !input.value.trim(); });
+  const close = () => { fbOpen = false; fb.remove(); actions.hidden = false; };
+  cancel.addEventListener('click', close);
+  const submit = () => {
+    const reason = input.value.trim();
+    if (!reason) return;
+    ratings[tip.text] = 'bad';
+    window.ghost.rateTip({ text: tip.text, source: tip.source, rating: 'bad', reason });
+    fbOpen = false;
+    fb.remove();
+  };
+  send.addEventListener('click', submit);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') close(); });
+
+  rowEl.append(input, send, cancel);
+  fb.append(label, rowEl);
+  col.append(fb);
+  setTimeout(() => input.focus(), 30);
 }
 
 const mixAiEl   = document.getElementById('mix-ai');
@@ -141,7 +190,7 @@ pickerEl.addEventListener('change', async () => {
 });
 
 window.ghost.getState().then((s) => render(s)).catch(() => {});
-window.ghost.onState((s) => { if (s && !viewingFile) render(s); });
+window.ghost.onState((s) => { if (s && !viewingFile && !fbOpen) render(s); });   // never yank the form mid-typing
 populateSessions();
 
 document.getElementById('close').addEventListener('click', () => window.close());

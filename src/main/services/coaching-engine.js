@@ -33,6 +33,8 @@ class CoachingEngine extends EventEmitter {
     this.experiments = typeof opts.experiments === 'function' ? opts.experiments : () => ({});
     // Death forensics: fresh rolling game-audio clip getter (null when absent).
     this.audioClip = typeof opts.audioClip === 'function' ? opts.audioClip : () => null;
+    // Player-written feedback on past tips ({ text, reason }), for the prompt.
+    this.getFeedback = typeof opts.getFeedback === 'function' ? opts.getFeedback : () => [];
 
     this.matchContext = freshContext();
 
@@ -396,7 +398,8 @@ class CoachingEngine extends EventEmitter {
       recentTips,
       enemyHistory: this.enemyHistory.slice(-6),
       phaseTransition: this.recentPhaseTransition(),
-      badTips: [...this.badTips].slice(0, 6),
+      badTips: [...this.badTips].slice(0, 6),   // 3-strike blocked tips only
+      tipFeedback: (this.getFeedback() || []).slice(-6),
       matchMemory: this.matchMemory.slice(-10),
       playerStats: this.playerStats,
       coachTrend:  this.perfSummary || null,   // dashboard category trends
@@ -499,14 +502,6 @@ class CoachingEngine extends EventEmitter {
     }
     this.inLobby = false;   // any non-LOBBY answer means we are in gameplay
 
-    // Warm-up: the first frames of a session build context (side, phase,
-    // memory, patterns). A tip with no context behind it is a guess, so the
-    // state still updates above but nothing is coached yet.
-    if (this.analyzedFrames < 2) {
-      console.log('[engine] warm-up frame, gathering context only');
-      return;
-    }
-
     if (tip.toUpperCase() === 'SKIP' || tip.length < 20) {         // skip / too short
       this.skipCount++;
       // One SKIP plus a real quiet spell is enough for the library to step in;
@@ -522,7 +517,6 @@ class CoachingEngine extends EventEmitter {
     }
     if (TRUNCATION.some((re) => re.test(tip))) { console.log('[engine] reject: truncated'); this.fillQuietSpell(); return; }
     if (!/[.!?"]$/.test(tip))                  { console.log('[engine] reject: incomplete'); this.fillQuietSpell(); return; }
-    if (tip.split(/\s+/).length > 24)          { console.log('[engine] reject: too long'); this.fillQuietSpell(); return; }
     // A fresh phase flip (round start, spike planted) opens a short window where
     // a timely tip beats the normal pacing, so the cooldown relaxes.
     const cooldown = this.recentPhaseTransition() ? Math.min(6000, this.pacing.cooldown) : this.pacing.cooldown;
@@ -533,7 +527,7 @@ class CoachingEngine extends EventEmitter {
 
     const topic = topicOf(cleaned);
     const recent = this.tipHistory.slice(-3).map((t) => topicOf(t.text));
-    if (recent.filter((t) => t === topic).length >= 2) { console.log('[engine] reject: topic cooldown'); this.fillQuietSpell(); return; }
+    if (recent.length >= 3 && recent.every((t) => t === topic)) { console.log('[engine] reject: topic cooldown'); this.fillQuietSpell(); return; }
 
     if (!this.validateTipForAgent(cleaned)) {
       console.log('[engine] reject: wrong-agent ability');
@@ -720,7 +714,11 @@ class CoachingEngine extends EventEmitter {
   isSimilarToRecent(newTip) {
     const words = new Set(newTip.toLowerCase().split(/\s+/).filter((w) => w.length > 3));
     if (!words.size) return false;
-    for (const old of this.tipHistory.slice(-10)) {
+    // Only the last 60 seconds count: repeating important advice later is
+    // wanted (the prompt asks for fresh wording and escalation), back-to-back
+    // duplicates are not.
+    const cutoff = Date.now() - 60000;
+    for (const old of this.tipHistory.slice(-10).filter((t) => t.time >= cutoff)) {
       const oldWords = new Set(old.text.toLowerCase().split(/\s+/).filter((w) => w.length > 3));
       if (!oldWords.size) continue;
       const overlap = [...words].filter((w) => oldWords.has(w)).length;

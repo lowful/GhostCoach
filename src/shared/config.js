@@ -70,12 +70,12 @@ const PERFORMANCE_INTERVALS = {
 // more tips; every tip still passes the same quality gates, so "more" never
 // means "worse", it means the good ones are allowed through sooner.
 const TIP_PACING = {
-  turbo:       { cooldown: 5000,  silence: 9000  },
-  rapid:       { cooldown: 6500,  silence: 11000 },
-  ultra:       { cooldown: 8000,  silence: 13000 },
-  performance: { cooldown: 10000, silence: 15000 },
-  balanced:    { cooldown: 12000, silence: 18000 },
-  battery:     { cooldown: 16000, silence: 26000 },
+  turbo:       { cooldown: 3000,  silence: 8000  },   // Max: a tip every 3s when there is one
+  rapid:       { cooldown: 3500,  silence: 9000  },
+  ultra:       { cooldown: 4500,  silence: 10000 },
+  performance: { cooldown: 5500,  silence: 12000 },
+  balanced:    { cooldown: 6500,  silence: 14000 },
+  battery:     { cooldown: 8000,  silence: 18000 },
 };
 
 // Tip mix: beginner (library) tips target 25-35% of the stream, so AI tips
@@ -101,7 +101,8 @@ const STORE_DEFAULTS = {
   riotId:          '',           // Name#TAG for tracker stats in Ask Coach
   playerStats:     null,         // last good tracker profile (persists = always connected)
   lastMatchStats:  null,         // stats snapshot from the previous match (delta arrows)
-  badTips:         [],           // tip texts the player rated as bad (blocklist)
+  badTipCounts:    {},           // text -> times rated X; 3 strikes on the SAME tip blocks it
+  tipFeedback:     [],           // [{ text, reason, at }] the player's own words on why a tip missed
   tipRatings:      {},           // text -> 'good'|'bad', persists so ratings survive restarts
   overlayPosition: 'top-right',  // tip card anchor
   tipPosition:     'top-right',  // top-left | top-right | bottom-left | bottom-right
