@@ -13,6 +13,30 @@ let lastFetchedAt = 0;
 let refreshBlockedUntil = 0;
 let matchMode = 'competitive';   // always opens on Competitive; Unrated = unrated + swiftplay
 
+// ── Session MVP badges ───────────────────────────────────────────────────────
+// Sessions are not tied to a match id, so link them by time and map: a match
+// that started inside the session's coaching window is the match that session
+// coached. Matches from every loaded mode bucket accumulate in knownMatches.
+const knownMatches = new Map();   // match id -> { startedAt, map, mvp }
+const sessionMvpSlots = [];       // { s, slot } placeholders on rendered session rows
+
+function annotateSessionMvps() {
+  for (const { s, slot } of sessionMvpSlots) {
+    if (slot.dataset.done) continue;
+    const start = (s.at || 0) - ((s.durationMin || 0) + 20) * 60000;
+    const end   = (s.at || 0) + 10 * 60000;
+    for (const m of knownMatches.values()) {
+      if (!m.mvp || !m.startedAt || m.startedAt < start || m.startedAt > end) continue;
+      if (s.map && m.map && s.map !== m.map) continue;
+      slot.dataset.done = '1';
+      slot.className = `mvp ${m.mvp}`;
+      slot.textContent = m.mvp === 'match' ? 'MVP' : 'Team MVP';
+      slot.hidden = false;
+      break;
+    }
+  }
+}
+
 // Mode toggle: same ratings, same treatment, just not ranked.
 // Sequenced so a slow older response can never overwrite a newer mode, and
 // re-clicking always retries (the old early-return left it stuck when the
@@ -216,7 +240,17 @@ function matchRow(m) {
   rating.className = `rating ${ratingClass(m.rating)}`;
   rating.textContent = m.rating;
   rating.title = 'Match rating (0-100)';
-  top.append(chev, place, sub, spacer, kda, res, rating);
+  top.append(chev, place, sub, spacer, kda, res);
+  if (m.mvp) {
+    const mvp = document.createElement('span');
+    mvp.className = `mvp ${m.mvp}`;
+    mvp.textContent = m.mvp === 'match' ? 'MVP' : 'Team MVP';
+    mvp.title = m.mvp === 'match'
+      ? 'Match MVP, top combat score on the winning team'
+      : 'Team MVP, top combat score on your team';
+    top.append(mvp);
+  }
+  top.append(rating);
 
   // Drop-down: the tracker's most important stats, graded green/yellow/red.
   const detail = document.createElement('div');
@@ -261,6 +295,8 @@ function renderMatches(res) {
     return;
   }
   matchEmptyEl.hidden = true;
+  for (const m of matches) if (m.id) knownMatches.set(m.id, { startedAt: m.startedAt, map: m.map, mvp: m.mvp });
+  annotateSessionMvps();
   for (const m of matches) matchListEl.append(matchRow(m));
 }
 
@@ -329,12 +365,15 @@ function sessionRow(s, i) {
   sub.textContent = [s.map, s.agent].filter(Boolean).join(' · ');
   const spacer = document.createElement('span');
   spacer.className = 'spacer';
+  const mvpSlot = document.createElement('span');
+  mvpSlot.hidden = true;   // fills in when a known match links to this session
+  sessionMvpSlots.push({ s, slot: mvpSlot });
   const score = document.createElement('span');
   score.className = 'rating';
   score.title = 'Session score (average of the four categories)';
   score.textContent = '0';
   revealScore(score, s.overall || 0, 150 + i * 120);
-  top.append(chev, place, sub, spacer, score);
+  top.append(chev, place, sub, spacer, mvpSlot, score);
 
   const detail = document.createElement('div');
   detail.className = 'detail';
@@ -374,6 +413,7 @@ function sessionRow(s, i) {
 
 function renderSessions(d) {
   sessionListEl.innerHTML = '';
+  sessionMvpSlots.length = 0;   // rows are being rebuilt, drop stale slots
   const sessions = d.sessions || [];
   // Every graded session shows up (a session qualifies with multiple tips or
   // 5+ minutes of coaching); the empty state only appears with none at all.
@@ -383,6 +423,7 @@ function renderSessions(d) {
   }
   sessionEmptyEl.hidden = true;
   sessions.forEach((s, i) => sessionListEl.append(sessionRow(s, i)));
+  annotateSessionMvps();   // matches may have loaded first
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────

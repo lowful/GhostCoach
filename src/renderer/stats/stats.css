@@ -84,6 +84,11 @@ section h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; lette
 .res.win  { color: #4fd394; background: rgba(79,211,148,0.12); border: 1px solid rgba(79,211,148,0.3); }
 .res.loss { color: #ff9aa3; background: rgba(255,70,85,0.12); border: 1px solid rgba(255,70,85,0.3); }
 
+/* Match MVP gold, Team MVP silver, same pill language as the result chip */
+.mvp { font-size: 10px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase; border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+.mvp.match { color: #ffd76a; background: rgba(255,199,64,0.12); border: 1px solid rgba(255,199,64,0.35); }
+.mvp.team  { color: #cfd8e3; background: rgba(200,215,235,0.10); border: 1px solid rgba(200,215,235,0.30); }
+
 .rating { font-size: 12px; font-weight: 800; min-width: 34px; text-align: center; border-radius: 8px; padding: 3px 0; }
 .rating.great { color: #4fd394; background: rgba(79,211,148,0.10); border: 1px solid rgba(79,211,148,0.3); }
 .rating.good  { color: var(--cyan); background: rgba(0,240,255,0.08); border: 1px solid rgba(0,240,255,0.25); }
