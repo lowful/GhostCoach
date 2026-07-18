@@ -1,5 +1,13 @@
 html, body { width: 100%; height: 100%; background: transparent !important; overflow: hidden; pointer-events: none; }
 
+/* Cursor stability: the overlay is click-through, but with mouse forwarding
+   Windows still reads the cursor from whatever DOM sits under the pointer.
+   Text nodes resolve to an I-beam, which made the cursor flicker between
+   select and normal during play. Pin everything to the default arrow and
+   kill text selection; only the review's close button keeps its pointer. */
+* { cursor: default; user-select: none; }
+.review-close { cursor: pointer; }
+
 /* ── Tip cards ──────────────────────────────────────────────────────────────*/
 .tips {
   position: fixed;

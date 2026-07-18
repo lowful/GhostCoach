@@ -225,6 +225,9 @@ const controller = {
           { map: engine.matchContext.map, agent: engine.matchContext.agent }, durationMin,
           engine.playerNotes.slice(-20));   // observed facts keep the grading honest
       }
+      // The match just played should show in stats right away, not after a
+      // cache window; drop the buckets so the next dashboard look refetches.
+      matchesClient = { competitive: emptyMatchBucket(), unrated: emptyMatchBucket() };
     }
     // Archive the session before tearing the engine down (mix + memory live there).
     saveSessionArchive(engine ? {
@@ -366,7 +369,7 @@ const controller = {
       return { matches: bucket.data || [], fetchedAt: bucket.fetchedAt, mode: m,
                refreshBlockedFor: 3 * 60 * 1000 - (now - bucket.lastManual) };
     }
-    if (!manual && bucket.data && now - bucket.fetchedAt < 15 * 60 * 1000) {
+    if (!manual && bucket.data && now - bucket.fetchedAt < 2 * 60 * 1000) {
       return { matches: bucket.data, fetchedAt: bucket.fetchedAt, mode: m };
     }
     try {
