@@ -264,7 +264,7 @@ function buildContextPrompt(context) {
        + ctx.matchMemory.slice(-10).map((m) => '- ' + String(m).slice(0, 90)).join('\n') + '\n\n')
     : '';
   const deathLine = ctx.justDied
-    ? 'THE PLAYER JUST DIED. If the frames, match memory, and state CLEARLY show why (a dry peek, no trade partner in range, repeeking the same angle, a bad position, fighting without util), make this tip the death explanation: name the cause and the exact fix in one sentence. But if the death looks unlucky, a fair duel simply lost, or you cannot actually see the cause, do NOT guess and do NOT invent a reason, coach something else or SKIP. A wrong death explanation is worse than none.\n\n'
+    ? 'THE PLAYER JUST DIED. If the frames, match memory, and state CLEARLY show why (a dry peek, no trade partner in range, repeeking the same angle, a bad position, fighting without util), make this tip the DEATH REVIEW: start line 1 with exactly "DEATH: " then name the cause and the exact fix in one sentence. This is also where held-back observations belong, if you noticed a mistake earlier, chose not to interrupt, and it just got them killed, say it now. But if the death looks unlucky, a fair duel simply lost, or you cannot actually see the cause, do NOT guess and do NOT invent a reason, coach something else or SKIP. A wrong death explanation is worse than none.\n\n'
     : '';
   const side       = String(ctx.side || '').toLowerCase();
 
@@ -347,6 +347,12 @@ ${agentRule}
 
 ${profileBlock}${trendBlock}${sideBlock}
 
+READ THE PLAYER'S ROLE EVERY FRAME (minimap): where the teammates are decides which advice is even possible, and the same tip does not fit every role.
+- Grouped with teammates nearby: crossfires, trades, swinging together, all of it applies.
+- LURKING (attack, alone on the far side of the map): crossfire and trade tips are IMPOSSIBLE, coach the lurk itself, move on sound, time your pressure WITH the team's hit, cut the rotation, get out alive if the hit never comes.
+- SOLO ANCHOR (defense, holding a site alone): crossfire and trade tips are IMPOSSIBLE, coach the anchor, play for time not kills, off angles and fallback positions, util to delay the push, stay alive so the retake has a chance.
+Vary the coaching with the role, a lurker and an anchor need different sentences than a 5-man hit, and never give a teammate-dependent tip to a player the minimap shows alone.
+
 COACH LIKE A RADIANT PRO
 Identify the single biggest thing the player is doing WRONG this frame, or the clearest opportunity, then give the fix. Prioritise what actually wins games at high elo: trading, crossfires, using util before peeking, crosshair placement, positioning and off-angles, timing, minimap and sound awareness, and economy discipline.
 Do NOT invent a positive reason for a bad habit. If you see a mistake, correct it, do not praise it.
@@ -398,6 +404,7 @@ If the state makes a tip impossible, pick a different tip that fits the real sit
 
 WHEN TO SPEAK, SKIP, or LOBBY
 ACCURACY FIRST, BUT DO NOT BE SHY. Most live gameplay frames contain something coachable, a mistake, an opportunity, a read, a positioning fix, and the player WANTS to hear it, that is why they run a coach. If you can see something true, useful, and possible for THIS frame, say it. Ground every tip in what you can actually SEE plus the match state and memory; a wrong or guessed tip is worse than silence, but silence when there was a real tip to give is also a failure.
+Small mistakes are allowed to WAIT. If you spot something real but not urgent enough to interrupt the round with, note it in STATE note and hold it, then deliver it as the DEATH REVIEW when that mistake gets the player killed, that is the moment they are watching the screen and ready to hear it.
 Reply with exactly SKIP only when you genuinely have nothing accurate and new: nothing coachable in the frame, or the only honest tip would repeat the recent ones below. SKIP is for real uncertainty, not caution.
 If the screen is NOT live gameplay (main menu, lobby, agent select, loading screen, career or collection page, range with no match), reply with exactly LOBBY.
 
@@ -629,6 +636,10 @@ router.post('/analyze', async (req, res) => {
     if (finalTip && typeof finalTip !== 'string') finalTip = String(finalTip);
 
     let tip    = sanitize(finalTip || '');
+    // A "DEATH: " prefix marks a death review; the client renders those as a
+    // white skull card, so strip the marker into a flag.
+    let deathReview = false;
+    if (/^DEATH\s*[:,]\s*/i.test(tip)) { deathReview = true; tip = tip.replace(/^DEATH\s*[:,]\s*/i, ''); }
     // HUD state report wins over anything the legacy JSON path produced.
     let outCtx = { ...finalContext, ...hudState };
     console.log('[coach] FINAL TIP:', tip.slice(0, 100));
@@ -649,7 +660,7 @@ router.post('/analyze', async (req, res) => {
     console.log('[coach] ' + licenseKey.slice(0, 8) + '... agent=' + (outCtx.agent || '?') +
       ' round=' + (outCtx.roundNumber || '?') + ' phase=' + (outCtx.phase || '?') +
       ' -> "' + (tip || '').slice(0, 60) + '" (' + (Date.now() - t0) + 'ms)');
-    res.json({ tip: tip || '', context: outCtx });
+    res.json({ tip: tip || '', death: deathReview, context: outCtx });
   } catch (err) {
     console.error('[coach] analyze error:', err.message, err.stack && err.stack.split('\n')[1]);
     res.json({ tip: '', context: {} });
