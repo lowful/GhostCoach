@@ -322,14 +322,17 @@ const controller = {
   /** The assembled extended-stats dashboard: category trends from the local
    *  performance log, rank/win-rate from the tracker profile, and the recent
    *  match list (server-cached 15 min, client-cached alongside). */
-  async getStatsDashboard(mode) {
+  async getStatsDashboard(mode, force) {
     const m = mode === 'unrated' ? 'unrated' : 'competitive';
     const perf = loadPerf();            // oldest -> newest
     // Unrated has no historical snapshot to trend against, so its arrows stay
     // flat; the numbers themselves come from unrated + swiftplay matches.
     let stats, prevStats = null;
-    if (m === 'unrated') stats = await fetchTrackerStats(false, 'unrated');
-    else ({ stats, prevStats } = guardedTrackerPair());
+    if (m === 'unrated') stats = await fetchTrackerStats(!!force, 'unrated');
+    else {
+      if (force) await fetchTrackerStats(true);   // refresh the persisted comp profile first
+      ({ stats, prevStats } = guardedTrackerPair());
+    }
     const categories = computeCategoryTrends(perf, stats, prevStats);
 
     const rank = {

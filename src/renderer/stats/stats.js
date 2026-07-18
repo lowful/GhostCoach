@@ -298,7 +298,11 @@ function renderMatches(res) {
   matchEmptyEl.hidden = true;
   for (const m of matches) if (m.id) knownMatches.set(m.id, { startedAt: m.startedAt, map: m.map, mvp: m.mvp });
   annotateSessionMvps();
-  for (const m of matches) matchListEl.append(matchRow(m));
+  matches.forEach((m, i) => {
+    const r = matchRow(m);
+    r.style.animationDelay = Math.min(i * 40, 400) + 'ms';   // staggered entrance
+    matchListEl.append(r);
+  });
 }
 
 // Manual refresh, rate limited to once per 3 minutes (mirrored on the server).
@@ -311,6 +315,7 @@ refreshBtn.addEventListener('click', async () => {
     if (!(res && res.refreshBlockedFor)) refreshBlockedUntil = Date.now() + 3 * 60 * 1000;
     if (seq === matchSeq && (!res.mode || res.mode === matchMode)) renderMatches(res);
   } catch {}
+  refreshDashboardForMode(matchMode, true);   // agents + overview stay fresh too
   tickRefresh();
 });
 
@@ -353,6 +358,7 @@ function revealScore(el, target, delay) {
 function sessionRow(s, i) {
   const row = document.createElement('div');
   row.className = 'row expandable session';
+  row.style.animationDelay = Math.min(i * 50, 400) + 'ms';   // staggered entrance
   const top = document.createElement('div');
   top.className = 'top';
   const chev = document.createElement('span');
@@ -487,7 +493,8 @@ async function renderAgents(topAgents) {
     nm.textContent = a.name || 'Unknown';
     const played = document.createElement('div');
     played.className = 'agent-sub';
-    played.textContent = `${a.matches} ${a.matches === 1 ? 'match' : 'matches'} · ${a.pct}% of games`;
+    played.textContent = `${a.matches} ${a.matches === 1 ? 'match' : 'matches'} · ${a.pct}%`;
+    played.title = `${a.pct}% of your recent games`;
     const chips = document.createElement('div');
     chips.className = 'agent-chips';
     const wr = document.createElement('span');
@@ -509,10 +516,10 @@ async function renderAgents(topAgents) {
 // The whole dashboard follows the mode toggle: overview numbers, agent tiles,
 // and the match list all re-pull for the selected queue.
 let dashSeq = 0;
-async function refreshDashboardForMode(mode) {
+async function refreshDashboardForMode(mode, force) {
   const seq = ++dashSeq;
   try {
-    const d = await window.ghost.getDashboard(mode);
+    const d = await window.ghost.getDashboard(mode, !!force);
     if (!d || seq !== dashSeq || mode !== matchMode) return;   // superseded
     renderCards(d);
     renderAgents(d.topAgents);
