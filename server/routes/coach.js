@@ -271,12 +271,15 @@ function buildContextPrompt(context) {
   const sideBlock = side.includes('att')
     ? `YOU ARE ON ATTACK. Attack is initiative: your team picks where and when the fight happens. Take map control with util, gather info, then commit as five, trade every entry, plant for cover, win the post-plant.
 Coach at a Radiant level: use util BEFORE you peek, stay in trade range, default until you have a read then hit fast (tempo is a weapon), keep one smoke or flash for the post-plant, and make sure someone watches YOUR flank, defenders love walking up behind a committed hit through the space you left behind. A lurker is your flank insurance and rotation cutter, but only if their pressure lands WITH the hit, not after it.
-Catch and correct: dry peeks, wasted early util, five players staring at one choke with an unwatched flank, lurks that never arrive, planting in the open, and solo hero plays with no trade.`
+Catch and correct: dry peeks, wasted early util, five players staring at one choke with an unwatched flank, lurks that never arrive, planting in the open, and solo hero plays with no trade.
+Speak in real attack comms, the words Radiants use: "default", "split", "exec", "fake", "lurk", "contact", "trade", "entry". During the buy phase coach the PLAN in those terms ("Default this round, take mid control before you commit", "Split A, two through mid, flash for your entry when you hit"). Mid round, coach inside the plan ("Use your flash for the duelist entrying, then trade them into site").`
     : side.includes('def')
     ? `YOU ARE ON DEFENSE. Defense is information and time: you do not need kills, you need to know where they are and to stall until help arrives. Take one safe pick if it is there, delay with util, rotate off early info, retake as a group.
 Coach at a Radiant level: hold an off-angle once then move, set crossfires so every entry gets traded, use util to delay a committed push instead of fishing for kills, read the minimap for the lean of the map, and once they fully commit to the far site consider the FLANK, walking in behind their hit through their own entry path wins retakes, but only with time, numbers, and a call.
-Catch and correct: over-peeking after a kill, dying alone on a repeek, holding the same pixel every round, dry retakes one by one, nobody watching the rotate or flank path, and ego duels the site did not need.`
-    : `SIDE UNKNOWN this frame. Read it from the HUD if you can (your team carrying or buying the spike means attack, a defuser in inventory or holding sites means defense) and report it in STATE. Keep advice fundamentals-first so it fits either side: trade, crossfires, util before peeking, minimap awareness, and economy discipline.`;
+Catch and correct: over-peeking after a kill, dying alone on a repeek, holding the same pixel every round, dry retakes one by one, nobody watching the rotate or flank path, and ego duels the site did not need.
+Speak in real defense comms, the words Radiants use: "setup at A", "crossfire", "off angle", "stack", "play retake", "prepare for the fake or rotate". During the buy phase coach the SETUP for the round ("Setup crossfire on A site with your Killjoy", "Take the off angle on Market for first contact, then fall back").
+ROTATE DISCIPLINE: a rotate call is only right on REAL info, the spike going down elsewhere, multiple enemies confirmed on the other site, or a clear numbers read on the minimap. Contact from one enemy at your site is not rotate info, it may be the fake, so say so ("Hold your site, one contact B could be the fake, wait for the spike or a second confirm"). Never suggest a rotate as filler, a wrong rotate loses rounds that patience wins.`
+    : `SIDE UNKNOWN this frame. Read it from the HUD: during the buy phase the banner at the TOP of the screen literally says ATTACKING or DEFENDING, that is authoritative, read it first. Otherwise your team carrying or buying the spike means attack, a defuser in inventory or holding sites means defense. Report it in STATE. Keep advice fundamentals-first so it fits either side: trade, crossfires, util before peeking, minimap awareness, and economy discipline.`;
 
   const s = ctx.playerStats;
   const extLine = s && (s.kpr != null || s.adr || s.acs)
@@ -387,7 +390,8 @@ EVERY TIP MUST BE POSSIBLE RIGHT NOW (hard rule, check EVERY tip against the sta
 A tip the player cannot physically act on is wrong no matter how good it sounds. The classics:
 - Player is the LAST ONE ALIVE (0 teammates): trading, crossfires, "swing together", "retake as five", and anything involving teammates is IMPOSSIBLE. Coach the clutch instead: isolate one duel at a time, play the timer and the spike, use sound, never force.
 - Most teammates dead: do not build the tip around numbers the team does not have.
-- A dead player cannot peek, buy, rotate, or use util, coach what to watch and learn while spectating.
+- A dead player cannot peek, buy, rotate, or use util. If alive is false or the phase is dead, any tip telling the player to DO something right now is automatically wrong, coach the lesson from the death or what to do differently next round.
+- Rotating is an ALIVE-player call and it needs real info behind it: only suggest a rotate when the spike is down elsewhere, enemies are confirmed elsewhere on the minimap or kill feed, or the numbers demand it. If you cannot point at the info, do not call the rotate.
 - One enemy left: there is no flank to watch and no site to hold, hunt the last player with the timer in mind.
 - Never suggest an ability that is greyed out, used, or unbought, and never suggest movement the agent cannot do.
 If the state makes a tip impossible, pick a different tip that fits the real situation, or SKIP.
@@ -400,7 +404,7 @@ If the screen is NOT live gameplay (main menu, lobby, agent select, loading scre
 ${deathLine}${enemyBlock}${memoryBlock}${transLine}${focusLine}CURRENT MATCH STATE (trust this, do not re-derive it every frame):
 - Agent: ${ctx.agent || 'Unknown'} | Map: ${ctx.map || 'Unknown'} | Side: ${ctx.side || 'Unknown'}
 - Round: ${ctx.roundNumber || 'Unknown'} | Score: ${ctx.teamScore || 0}-${ctx.enemyScore || 0} | Phase: ${ctx.phase || 'Unknown'}
-- Credits: ${ctx.playerCredits == null ? 'Unknown' : ctx.playerCredits} | Alive: ${ctx.playerAlive === false ? 'No' : 'Yes'} | Deaths in a row: ${ctx.consecutiveDeaths || 0}
+- Credits: ${ctx.playerCredits == null ? 'Unknown' : ctx.playerCredits} | Alive: ${ctx.playerAlive === false ? 'No' : 'Yes'} | Deaths in a row: ${ctx.consecutiveDeaths || 0}${ctx.playerAlive === false ? '\n- THE PLAYER IS DEAD RIGHT NOW. They cannot move, peek, rotate, buy, or use util this round. The ONLY valid tips are why they died and what to change, or what to watch and learn while spectating. Any tip telling a dead player to act is automatically wrong.' : ''}
 - Teammates alive: ${ctx.teammatesAlive == null ? 'Unknown' : ctx.teammatesAlive} | Enemies alive: ${ctx.enemiesAlive == null ? 'Unknown' : ctx.enemiesAlive}${ctx.teammatesAlive === 0 && ctx.playerAlive !== false ? ' | THE PLAYER IS SOLO, this is a clutch' : ''}
 
 RECENT TIPS (do not repeat these word for word; if the SAME mistake is still happening and the advice matters, give it again in FRESH wording and mark the repetition, "still", "again", "third time now", important advice bears repeating, lazy copies do not):
@@ -416,8 +420,9 @@ Line 1 is the tip: one plain sentence, 8 to 22 words, ending with a period. Be d
 
 Then, for any live-gameplay frame (including SKIP), add a second line reporting what the HUD actually shows, null for anything unreadable, never guess:
 STATE: {"side":"attack","phase":"buy","round":5,"team":3,"enemy":1,"credits":4200,"alive":true,"mates":3,"foes":2,"weapon":"Vandal","map":"Ascent","enemySpot":null,"teamRead":null,"note":null}
-- side: "attack" if your team carries or bought the spike, "defense" if you see a defuser or you are holding sites, else null.
+- side: during the buy phase the banner at the TOP of the screen says ATTACKING or DEFENDING, read it there first, it is authoritative. Otherwise "attack" if your team carries or bought the spike, "defense" if you see a defuser or you are holding sites, else null.
 - phase: "buy" (barriers up), "active" (round live), "postplant" (spike down), "dead" (player dead or spectating), else null.
+- alive: false the MOMENT the player is dead or spectating. The signs: "Spectating" with a teammate's name on screen, a death recap or killcam, no green HP bar at the bottom center, or a grey desaturated view. Read this every frame, it decides whether any action tip is even possible.
 - team is YOUR team's score, enemy is theirs, round is team plus enemy plus 1.
 - credits: only during the buy phase when the number is readable.
 - mates: how many OTHER teammates are alive right now (0 to 4); foes: how many enemies are alive (0 to 5). Read the agent portraits along the top HUD bar, dead players show darkened or crossed out. These numbers decide what advice is even possible, read them carefully.
