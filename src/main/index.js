@@ -299,7 +299,8 @@ const controller = {
         map:        seed.map ? String(seed.map).slice(0, 24) : null,
         overall:    n(seed.overall),
         scores:     seed.scores && typeof seed.scores === 'object' ? {
-          economy: n(seed.scores.economy), positioning: n(seed.scores.positioning),
+          impact: n(seed.scores.impact != null ? seed.scores.impact : seed.scores.economy),
+          positioning: n(seed.scores.positioning),
           utility: n(seed.scores.utility), aim: n(seed.scores.aim),
         } : null,
         strengths:  String(seed.strengths  || '').slice(0, 400),
@@ -596,7 +597,15 @@ function loadPerf() {
   try {
     const a = JSON.parse(fs.readFileSync(perfFile(), 'utf8'));
     const cutoff = Date.now() - PERF_MAX_AGE_MS;
-    return Array.isArray(a) ? a.filter((r) => r && typeof r.at === 'number' && r.at >= cutoff) : [];
+    const rows = Array.isArray(a) ? a.filter((r) => r && typeof r.at === 'number' && r.at >= cutoff) : [];
+    // Sessions graded before the Impact category carry their economy score
+    // over so old history keeps rendering and averaging.
+    for (const r of rows) {
+      if (r.scores && r.scores.impact == null && r.scores.economy != null) {
+        r.scores.impact = r.scores.economy;
+      }
+    }
+    return rows;
   } catch { return []; }
 }
 function appendPerf(rec) {
@@ -615,16 +624,20 @@ function appendPerf(rec) {
  *                  elite 85 (0.55 DPR) · average 65 (0.75) · weak 45 (0.95)
  *    Utility     = 30 + assists-per-round * 150 (assists track util that enabled kills)
  *                  elite 90 (0.40 APR) · average 65 (0.23) · weak 45 (0.10)
- *    Economy     has no tracker signal, the coached-session scores own it.
+ *    Impact      = 20 + ACS * 0.25 (combat score is Riot's own round-influence number)
+ *                  elite 90 (280 ACS) · strong 75 (220) · weak under 58 (150)
+ *  (Economy was retired: no tracker signal, and the coach never tips economy.)
  *  Values clamp to 5..95: nobody is a 0 or a 100 over ten games. */
 function trackerCategoryScores(st) {
   if (!st || st.kpr == null) return {};
   const clamp = (v) => Math.max(5, Math.min(95, Math.round(v)));
-  return {
+  const out = {
     aim:         clamp((st.headshotPct || 0) * 2.6 + (st.kpr || 0) * 25),
     positioning: clamp(140 - (st.dpr != null ? st.dpr : 0.85) * 100),
     utility:     clamp(30 + (st.apr || 0) * 150),
   };
+  if (st.acs != null) out.impact = clamp(20 + st.acs * 0.25);
+  return out;
 }
 
 /** Riot-ID-guarded tracker snapshots (current profile + last-match snapshot). */
@@ -656,7 +669,7 @@ function computeCategoryTrends(perf, stats, prevStats) {
     : sessionAvg == null ? trackerVal
     : Math.round(trackerVal * 0.6 + sessionAvg * 0.4);
   const out = {};
-  for (const k of ['economy', 'positioning', 'utility', 'aim']) {
+  for (const k of ['impact', 'positioning', 'utility', 'aim']) {
     const nowV  = blend(avg(recent, k), tNow[k]);
     const prevV = blend(prev.length ? avg(prev, k) : null, tPrev[k]);
     out[k] = { avg: nowV, direction: trendDirection(nowV, prevV) };
@@ -674,8 +687,9 @@ async function logSessionPerformance(tips, mctx, durationMin, notes) {
       { tips: tips.slice(0, 30), notes: Array.isArray(notes) ? notes.slice(0, 20) : [],
         context: { map: mctx.map, agent: mctx.agent, durationMin } },
       store.get('licenseKey'), 20000);
-    if (!ok || !data || data.error || data.economy == null) return;
-    const scores = { economy: data.economy, positioning: data.positioning,
+    const impact = data && (data.impact != null ? data.impact : data.economy);
+    if (!ok || !data || data.error || impact == null) return;
+    const scores = { impact, positioning: data.positioning,
                      utility: data.utility, aim: data.aim };
     appendPerf({
       at: Date.now(),
@@ -683,7 +697,7 @@ async function logSessionPerformance(tips, mctx, durationMin, notes) {
       agent: mctx.agent || null,
       durationMin: Math.round(durationMin || 0),
       scores,
-      overall: Math.round((scores.economy + scores.positioning + scores.utility + scores.aim) / 4),
+      overall: Math.round((scores.impact + scores.positioning + scores.utility + scores.aim) / 4),
       summary:    data.summary    || '',   // the coach's spoken-style recap
       strengths:  data.strengths  || '',
       weaknesses: data.weaknesses || '',

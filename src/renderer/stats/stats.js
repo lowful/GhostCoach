@@ -173,7 +173,7 @@ function renderCards(d) {
   rankCard.addEventListener('click', () => toggleRankNotes(d.rank && d.rank.value));
   const c = d.categories || {};
   cardsEl.append(
-    card('Economy',     c.economy?.avg,     c.economy?.direction),
+    card('Impact',      c.impact?.avg,      c.impact?.direction),
     card('Positioning', c.positioning?.avg, c.positioning?.direction),
     card('Utility',     c.utility?.avg,     c.utility?.direction),
     card('Aim',         c.aim?.avg,         c.aim?.direction),
@@ -386,7 +386,7 @@ function sessionRow(s, i) {
   detail.className = 'detail';
   const scores = document.createElement('div');
   scores.className = 'scores4';
-  for (const [label, key] of [['Economy', 'economy'], ['Positioning', 'positioning'], ['Utility', 'utility'], ['Aim', 'aim']]) {
+  for (const [label, key] of [['Impact', 'impact'], ['Positioning', 'positioning'], ['Utility', 'utility'], ['Aim', 'aim']]) {
     const chip = document.createElement('span');
     chip.className = 'sc';
     chip.innerHTML = '';
