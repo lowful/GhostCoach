@@ -8,7 +8,7 @@ const C = require('../shared/channels');
  * matches (rate limited), and hand a session's context to Ask Coach.
  */
 contextBridge.exposeInMainWorld('ghost', {
-  getDashboard:    () => ipcRenderer.invoke(C.STATS_DASHBOARD),
+  getDashboard:    (mode) => ipcRenderer.invoke(C.STATS_DASHBOARD, mode),
   refreshMatches:  (mode) => ipcRenderer.invoke(C.STATS_REFRESH, mode),
   matchesFor:      (mode) => ipcRenderer.invoke(C.STATS_MATCHES, mode),
   openChat:        () => ipcRenderer.send(C.OPEN_CHAT),

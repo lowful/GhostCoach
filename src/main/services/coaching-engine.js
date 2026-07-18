@@ -67,6 +67,7 @@ class CoachingEngine extends EventEmitter {
     this.focusIndex     = -1;     // rotates analysis emphasis (map/enemies/…)
     this.analyzedFrames = 0;      // frames analyzed this session (warm-up gate)
     this.lastDeathAt    = 0;      // when the player last died (death-review window)
+    this.lastRoundLostAt = 0;     // when the team last lost a round (round-review window)
 
     this.timers = [];
     this.loopTimer = null;
@@ -408,6 +409,7 @@ class CoachingEngine extends EventEmitter {
       // Death review: the player died moments ago, the server prompts for a
       // cause-and-fix explanation ONLY when the evidence clearly supports one.
       justDied:     this.lastDeathAt > 0 && Date.now() - this.lastDeathAt < 12000,
+      justLostRound: this.lastRoundLostAt > 0 && Date.now() - this.lastRoundLostAt < 12000,
       focus:        this.nextFocus(),
       // Experimental: playbook mode ('off' | 'on' | 'hybrid') for the server.
       proPlaybook:  this.experiments().proPlaybook || 'off',
@@ -584,15 +586,18 @@ class CoachingEngine extends EventEmitter {
 
     // Occasionally drop an agent-specific reminder, but only once the player has
     // CONFIRMED the agent; on a mere guess we stick to general tips.
+    // Library tips inside the death window are the death-flavored bucket, so
+    // they wear the same white skull card the AI's death reviews do.
+    const inDeathWindow = { death: !!(this.lastDeathAt && Date.now() - this.lastDeathAt < 15000) };
     const agentTip = this.matchContext.agentConfirmed
       ? agentData.getAgentTip(this.matchContext.agent) : null;
     if (agentTip && !recentTexts.includes(agentTip) && Math.random() < 0.22) {
-      this.emitTip(agentTip, 'library');
+      this.emitTip(agentTip, 'library', inDeathWindow);
       return;
     }
 
     const { text } = tipLibrary.selectTip(this.matchContext, recentTexts);
-    if (text) this.emitTip(text, 'library');
+    if (text) this.emitTip(text, 'library', inDeathWindow);
   }
 
   /** Tracker profile arrived: every subsequent analyze request carries it so
@@ -751,6 +756,7 @@ class CoachingEngine extends EventEmitter {
     const prevRound = this.matchContext.roundNumber;
     const prevTeam  = this.matchContext.teamScore  | 0;
     const prevEnemy = this.matchContext.enemyScore | 0;
+    const prevAlive = this.matchContext.playerAlive;
 
     for (const key of Object.keys(updates)) {
       const v = updates[key];
@@ -791,13 +797,23 @@ class CoachingEngine extends EventEmitter {
     if (updates.phase === 'active' && prevPhase === 'dead') {
       this.matchContext.consecutiveDeaths = 0;
     }
+    // The alive flag flipping false is a death even when the phase read missed
+    // it; open the review window so the death gets explained, not skipped.
+    if (updates.playerAlive === false && prevAlive !== false
+        && Date.now() - this.lastDeathAt > 20000) {
+      this.lastDeathAt = Date.now();
+      this.matchContext.lastDeathAt = this.lastDeathAt;
+    }
 
     // Match memory: record round outcomes from score changes so future tips
     // know the flow of the match, not just the current frame.
     const team  = this.matchContext.teamScore  | 0;
     const enemy = this.matchContext.enemyScore | 0;
     if (team > prevTeam)  this.remember(`Won round ${team + enemy} (score ${team}-${enemy})`);
-    if (enemy > prevEnemy) this.remember(`Lost round ${team + enemy} (score ${team}-${enemy})`);
+    if (enemy > prevEnemy) {
+      this.remember(`Lost round ${team + enemy} (score ${team}-${enemy})`);
+      this.lastRoundLostAt = Date.now();   // opens the round-review window
+    }
   }
 
   async requestMatchReview() {

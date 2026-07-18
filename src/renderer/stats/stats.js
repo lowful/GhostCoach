@@ -64,6 +64,7 @@ modeSeg.addEventListener('click', (e) => {
   for (const b of modeSeg.querySelectorAll('button')) b.classList.toggle('active', b === btn);
   refreshBlockedUntil = 0;
   loadMatches(matchMode);
+  refreshDashboardForMode(matchMode);   // overview + agents follow the queue too
 });
 
 // ── Overview cards ────────────────────────────────────────────────────────────
@@ -426,12 +427,105 @@ function renderSessions(d) {
   annotateSessionMvps();   // matches may have loaded first
 }
 
+// ── Top Agents ────────────────────────────────────────────────────────────────
+const agentTilesEl = document.getElementById('agent-tiles');
+const agentEmptyEl = document.getElementById('agent-empty');
+
+// Agent portraits from the official Valorant asset API, cached for 7 days.
+// Offline or blocked, tiles fall back to a lettered badge and stay clean.
+let agentIconMap = null;
+async function loadAgentIcons() {
+  if (agentIconMap) return agentIconMap;
+  try {
+    const cached = JSON.parse(localStorage.getItem('agentIcons') || 'null');
+    if (cached && cached.map && Date.now() - cached.at < 7 * 24 * 3600000) return (agentIconMap = cached.map);
+  } catch {}
+  try {
+    const r = await fetch('https://valorant-api.com/v1/agents?isPlayableCharacter=true');
+    const j = await r.json();
+    const map = {};
+    for (const a of (j && j.data) || []) map[String(a.displayName).toLowerCase()] = a.displayIcon;
+    localStorage.setItem('agentIcons', JSON.stringify({ at: Date.now(), map }));
+    return (agentIconMap = map);
+  } catch {
+    return (agentIconMap = {});
+  }
+}
+
+function agentLetterBadge(name) {
+  const s = document.createElement('span');
+  s.className = 'agent-icon letter';
+  s.textContent = (name || '?').slice(0, 1).toUpperCase();
+  return s;
+}
+
+async function renderAgents(topAgents) {
+  const list = Array.isArray(topAgents) ? topAgents : [];
+  agentTilesEl.innerHTML = '';
+  agentEmptyEl.hidden = list.length > 0;
+  if (!list.length) return;
+  const icons = await loadAgentIcons();
+  list.forEach((a, i) => {
+    const tile = document.createElement('div');
+    tile.className = 'agent-tile';
+    tile.style.animationDelay = (i * 70) + 'ms';
+    const url = icons[String(a.name || '').toLowerCase()];
+    let icon;
+    if (url) {
+      icon = document.createElement('img');
+      icon.className = 'agent-icon';
+      icon.src = url;
+      icon.alt = a.name;
+      icon.onerror = () => icon.replaceWith(agentLetterBadge(a.name));
+    } else {
+      icon = agentLetterBadge(a.name);
+    }
+    const info = document.createElement('div');
+    info.className = 'agent-info';
+    const nm = document.createElement('div');
+    nm.className = 'agent-name';
+    nm.textContent = a.name || 'Unknown';
+    const played = document.createElement('div');
+    played.className = 'agent-sub';
+    played.textContent = `${a.matches} ${a.matches === 1 ? 'match' : 'matches'} · ${a.pct}% of games`;
+    const chips = document.createElement('div');
+    chips.className = 'agent-chips';
+    const wr = document.createElement('span');
+    wr.className = `agent-chip ${a.winRate >= 55 ? 'good' : a.winRate <= 45 ? 'bad' : 'mid'}`;
+    wr.textContent = `${a.winRate}% WR`;
+    const kd = document.createElement('span');
+    kd.className = `agent-chip ${a.kd >= 1.1 ? 'good' : a.kd < 0.9 ? 'bad' : 'mid'}`;
+    kd.textContent = `${a.kd} KD`;
+    const acs = document.createElement('span');
+    acs.className = `agent-chip ${a.acs >= 220 ? 'good' : a.acs < 150 ? 'bad' : 'mid'}`;
+    acs.textContent = `${a.acs} ACS`;
+    chips.append(wr, kd, acs);
+    info.append(nm, played, chips);
+    tile.append(icon, info);
+    agentTilesEl.append(tile);
+  });
+}
+
+// The whole dashboard follows the mode toggle: overview numbers, agent tiles,
+// and the match list all re-pull for the selected queue.
+let dashSeq = 0;
+async function refreshDashboardForMode(mode) {
+  const seq = ++dashSeq;
+  try {
+    const d = await window.ghost.getDashboard(mode);
+    if (!d || seq !== dashSeq || mode !== matchMode) return;   // superseded
+    renderCards(d);
+    renderAgents(d.topAgents);
+  } catch {}
+}
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 async function load() {
   try {
-    const d = await window.ghost.getDashboard();
+    const d = await window.ghost.getDashboard(matchMode);
     if (!d) return;
     renderCards(d);
+    renderAgents(d.topAgents);
     renderMatches(d.matches);
     renderSessions(d);
   } catch (e) {

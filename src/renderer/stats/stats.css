@@ -49,6 +49,34 @@ section h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; lette
 .arrow.down { color: #ff8a95; }
 .arrow.flat { color: var(--text-mute); }
 
+/* ── Top Agents: portrait tiles in the same glass card language ── */
+.agent-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.agent-tile {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(0,0,0,0.22); border: 1px solid var(--glass-border); border-radius: 12px;
+  padding: 10px 11px; min-width: 0;
+  animation: rowIn 240ms var(--ease) both;
+}
+.agent-icon {
+  width: 42px; height: 42px; border-radius: 10px; flex: none; object-fit: cover;
+  background: rgba(255,70,85,0.10); border: 1px solid var(--glass-border);
+}
+.agent-icon.letter {
+  display: grid; place-items: center;
+  font-family: var(--font); font-size: 17px; font-weight: 800; color: var(--red);
+}
+.agent-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.agent-name { font-size: 12.5px; font-weight: 800; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agent-sub  { font-size: 10px; color: var(--text-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agent-chips { display: flex; gap: 4px; flex-wrap: wrap; }
+.agent-chip {
+  font-size: 9.5px; font-weight: 800; letter-spacing: 0.3px;
+  border-radius: 999px; padding: 1px 6px; white-space: nowrap;
+}
+.agent-chip.good { color: #4fd394; background: rgba(79,211,148,0.10); border: 1px solid rgba(79,211,148,0.28); }
+.agent-chip.bad  { color: #ff9aa3; background: rgba(255,70,85,0.10);  border: 1px solid rgba(255,70,85,0.28); }
+.agent-chip.mid  { color: #e8d27a; background: rgba(232,210,122,0.08); border: 1px solid rgba(232,210,122,0.25); }
+
 /* rank card expands into per-rank insights */
 .card.clickable { cursor: pointer; transition: border-color var(--t-fast) var(--ease); }
 .card.clickable:hover { border-color: rgba(0,240,255,0.35); }

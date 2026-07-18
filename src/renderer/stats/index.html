@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';" />
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://media.valorant-api.com; connect-src 'self' https://valorant-api.com; font-src 'self';" />
   <title>GhostCoach Stats</title>
   <link rel="stylesheet" href="../shared/theme.css" />
   <link rel="stylesheet" href="../shared/ui.css" />
@@ -29,6 +29,12 @@
         <h3>Overview</h3>
         <div class="cards" id="cards"></div>
         <div id="rank-notes" class="rank-notes" hidden></div>
+      </section>
+
+      <section>
+        <h3>Top Agents</h3>
+        <div id="agent-tiles" class="agent-tiles"></div>
+        <p id="agent-empty" class="empty" hidden>Play a few matches to see your most played agents here.</p>
       </section>
 
       <section>

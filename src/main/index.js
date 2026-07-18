@@ -322,9 +322,14 @@ const controller = {
   /** The assembled extended-stats dashboard: category trends from the local
    *  performance log, rank/win-rate from the tracker profile, and the recent
    *  match list (server-cached 15 min, client-cached alongside). */
-  async getStatsDashboard() {
+  async getStatsDashboard(mode) {
+    const m = mode === 'unrated' ? 'unrated' : 'competitive';
     const perf = loadPerf();            // oldest -> newest
-    const { stats, prevStats } = guardedTrackerPair();
+    // Unrated has no historical snapshot to trend against, so its arrows stay
+    // flat; the numbers themselves come from unrated + swiftplay matches.
+    let stats, prevStats = null;
+    if (m === 'unrated') stats = await fetchTrackerStats(false, 'unrated');
+    else ({ stats, prevStats } = guardedTrackerPair());
     const categories = computeCategoryTrends(perf, stats, prevStats);
 
     const rank = {
@@ -337,10 +342,11 @@ const controller = {
     };
 
     return {
-      categories, rank, winRate,
+      categories, rank, winRate, mode: m,
+      topAgents: (stats && stats.topAgents) || [],
       sessions: perf.slice(-15).reverse(),   // newest first for the list
       sessionCount: perf.length,
-      matches: await this.getMatches(false, 'competitive'),   // dashboard always opens on comp
+      matches: await this.getMatches(false, m),
       riotConnected: (store.get('riotId') || '').includes('#'),
     };
   },
@@ -481,6 +487,7 @@ const controller = {
       lastRiotId = riotId;
       matchesClient = { competitive: emptyMatchBucket(), unrated: emptyMatchBucket() };
       statsCache = { at: 0, riotId: '', data: null, lastError: null };
+      unratedStatsCache = { at: 0, riotId: '', data: null };
       if (engine) engine.setPlayerStats(null);
       console.log('[stats] riot id changed, tracker caches cleared');
     }
@@ -508,7 +515,29 @@ let statsCache = { at: 0, riotId: '', data: null, lastError: null };
   } catch {}
 })();
 
-async function fetchTrackerStats(force) {
+// Unrated/swiftplay aggregates live in their own cache; the competitive cache
+// below stays the persisted profile the coach and chat run on.
+let unratedStatsCache = { at: 0, riotId: '', data: null };
+
+async function fetchUnratedStats(force) {
+  const riotId = (store.get('riotId') || '').trim();
+  if (!riotId || !riotId.includes('#')) return null;
+  if (!force && unratedStatsCache.data && unratedStatsCache.riotId === riotId
+      && Date.now() - unratedStatsCache.at < 10 * 60 * 1000) {
+    return unratedStatsCache.data;
+  }
+  try {
+    const { ok, data } = await api.get('/api/coach/player-stats?mode=unrated&username=' + encodeURIComponent(riotId), store.get('licenseKey'), 15000);
+    const stats = ok && data && !data.error ? data : null;
+    if (stats) unratedStatsCache = { at: Date.now(), riotId, data: stats };
+    return stats || (unratedStatsCache.riotId === riotId ? unratedStatsCache.data : null);
+  } catch {
+    return unratedStatsCache.riotId === riotId ? unratedStatsCache.data : null;
+  }
+}
+
+async function fetchTrackerStats(force, mode) {
+  if (mode === 'unrated') return fetchUnratedStats(force);
   const riotId = (store.get('riotId') || '').trim();
   if (!riotId || !riotId.includes('#')) return null;
   if (!force && statsCache.data && statsCache.riotId === riotId && Date.now() - statsCache.at < 10 * 60 * 1000) {
