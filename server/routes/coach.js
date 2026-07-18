@@ -889,6 +889,45 @@ const MATCHES_TTL_MS     = 15 * 60 * 1000;
 const MATCHES_REFRESH_MS = 3 * 60 * 1000;
 const matchesCache = new Map();   // riotId(lower) -> { data, fetchedAt, lastManualRefresh }
 
+// Match MVP (top combat score on the winning team) / Team MVP (top score on
+// the losing team). stored-matches only carries the player's own stats, so
+// resolve MVP from the full match detail once and keep it forever, a finished
+// match never changes. Failures are not cached so a later refresh retries.
+const matchMvpCache = new Map();   // matchId -> 'match' | 'team' | null
+
+async function mvpForMatch(region, matchId, name, tag) {
+  if (!matchId) return null;
+  if (matchMvpCache.has(matchId)) return matchMvpCache.get(matchId);
+  try {
+    const md = await henrikGet(`/valorant/v4/match/${region}/${encodeURIComponent(matchId)}`);
+    const d = md.json && md.json.data;
+    const players = Array.isArray(d && d.players) ? d.players
+      : (d && d.players && Array.isArray(d.players.all_players)) ? d.players.all_players : [];
+    const teamOf = (p) => String(p.team_id || p.team || '').toLowerCase();
+    const me = players.find((p) => String(p.name || '').toLowerCase() === name.toLowerCase()
+      && String(p.tag || '').toLowerCase() === tag.toLowerCase());
+    if (!me || players.length < 2) return null;
+    const myScore = (me.stats && me.stats.score) | 0;
+    const topOfTeam = players.filter((p) => teamOf(p) === teamOf(me))
+      .every((p) => (((p.stats && p.stats.score) | 0) <= myScore));
+    let won = false;
+    if (Array.isArray(d.teams)) {
+      const t = d.teams.find((x) => String(x.team_id || '').toLowerCase() === teamOf(me));
+      won = !!(t && t.won);
+    } else if (d.teams) {
+      const t = d.teams[teamOf(me)];
+      won = !!(t && (t.has_won != null ? t.has_won : t.won));
+    }
+    const mvp = topOfTeam ? (won ? 'match' : 'team') : null;
+    if (matchMvpCache.size > 600) matchMvpCache.clear();
+    matchMvpCache.set(matchId, mvp);
+    return mvp;
+  } catch (e) {
+    console.log('[coach] mvp lookup failed:', matchId, e.message);
+    return null;
+  }
+}
+
 // GET /api/coach/matches?username=Name%23TAG[&refresh=1][&mode=competitive|unrated]
 // The player's last 10 matches with per-match 0-100 ratings. mode=unrated
 // merges unrated and swiftplay, rated and treated the same, just not ranked.
@@ -961,6 +1000,10 @@ router.get('/matches', async (req, res) => {
         startedAt: m.meta?.started_at ? Date.parse(m.meta.started_at) : null,
       });
     }
+    // MVP badges resolve in parallel from the (permanent) detail cache; a
+    // missing one is just null and fills in on a later refresh.
+    await Promise.all(matches.map(async (m) => { m.mvp = await mvpForMatch(region, m.id, name, tag); }));
+
     const entry = { data: matches, fetchedAt: now, lastManualRefresh: wantsRefresh ? now : (hit ? hit.lastManualRefresh : 0) };
     matchesCache.set(key, entry);
     res.json({ matches, fetchedAt: now, cached: false });
