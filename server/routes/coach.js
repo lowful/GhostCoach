@@ -307,9 +307,9 @@ Aim and game sense matter together: if their aim is fine, coach the tactical mis
 
   // Coached-session category trends (the player's stats dashboard overview).
   const ct = ctx.coachTrend;
-  const trendBlock = ct && ['economy', 'positioning', 'utility', 'aim'].some((k) => ct[k] && ct[k].avg != null)
+  const trendBlock = ct && ['impact', 'positioning', 'utility', 'aim'].some((k) => ct[k] && ct[k].avg != null)
     ? ('COACHING TREND (this player\'s recent coached sessions, scored 0-100 per category):\n'
-       + ['economy', 'positioning', 'utility', 'aim'].map((k) => {
+       + ['impact', 'positioning', 'utility', 'aim'].map((k) => {
            const c = ct[k] || {};
            return '- ' + k.charAt(0).toUpperCase() + k.slice(1) + ': '
              + (c.avg == null ? 'no data yet' : c.avg + ' (trending ' + (c.direction || 'flat') + ')');
@@ -1059,7 +1059,7 @@ router.post('/score-session', async (req, res) => {
       ? '\nOBSERVED FACTS (what the player was actually SEEN doing on screen, weigh these ABOVE the tips):\n' + notes.map((n) => '- ' + n).join('\n') + '\n'
       : '';
 
-    const prompt = `A Valorant player finished a coached session${ctx.map ? ' on ' + String(ctx.map).slice(0, 20) : ''}${ctx.agent ? ' playing ' + String(ctx.agent).slice(0, 16) : ''}${ctx.durationMin ? ', about ' + Math.round(ctx.durationMin) + ' minutes long' : ''}. These coaching tips were shown during it:\n${tips.join('\n')}\n${notesBlock}\nReturn ONLY valid JSON, no markdown:\n{"economy":70,"positioning":70,"utility":70,"aim":70,"summary":"...","strengths":"...","weaknesses":"..."}\nScore each category 0-100. When OBSERVED FACTS are provided they are the primary evidence, they describe what the player actually did; the tips only show what the coaching focused on and do NOT prove the player did or failed anything. Many corrections in a category still suggests a lower score there, but never state the player did something unless an observed fact shows it. No signal for a category means a neutral 70-75.
+    const prompt = `A Valorant player finished a coached session${ctx.map ? ' on ' + String(ctx.map).slice(0, 20) : ''}${ctx.agent ? ' playing ' + String(ctx.agent).slice(0, 16) : ''}${ctx.durationMin ? ', about ' + Math.round(ctx.durationMin) + ' minutes long' : ''}. These coaching tips were shown during it:\n${tips.join('\n')}\n${notesBlock}\nReturn ONLY valid JSON, no markdown:\n{"impact":70,"positioning":70,"utility":70,"aim":70,"summary":"...","strengths":"...","weaknesses":"..."}\nScore each category 0-100. impact means round influence: opening picks, entries that created space, clutch attempts, multikills, and being part of the plays that decided rounds; a quiet passenger scores low even with a clean K/D. When OBSERVED FACTS are provided they are the primary evidence, they describe what the player actually did; the tips only show what the coaching focused on and do NOT prove the player did or failed anything. Many corrections in a category still suggests a lower score there, but never state the player did something unless an observed fact shows it. No signal for a category means a neutral 70-75.
 summary: 3-4 sentences spoken directly TO the player like a real coach after the game, honest and encouraging: how the session went overall, the clearest thing they did well, what hurt them most, and the one habit to bring into the next game. Ground it strictly in the tips, invent nothing.
 strengths: 1-2 sentences on what the coaching did NOT have to correct or praised. weaknesses: 1-2 sentences on the most repeated corrections. Ground everything strictly in the tips, invent nothing. Use commas and periods, never dashes.`;
 
@@ -1073,7 +1073,7 @@ strengths: 1-2 sentences on what the coaching did NOT have to correct or praised
       const parsed = JSON.parse(String(raw).replace(/```json|```/g, '').trim());
       const n = (v) => Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
       out = {
-        economy: n(parsed.economy), positioning: n(parsed.positioning),
+        impact: n(parsed.impact != null ? parsed.impact : parsed.economy), positioning: n(parsed.positioning),
         utility: n(parsed.utility), aim: n(parsed.aim),
         summary:    sanitize(String(parsed.summary    || '')).slice(0, 700),
         strengths:  sanitize(String(parsed.strengths  || '')).slice(0, 400),
@@ -1088,7 +1088,7 @@ strengths: 1-2 sentences on what the coaching did NOT have to correct or praised
       const count = (re) => tips.filter((t) => re.test(t)).length;
       const score = (c) => Math.max(45, 80 - c * 6);
       out = out || {
-        economy:     score(count(/eco|buy|credit|save|shield/i)),
+        impact:      score(count(/entry|trade|clutch|first blood|opening|multi|alone with no/i)),
         positioning: score(count(/position|angle|peek|reposition|spot|corner|off angle/i)),
         utility:     score(count(/util|smoke|flash|molly|recon|wall|drone|ability/i)),
         aim:         score(count(/aim|crosshair|spray|headshot|strafe|whiff/i)),
@@ -1097,6 +1097,7 @@ strengths: 1-2 sentences on what the coaching did NOT have to correct or praised
         weaknesses: 'See the tips from this session for the most repeated corrections.',
       };
     }
+    out.economy = out.impact;   // alias: clients not yet on the Impact update still parse this
     res.json(out);
   } catch (e) {
     console.error('[coach] score-session error:', e.message);
@@ -1359,16 +1360,16 @@ Reading the numbers: 20%+ headshots is good aim. KPR 0.8+ is strong fragging, un
       ? 'Their recent coached sessions (scored 0-100 per category):\n'
         + ctx.recentSessions.slice(0, 3).map((s) => {
             const sc = s.scores || {};
-            return `- ${s.date || '?'}${s.map ? ' on ' + s.map : ''}: overall ${s.overall}, economy ${sc.economy}, positioning ${sc.positioning}, utility ${sc.utility}, aim ${sc.aim}. Strengths: ${s.strengths || 'n/a'} Weaknesses: ${s.weaknesses || 'n/a'}`;
+            return `- ${s.date || '?'}${s.map ? ' on ' + s.map : ''}: overall ${s.overall}, impact ${sc.impact != null ? sc.impact : sc.economy}, positioning ${sc.positioning}, utility ${sc.utility}, aim ${sc.aim}. Strengths: ${s.strengths || 'n/a'} Weaknesses: ${s.weaknesses || 'n/a'}`;
           }).join('\n')
       : '';
 
     // Coached-session trends (the stats dashboard overview) so the chat can
     // speak to how the player is developing, not just this one session.
     const cTr = ctx.coachTrend;
-    const trendLine = cTr && ['economy', 'positioning', 'utility', 'aim'].some((k) => cTr[k] && cTr[k].avg != null)
+    const trendLine = cTr && ['impact', 'positioning', 'utility', 'aim'].some((k) => cTr[k] && cTr[k].avg != null)
       ? 'Their coached-session trend (0-100 per category, last 10 sessions vs the 10 before): '
-        + ['economy', 'positioning', 'utility', 'aim'].map((k) => {
+        + ['impact', 'positioning', 'utility', 'aim'].map((k) => {
             const c = cTr[k] || {};
             return k + ' ' + (c.avg == null ? 'n/a' : c.avg + ' ' + (c.direction || 'flat'));
           }).join(', ')
