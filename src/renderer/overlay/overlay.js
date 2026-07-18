@@ -29,11 +29,11 @@ function addTip(tip) {
   if (!tipsVisible) return;   // recorded in history/sessions, just not shown
 
   const card = document.createElement('div');
-  card.className = `tip-card ${tip.source || 'system'}`;
+  card.className = `tip-card ${tip.source || 'system'}${tip.death ? ' death' : ''}`;
   const meta = document.createElement('div');
   meta.className = 'meta';
-  meta.innerHTML = '<span class="src-dot"></span>';
-  meta.append(sourceLabel(tip.source));
+  meta.innerHTML = tip.death ? '<span class="src-skull">💀</span>' : '<span class="src-dot"></span>';
+  meta.append(tip.death ? 'Death Review' : sourceLabel(tip.source));
   const when = document.createElement('span');
   when.className = 'when';
   when.textContent = formatTime(tip.time || Date.now());

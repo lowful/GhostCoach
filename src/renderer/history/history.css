@@ -43,6 +43,8 @@ header h2 { font-size: 15.5px; font-weight: 700; }
 .row.ai      { border-left-color: var(--cyan); }
 .row.library { border-left-color: var(--red); }
 .row.system  { border-left-color: var(--red); }
+.row.death   { border-left-color: #ffffff; }
+.row.death .src { color: #ffffff; }
 @keyframes rowIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
 .row .col { flex: 1; min-width: 0; }

@@ -11,7 +11,7 @@ const { API, TIMING, PERFORMANCE_INTERVALS, TIP_PACING, COACHING } = require('..
  * a Worker Thread (injected as captureFunction) so the game never stalls.
  *
  * Emits:
- *   'tip'          { text, source: 'ai'|'library'|'system', time }
+ *   'tip'          { text, source: 'ai'|'library'|'system', time, death? (white skull death review) }
  *   'status'       'coaching' | 'paused' | 'stopped'
  *   'match-review' review string
  */
@@ -306,7 +306,7 @@ class CoachingEngine extends EventEmitter {
       this.inLobby = false;
       this.pushFrame(shot);   // confirmed gameplay: keep for chat
       if (tip.length > 10 && tip.toUpperCase() !== 'SKIP') {
-        const sent = this.emitTip(agentData.genericizeAbilities(cleanTip(tip)), 'ai');
+        const sent = this.emitTip(agentData.genericizeAbilities(cleanTip(tip)), 'ai', { death: !!data.death });
         if (sent) return;
         // Verify gate dropped the forced tip. This used to end in SILENCE (the
         // "force tip does nothing" bug); fall through to a guaranteed library tip.
@@ -545,7 +545,7 @@ class CoachingEngine extends EventEmitter {
     }
 
     this.skipCount = 0;
-    const sent = this.emitTip(cleaned, 'ai');
+    const sent = this.emitTip(cleaned, 'ai', { death: !!response.death });
     if (sent && abilityWord) {
       this.recentAbilities.push(abilityWord);
       if (this.recentAbilities.length > 6) this.recentAbilities.shift();
@@ -694,11 +694,12 @@ class CoachingEngine extends EventEmitter {
    * nothing malformed or unhelpful ever reaches the overlay. No network → no
    * added latency. Returns true if the tip was actually sent.
    */
-  emitTip(text, source) {
+  emitTip(text, source, extra) {
     const verified = verifyTip(text, source, this.matchContext);
     if (!verified) { console.log(`[engine] reject(verify/${source}): ${text}`); return false; }
 
     const tip = { text: verified, source, time: Date.now() };
+    if (extra && extra.death) tip.death = true;   // death review: white skull card
     if (source !== 'system') {                       // status notices aren't coaching history
       this.tipHistory.push(tip);
       if (this.tipHistory.length > 50) this.tipHistory.shift();

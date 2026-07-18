@@ -50,6 +50,12 @@ html, body { width: 100%; height: 100%; background: transparent !important; over
 .tip-card.ai .progress     { color: var(--cyan); }
 .tip-card.library .progress{ color: var(--red); }
 .tip-card.system .progress { color: var(--red); }
+
+/* Death review: white skull card explaining the mistake behind a death */
+.tip-card.death           { border-left-color: #ffffff; }
+.tip-card.death .meta     { color: #ffffff; }
+.tip-card.death .progress { color: #ffffff; }
+.tip-card .src-skull { font-size: 12px; line-height: 1; flex: none; filter: drop-shadow(0 0 6px rgba(255,255,255,0.55)); }
 @keyframes drain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 
 /* Entry and exit flow FROM the spot the stack lives in: top-right slides in

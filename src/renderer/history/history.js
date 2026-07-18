@@ -16,7 +16,7 @@ let ratings = {};   // text -> 'good' | 'bad' (from the state snapshot)
 
 function rowFor(tip) {
   const row = document.createElement('div');
-  row.className = `row ${tip.source || 'system'}`;
+  row.className = `row ${tip.source || 'system'}${tip.death ? ' death' : ''}`;
   const col = document.createElement('div');
   col.className = 'col';
 
@@ -24,7 +24,7 @@ function rowFor(tip) {
   meta.className = 'meta';
   const src = document.createElement('span');
   src.className = 'src';
-  src.textContent = SRC_LABEL[tip.source] || 'GhostCoach';
+  src.textContent = tip.death ? '💀 Death Review' : (SRC_LABEL[tip.source] || 'GhostCoach');
   const time = document.createElement('span');
   time.className = 'time';
   time.textContent = fmtTime(tip.time);
