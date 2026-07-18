@@ -1,6 +1,6 @@
 {
   "name": "ghostcoach",
-  "version": "2.1.4",
+  "version": "2.1.5",
   "description": "Real-time Valorant AI coaching overlay",
   "main": "src/main/index.js",
   "scripts": {
