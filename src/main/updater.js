@@ -4,10 +4,11 @@ const { app, dialog } = require('electron');
 const { autoUpdater } = require('electron-updater');
 
 /**
- * Auto-updates. Checks the public releases feed on launch and every 6 hours,
- * downloads new versions silently in the background (differential via the
- * blockmap, so updates are small), then prompts the player from the app:
- * restart now, or later, in which case the update installs on next quit.
+ * Auto-updates. Checks the public releases feed the moment the app opens and
+ * every 6 hours after, downloads new versions silently in the background
+ * (differential via the blockmap, so updates are small), then prompts the
+ * player from the app: restart now, or later, in which case the update
+ * installs on next quit.
  *
  * Only runs in the packaged app; `npm start` dev sessions never check.
  * Every failure path is log-only: an update problem must never affect
@@ -55,7 +56,7 @@ function init() {
   });
 
   const check = () => autoUpdater.checkForUpdates().catch(() => {});
-  setTimeout(check, 15000);                    // after launch settles
+  check();                                     // the moment the app opens
   setInterval(check, 6 * 60 * 60 * 1000);      // and every 6 hours
 }
 
