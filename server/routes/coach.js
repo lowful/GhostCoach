@@ -48,8 +48,8 @@ const AI = {
   provider:    (process.env.AI_PROVIDER || (process.env.AI_API_KEY ? 'openai' : 'gemini')).toLowerCase(),
   baseUrl:     (process.env.AI_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/+$/, ''),
   apiKey:      process.env.AI_API_KEY || '',
-  visionModel: process.env.AI_VISION_MODEL || 'qwen/qwen3-vl-30b-a3b-instruct',
-  textModel:   process.env.AI_TEXT_MODEL   || process.env.AI_VISION_MODEL || 'qwen/qwen3-vl-30b-a3b-instruct',
+  visionModel: process.env.AI_VISION_MODEL || 'qwen/qwen3-vl-235b-a22b-instruct',
+  textModel:   process.env.AI_TEXT_MODEL   || process.env.AI_VISION_MODEL || 'qwen/qwen3-vl-235b-a22b-instruct',
 };
 
 // One OpenAI-style chat call. `imageB64` present => multimodal (vision) request.
