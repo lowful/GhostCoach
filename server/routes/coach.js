@@ -911,7 +911,7 @@ function computeMatchRating(won, kd) {
 // Tracker responses cached in memory for 15 minutes per Riot ID (faster than
 // a DB table, no cleanup job, losing it on deploy costs nothing but staleness
 // budget). Manual refresh is honored at most once per 3 minutes per ID.
-const MATCHES_TTL_MS     = 15 * 60 * 1000;
+const MATCHES_TTL_MS     = 5 * 60 * 1000;   // fresh games show up fast (swiftplay especially)
 const MATCHES_REFRESH_MS = 3 * 60 * 1000;
 const matchesCache = new Map();   // riotId(lower) -> { data, fetchedAt, lastManualRefresh }
 
