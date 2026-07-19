@@ -860,5 +860,25 @@ async function load() {
 
 document.getElementById('askcoach').addEventListener('click', () => window.ghost.openChat());
 document.getElementById('close').addEventListener('click', () => window.close());
+
+// Follow a Riot ID switch made in Settings while this window is open: the
+// tracker caches are already cleared in main, so wipe the local match/RR
+// caches, snap back to Competitive, and reload every panel from the new
+// account. Guarded so the frequent state pushes during coaching are no-ops.
+let lastSeenRiot = null;
+window.ghost.onState((s) => {
+  if (!s || typeof s.riotId !== 'string') return;
+  if (lastSeenRiot === null) { lastSeenRiot = s.riotId; return; }
+  if (s.riotId === lastSeenRiot) return;
+  lastSeenRiot = s.riotId;
+  dashRiotId = s.riotId;
+  knownMatches.clear();
+  rrPointsCache = null;
+  matchMode = 'competitive';
+  for (const b of modeSeg.querySelectorAll('button')) b.classList.toggle('active', b.dataset.mode === 'competitive');
+  load();
+  if (!rankNotesEl.hidden) renderRankGraph(rankNotesEl, { force: true });
+});
+
 load();
 console.log('[stats] ready');

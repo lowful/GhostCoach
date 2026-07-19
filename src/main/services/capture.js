@@ -1,25 +1,42 @@
 'use strict';
 
 /**
- * Screen capture via PowerShell CopyFromScreen in a Worker Thread + child
- * process. All the heavy work happens OFF the main/render thread and off the
- * game's render path, so it never causes an in-game hitch. This is the only
- * capture engine: the in-process native capturer duplicates the framebuffer
- * and stutters fullscreen games, so if PowerShell is ever blocked (antivirus)
- * we surface a "add an exclusion" message rather than fall back to a laggy path.
+ * Screen capture in a Worker Thread + child process, entirely OFF the main and
+ * render threads and off the game's render path, so it never causes an in-game
+ * hitch. The capture itself is the fast GDI CopyFromScreen primitive, run from
+ * a small compiled helper exe (GhostCoachCapture.exe) rather than powershell.
+ * That is deliberate: the identical PowerShell script matched Windows Defender's
+ * PowerShell Empire "Get-Screenshot" signature and got flagged as a HackTool on
+ * users' machines. The compiled exe is the same speed with none of that. The
+ * PowerShell path survives only as a fallback for the (unexpected) case where
+ * the exe is missing from the package.
  *
  * Returns a base64 JPEG at the requested quality profile.
  */
 const { Worker } = require('worker_threads');
 const path = require('path');
+const fs   = require('fs');
 const { CAPTURE } = require('../../shared/config');
 
 let worker  = null;
 let pending = null;
 
+// Packaged: shipped to resources/ via electron-builder extraResources.
+// Dev: the compiled exe sits in the repo's native/ folder.
+function resolveHelperExe() {
+  const candidates = [
+    path.join(process.resourcesPath || '', 'GhostCoachCapture.exe'),
+    path.join(__dirname, '..', '..', '..', 'native', 'GhostCoachCapture.exe'),
+  ];
+  for (const c of candidates) { try { if (fs.existsSync(c)) return c; } catch {} }
+  return null;
+}
+
 function getWorker() {
   if (worker) return worker;
-  worker = new Worker(path.join(__dirname, 'capture-worker.js'));
+  worker = new Worker(path.join(__dirname, 'capture-worker.js'), {
+    workerData: { helperExe: resolveHelperExe() },
+  });
 
   worker.on('message', (msg) => {
     if (!pending) return;

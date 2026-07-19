@@ -2,25 +2,53 @@
 
 /**
  * Screen capture, runs entirely inside a Worker Thread so the main process (and
- * therefore the game) never stalls on the PowerShell spawn or the JPEG encode.
- * Captures the primary screen, scales it down, JPEG-encodes, returns base64.
+ * therefore the game) never stalls on the capture spawn or the JPEG encode.
+ *
+ * Primary path: GhostCoachCapture.exe, a tiny compiled helper that does the
+ * fast GDI CopyFromScreen, downscales, JPEG-encodes, and writes base64 to
+ * stdout, no temp files. It replaces the old powershell.exe screenshot script,
+ * which was structurally identical to PowerShell Empire's Get-Screenshot and so
+ * tripped Windows Defender's HackTool signature on users' machines.
+ *
+ * Fallback path: the PowerShell script, used only when the exe is missing (a
+ * broken package). It keeps the app working but may itself be AV-flagged, which
+ * is exactly why it is no longer the default.
  */
-const { parentPort } = require('worker_threads');
+const { parentPort, workerData } = require('worker_threads');
 const { execFile }   = require('child_process');
 const path = require('path');
 const os   = require('os');
 const fs   = require('fs');
 const { CAPTURE } = require('../../shared/config');
 
-function capture(quality) {
-  const prof    = (CAPTURE.profiles && CAPTURE.profiles[quality]) || CAPTURE.profiles.standard;
+const HELPER_EXE = (workerData && workerData.helperExe) || null;
+
+function profileFor(quality) {
+  return (CAPTURE.profiles && CAPTURE.profiles[quality]) || CAPTURE.profiles.standard;
+}
+
+// Primary: the compiled helper. base64 JPEG straight off stdout, no disk I/O.
+function captureViaHelper(prof) {
+  return new Promise((resolve, reject) => {
+    execFile(
+      HELPER_EXE,
+      [String(prof.targetW), String(prof.targetH), String(prof.jpegQuality)],
+      { timeout: CAPTURE.timeoutMs - 1000, windowsHide: true, maxBuffer: 16 * 1024 * 1024 },
+      (err, stdout, stderr) => {
+        if (err) { reject(new Error((stderr && String(stderr).trim()) || err.message)); return; }
+        const b64 = String(stdout).trim();
+        if (!b64) { reject(new Error('capture helper returned no data')); return; }
+        resolve(b64);
+      }
+    );
+  });
+}
+
+// Fallback: the legacy PowerShell script (only when the exe is absent).
+function captureViaPowershell(prof) {
   const stamp   = `${process.pid}_${Date.now()}`;
   const outPath = path.join(os.tmpdir(), `ghostcoach_${stamp}.jpg`);
   const psPath  = path.join(os.tmpdir(), `ghostcoach_${stamp}.ps1`);
-
-  // Executed from a .ps1 file via -File rather than an inline -Command string:
-  // the inline form trips Windows Defender/AMSI's screen-scraper heuristic
-  // ("malicious content"), file execution is far more reliable.
   const ps =
     'Add-Type -AssemblyName System.Windows.Forms\n' +
     'Add-Type -AssemblyName System.Drawing\n' +
@@ -54,6 +82,11 @@ function capture(quality) {
       );
     });
   });
+}
+
+function capture(quality) {
+  const prof = profileFor(quality);
+  return HELPER_EXE ? captureViaHelper(prof) : captureViaPowershell(prof);
 }
 
 parentPort.on('message', async (msg) => {

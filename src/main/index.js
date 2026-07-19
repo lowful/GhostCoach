@@ -83,6 +83,7 @@ function buildState() {
     tipRatings: state.tipRatings,
     licenseActive: state.licenseActive,
     licenseReason: state.licenseReason,
+    riotId:          (store.get('riotId') || '').trim(),
     tipPosition:     store.get('tipPosition'),
     tipScale:        store.get('tipScale'),
     showTips:        store.get('showTips'),
@@ -520,6 +521,7 @@ const controller = {
       matchesClient = { competitive: emptyMatchBucket(), unrated: emptyMatchBucket() };
       statsCache = { at: 0, riotId: '', data: null, lastError: null };
       unratedStatsCache = { at: 0, riotId: '', data: null };
+      rankHistCache = { at: 0, riotId: '', data: null };
       if (engine) engine.setPlayerStats(null);
       console.log('[stats] riot id changed, tracker caches cleared');
     }

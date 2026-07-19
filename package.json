@@ -23,6 +23,12 @@
       "node_modules/**/*",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "native/GhostCoachCapture.exe",
+        "to": "GhostCoachCapture.exe"
+      }
+    ],
     "win": {
       "target": [
         {

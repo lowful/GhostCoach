@@ -14,4 +14,10 @@ contextBridge.exposeInMainWorld('ghost', {
   rankHistory:     (force) => ipcRenderer.invoke(C.STATS_RANK_HISTORY, force),
   openChat:        () => ipcRenderer.send(C.OPEN_CHAT),
   askAboutSession: (seed) => ipcRenderer.send(C.OPEN_CHAT_SEEDED, seed),
+  // Pushed app state; the stats window watches it to follow a Riot ID switch.
+  onState: (cb) => {
+    const h = (_e, s) => cb(s);
+    ipcRenderer.on(C.PUSH_STATE, h);
+    return () => ipcRenderer.removeListener(C.PUSH_STATE, h);
+  },
 });
