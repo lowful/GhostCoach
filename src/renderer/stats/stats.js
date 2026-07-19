@@ -574,6 +574,7 @@ async function rrChangeForMatch(m) {
 
 async function buildMatchCard(m) {
   if (!cardLogo.complete) await new Promise((res) => { cardLogo.onload = res; cardLogo.onerror = res; });
+  try { await document.fonts.ready; } catch {}   // Inter must be loaded before canvas text
   const rrChange = await rrChangeForMatch(m);
   const icons = await loadAgentIcons();
   const entry = icons[String(m.agent || '').toLowerCase()];
@@ -632,13 +633,13 @@ async function buildMatchCard(m) {
   if (cardLogo.naturalWidth) ctx.drawImage(cardLogo, L, 34, 30, 36);
   ctx.textAlign = 'left';
   shadowOn();
-  ctx.fillStyle = '#ECF9FF'; ctx.font = '900 26px ' + DISPLAY;
+  ctx.fillStyle = '#ECF9FF'; ctx.font = '800 26px ' + DISPLAY;
   ctx.fillText('GHOSTCOACH', L + 42, 60);
 
   // Player name + context line
   const riot = (dashRiotId || '').trim();
   const name = riot.split('#')[0] || 'GhostCoach Player';
-  ctx.fillStyle = '#F4FBFF'; ctx.font = '900 56px ' + DISPLAY;
+  ctx.fillStyle = '#F4FBFF'; ctx.font = '800 56px ' + DISPLAY;
   ctx.fillText(name.slice(0, 16), L, 158);
   const dateStr = m.startedAt
     ? new Date(m.startedAt).toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase()
@@ -650,21 +651,17 @@ async function buildMatchCard(m) {
   // The pill leads with the GhostCoach match rating (0-100, tracker-derived)
   const rating = Math.round(m.rating || 0);
   const pillCol = rating >= 70 ? ['#2BE58D', '#19c97a'] : rating >= 55 ? ['#ffd76a', '#eebc3f'] : ['#ff8a95', '#ff5f6e'];
-  const pillW = 200, pillH = 80, pillY = 216;
+  const pillW = 200, pillH = 80, pillY = 226;
   const pg = ctx.createLinearGradient(L, 0, L + pillW, 0);
   pg.addColorStop(0, pillCol[0]); pg.addColorStop(1, pillCol[1]);
   ctx.fillStyle = pg;
   ctx.shadowColor = pillCol[0]; ctx.shadowBlur = 24;
   rr(ctx, L, pillY, pillW, pillH, 16); ctx.fill();
   shadowOff();
-  ctx.save();
   ctx.textAlign = 'center';
-  ctx.translate(L + pillW / 2, pillY + 57);
-  ctx.transform(1, 0, -0.12, 1, 0, 0);   // speed-italic slant
-  ctx.font = '900 54px ' + DISPLAY;
+  ctx.font = '800 54px ' + DISPLAY;
   ctx.fillStyle = '#03140b';
-  ctx.fillText(String(rating), 0, 0);
-  ctx.restore();
+  ctx.fillText(String(rating), L + pillW / 2, pillY + 57);
   ctx.textAlign = 'left';
 
   // MVP chip aligned with the pill's vertical center
@@ -697,7 +694,7 @@ async function buildMatchCard(m) {
   for (const [label, value, color] of rows) {
     ctx.fillStyle = 'rgba(175,205,225,0.7)'; ctx.font = '500 16px ' + BODY;
     ctx.fillText(label, L, ry);
-    ctx.fillStyle = color; ctx.font = '900 21px ' + DISPLAY;
+    ctx.fillStyle = color; ctx.font = '800 21px ' + DISPLAY;
     ctx.fillText(value, L + 140, ry);
     ry += 31;
   }
@@ -716,7 +713,7 @@ async function buildMatchCard(m) {
     ctx.textAlign = 'center';
     ctx.fillStyle = 'rgba(175,205,225,0.65)'; ctx.font = '500 10.5px ' + BODY;
     ctx.fillText(label, bx + bw / 2, by + 19);
-    ctx.fillStyle = '#F4FBFF'; ctx.font = '900 20px ' + DISPLAY;
+    ctx.fillStyle = '#F4FBFF'; ctx.font = '800 20px ' + DISPLAY;
     ctx.fillText(vRaw == null ? '·' : String(vRaw), bx + bw / 2, by + 43);
     ctx.textAlign = 'left';
     bx += bw + gap;
@@ -724,12 +721,12 @@ async function buildMatchCard(m) {
 
   // Bottom bar: full riot tag left, site right, one shared baseline
   shadowOn();
-  ctx.fillStyle = '#F4FBFF'; ctx.font = '900 19px ' + DISPLAY;
+  ctx.fillStyle = '#F4FBFF'; ctx.font = '800 19px ' + DISPLAY;
   const tag = riot ? riot.slice(0, 26) : name;
   ctx.fillText(tag, L, 536);
   const tagW = ctx.measureText(tag).width;
-  ctx.fillStyle = 'rgba(175,205,225,0.6)'; ctx.font = '500 13.5px ' + BODY;
-  ctx.fillText('ghostcoachai.com', L + tagW + 18, 536);
+  ctx.fillStyle = 'rgba(175,205,225,0.6)'; ctx.font = '500 19px ' + BODY;
+  ctx.fillText('ghostcoachai.com', L + tagW + 28, 536);
   shadowOff();
   return cv;
 }
