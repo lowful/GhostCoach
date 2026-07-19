@@ -59,6 +59,41 @@ html, body { width: 100%; height: 100%; background: transparent !important; over
 .tip-card.library .progress{ color: var(--red); }
 .tip-card.system .progress { color: var(--red); }
 
+/* ── Coach Cam: the coach's live read, one slim glass strip ── */
+.coachcam {
+  position: fixed; z-index: 5;
+  display: flex; align-items: center; gap: 9px;
+  max-width: 420px; padding: 7px 12px;
+  background: rgba(10, 18, 26, 0.72); border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  backdrop-filter: blur(10px) saturate(140%); -webkit-backdrop-filter: blur(10px) saturate(140%);
+  font-size: 11px; font-weight: 700; letter-spacing: 0.4px; color: var(--text-dim);
+  animation: camIn 260ms var(--ease) both;
+  pointer-events: none;
+}
+.coachcam[data-pos="top-left"]     { top: 24px; left: 24px; }
+.coachcam[data-pos="top-right"]    { top: 24px; right: 24px; }
+.coachcam[data-pos="bottom-left"]  { bottom: 24px; left: 24px; }
+.coachcam[data-pos="bottom-right"] { bottom: 24px; right: 24px; }
+@keyframes camIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.cam-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex: none;
+  background: var(--cyan); box-shadow: 0 0 8px var(--cyan);
+  animation: camPulse 2.2s ease-in-out infinite;
+}
+@keyframes camPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+.cam-side { text-transform: uppercase; letter-spacing: 1.2px; font-size: 10px; flex: none; }
+.cam-side.atk { color: #ff8a95; }
+.cam-side.def { color: var(--cyan); }
+.cam-score { color: var(--text); flex: none; }
+.cam-alive { flex: none; letter-spacing: 2px; font-size: 10px; }
+.cam-alive .m { color: #4fd394; }
+.cam-alive .f { color: #ff8a95; }
+.cam-read {
+  color: var(--text-mute); font-weight: 600; letter-spacing: 0.2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
+
 /* Death review: white skull card explaining the mistake behind a death */
 .tip-card.death           { border-left-color: #ffffff; }
 .tip-card.death .meta     { color: #ffffff; }

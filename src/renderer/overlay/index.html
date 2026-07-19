@@ -11,6 +11,15 @@
 <body>
   <div id="tips" class="tips" data-pos="top-right"></div>
 
+  <!-- Coach Cam: the coach's live read of the game, updated every frame -->
+  <div id="coachcam" class="coachcam" data-pos="bottom-left" hidden>
+    <span class="cam-dot"></span>
+    <span id="cam-side" class="cam-side"></span>
+    <span id="cam-score" class="cam-score"></span>
+    <span id="cam-alive" class="cam-alive"></span>
+    <span id="cam-read" class="cam-read"></span>
+  </div>
+
   <div id="review" class="review-wrap" hidden></div>
 
   <script src="overlay.js"></script>

@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('ghost', {
   getDashboard:    (mode, force) => ipcRenderer.invoke(C.STATS_DASHBOARD, mode, force),
   refreshMatches:  (mode) => ipcRenderer.invoke(C.STATS_REFRESH, mode),
   matchesFor:      (mode) => ipcRenderer.invoke(C.STATS_MATCHES, mode),
+  rankHistory:     () => ipcRenderer.invoke(C.STATS_RANK_HISTORY),
   openChat:        () => ipcRenderer.send(C.OPEN_CHAT),
   askAboutSession: (seed) => ipcRenderer.send(C.OPEN_CHAT_SEEDED, seed),
 });

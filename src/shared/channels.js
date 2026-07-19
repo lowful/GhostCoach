@@ -30,6 +30,7 @@ const CHANNELS = {
   STATS_REFRESH:    'stats:refreshMatches', // (mode) → { matches, fetchedAt, mode, refreshBlockedFor? } (3-min manual limit)
   STATS_MATCHES:    'stats:matches',       // (mode) → { matches, fetchedAt, mode } cached fetch for mode switching
   CHAT_SEED:        'chat:seed',         // () → pending session context for Ask Coach, cleared on read
+  STATS_RANK_HISTORY: 'stats:rankHistory', // () → { points: [{date, elo, change, tier}], current }
 
   // ── renderer → main commands (ipcRenderer.send ⇄ ipcMain.on) ──────────────
   COACH_START:     'coach:start',
@@ -59,6 +60,7 @@ const CHANNELS = {
   PUSH_AGENT:        'push:agent',        // { agent, confirmed, role }, drives the confirm bubble
   PUSH_MATCH_REVIEW: 'push:matchReview',  // { review, game, timestamp, tipsCount }
   PUSH_OVERLAY_VIS:  'push:overlayVisibility', // { visible }
+  PUSH_CAM:          'push:cam',          // live match read for the Coach Cam ticker
 };
 
 // Channels the renderer is allowed to subscribe to (defensive whitelist used
@@ -70,6 +72,7 @@ CHANNELS.PUSH_LIST = [
   CHANNELS.PUSH_AGENT,
   CHANNELS.PUSH_MATCH_REVIEW,
   CHANNELS.PUSH_OVERLAY_VIS,
+  CHANNELS.PUSH_CAM,
 ];
 
 module.exports = CHANNELS;

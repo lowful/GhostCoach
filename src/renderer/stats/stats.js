@@ -133,10 +133,55 @@ function rankTier(rankValue) {
 }
 
 const rankNotesEl = document.getElementById('rank-notes');
+
+// ── Rank journey graph: competitive RR movement, drawn as an SVG line ────────
+async function renderRankGraph(host) {
+  const wrap = document.createElement('div');
+  wrap.className = 'rank-graph';
+  wrap.innerHTML = '<div class="rg-loading">Loading your rank journey...</div>';
+  host.append(wrap);
+  let res = null;
+  try { res = await window.ghost.rankHistory(); } catch {}
+  const points = (res && !res.error && Array.isArray(res.points)) ? res.points : [];
+  if (points.length < 2) { wrap.remove(); return; }
+
+  const W = 560, H = 130, PAD = 10;
+  const elos = points.map((p) => p.elo);
+  const min = Math.min(...elos), max = Math.max(...elos);
+  const span = Math.max(max - min, 20);
+  const x = (i) => PAD + (i / (points.length - 1)) * (W - PAD * 2);
+  const y = (e) => H - PAD - ((e - min) / span) * (H - PAD * 2);
+  const path = points.map((p, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(p.elo).toFixed(1)).join(' ');
+  const net = elos[elos.length - 1] - elos[0];
+  const last = points[points.length - 1];
+
+  wrap.innerHTML = `
+    <div class="rg-head">
+      <span class="rg-title">Rank journey · last ${points.length} comp games</span>
+      <span class="rg-net ${net >= 0 ? 'up' : 'down'}">${net >= 0 ? '+' : ''}${net} RR</span>
+    </div>
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="rgFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="rgba(0,240,255,0.25)"/>
+          <stop offset="1" stop-color="rgba(0,240,255,0)"/>
+        </linearGradient>
+      </defs>
+      <path d="${path} L ${x(points.length - 1).toFixed(1)} ${H - PAD} L ${x(0).toFixed(1)} ${H - PAD} Z" fill="url(#rgFill)" stroke="none"/>
+      <path d="${path}" fill="none" stroke="#00F0FF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="${x(points.length - 1).toFixed(1)}" cy="${y(last.elo).toFixed(1)}" r="4" fill="#00F0FF"/>
+    </svg>
+    <div class="rg-foot">
+      <span>${points[0].tier || ''}</span>
+      <span>${last.tier || ''}${last.change != null ? ' · last game ' + (last.change >= 0 ? '+' : '') + last.change + 'RR' : ''}</span>
+    </div>`;
+}
+
 function toggleRankNotes(rankValue) {
   if (!rankNotesEl.hidden) { rankNotesEl.hidden = true; return; }
   const tier = rankTier(rankValue);
   rankNotesEl.innerHTML = '';
+  renderRankGraph(rankNotesEl);   // graph on top, insights below
   const title = document.createElement('h4');
   const body  = document.createElement('p');
   if (!tier) {
@@ -412,10 +457,179 @@ function sessionRow(s, i) {
       scores: s.scores, strengths: s.strengths, weaknesses: s.weaknesses,
     });
   });
-  detail.append(scores, rl, rp, sl, sp, wl, wp, ask);
+  const share = document.createElement('div');
+  share.className = 'share-row';
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'share-btn';
+  saveBtn.textContent = 'Save card';
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'share-btn';
+  copyBtn.textContent = 'Copy card';
+  const flashBtn = (btn, text) => {
+    const orig = btn.textContent;
+    btn.textContent = text;
+    setTimeout(() => { btn.textContent = orig; }, 1400);
+  };
+  saveBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    try {
+      const cv = await buildScorecard(s);
+      const a = document.createElement('a');
+      a.download = `ghostcoach-${(s.map || 'session').toLowerCase()}-${s.overall || 0}.png`;
+      a.href = cv.toDataURL('image/png');
+      a.click();
+      flashBtn(saveBtn, 'Saved!');
+    } catch { flashBtn(saveBtn, 'Failed'); }
+  });
+  copyBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    try {
+      const cv = await buildScorecard(s);
+      cv.toBlob(async (b) => {
+        try {
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': b })]);
+          flashBtn(copyBtn, 'Copied!');
+        } catch { flashBtn(copyBtn, 'Failed'); }
+      });
+    } catch { flashBtn(copyBtn, 'Failed'); }
+  });
+  share.append(saveBtn, copyBtn, ask);
+  detail.append(scores, rl, rp, sl, sp, wl, wp, share);
   row.append(top, detail);
   row.addEventListener('click', () => row.classList.toggle('open'));
   return row;
+}
+
+// ── Shareable scorecard: a flashy PNG built on canvas ────────────────────────
+const cardLogo = new Image();
+cardLogo.src = '../../../assets/logo-ghost.svg';
+
+function rr(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function mvpForSession(s) {
+  const start = (s.at || 0) - ((s.durationMin || 0) + 20) * 60000;
+  const end   = (s.at || 0) + 10 * 60000;
+  for (const m of knownMatches.values()) {
+    if (!m.mvp || !m.startedAt || m.startedAt < start || m.startedAt > end) continue;
+    if (s.map && m.map && s.map !== m.map) continue;
+    return m.mvp;
+  }
+  return null;
+}
+
+async function buildScorecard(s) {
+  if (!cardLogo.complete) await new Promise((res) => { cardLogo.onload = res; cardLogo.onerror = res; });
+  const W = 1000, H = 560;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+
+  // Deep glass background with red and cyan glow washes
+  const bg = ctx.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, '#0a1119'); bg.addColorStop(1, '#0f1c2a');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  const blob = (x, y, r, color) => {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, color); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  };
+  blob(W - 150, 80, 360, 'rgba(255,70,85,0.18)');
+  blob(130, H - 60, 340, 'rgba(0,240,255,0.11)');
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 2;
+  rr(ctx, 14, 14, W - 28, H - 28, 26); ctx.stroke();
+
+  // Header: logo, wordmark, date
+  if (cardLogo.naturalWidth) ctx.drawImage(cardLogo, 46, 38, 34, 40);
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#ECF9FF'; ctx.font = '800 26px Inter, sans-serif';
+  ctx.fillText('GHOSTCOACH', 94, 64);
+  ctx.fillStyle = 'rgba(160,190,210,0.6)'; ctx.font = '700 13px Inter, sans-serif';
+  ctx.fillText('AI COACHED SESSION', 95, 86);
+  ctx.textAlign = 'right';
+  ctx.fillText((fmtDate(s.at) || '').toUpperCase(), W - 50, 64);
+
+  // The big number
+  const overall = Math.round(s.overall || 0);
+  const gradeWord  = overall >= 85 ? 'ELITE' : overall >= 70 ? 'STRONG' : overall >= 55 ? 'SOLID' : 'GRINDING';
+  const scoreColor = overall >= 70 ? '#4fd394' : overall >= 55 ? '#e8d27a' : '#ff8a95';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = scoreColor;
+  ctx.font = '800 170px Inter, sans-serif';
+  ctx.shadowColor = scoreColor; ctx.shadowBlur = 46;
+  ctx.fillText(String(overall), 48, 316);
+  ctx.shadowBlur = 0;
+  ctx.font = '800 32px Inter, sans-serif';
+  ctx.fillText(gradeWord, 54, 366);
+  ctx.fillStyle = 'rgba(160,190,210,0.65)'; ctx.font = '700 14px Inter, sans-serif';
+  ctx.fillText('SESSION SCORE', 55, 392);
+
+  // Category bars
+  const sc = s.scores || {};
+  const cats = [
+    ['IMPACT', sc.impact != null ? sc.impact : sc.economy],
+    ['POSITIONING', sc.positioning], ['UTILITY', sc.utility], ['AIM', sc.aim],
+  ];
+  let y = 178;
+  for (const [label, vRaw] of cats) {
+    const v = Math.max(0, Math.min(100, Math.round(vRaw || 0)));
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(180,205,220,0.8)'; ctx.font = '700 15px Inter, sans-serif';
+    ctx.fillText(label, 565, y - 12);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#ECF9FF'; ctx.font = '800 18px Inter, sans-serif';
+    ctx.fillText(String(v), W - 62, y - 12);
+    ctx.fillStyle = 'rgba(255,255,255,0.10)';
+    rr(ctx, 565, y, W - 62 - 565, 10, 5); ctx.fill();
+    if (v > 0) {
+      const grad = ctx.createLinearGradient(565, 0, W - 62, 0);
+      grad.addColorStop(0, '#FF4655'); grad.addColorStop(1, '#00F0FF');
+      ctx.fillStyle = grad;
+      rr(ctx, 565, y, Math.max(10, (W - 62 - 565) * v / 100), 10, 5); ctx.fill();
+    }
+    y += 60;
+  }
+
+  // Bottom row: match chips + MVP badge
+  let cx = 48;
+  const chip = (text, color, glow) => {
+    ctx.font = '800 15px Inter, sans-serif';
+    const w = ctx.measureText(text).width + 34;
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    if (glow) { ctx.shadowColor = color; ctx.shadowBlur = 18; }
+    rr(ctx, cx, 442, w, 36, 18); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = color; ctx.lineWidth = 1.5;
+    rr(ctx, cx, 442, w, 36, 18); ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.textAlign = 'left';
+    ctx.fillText(text, cx + 17, 466);
+    cx += w + 12;
+  };
+  if (s.map)   chip(s.map, 'rgba(200,225,240,0.9)');
+  if (s.agent) chip(s.agent, 'rgba(200,225,240,0.9)');
+  if (s.durationMin) chip(Math.round(s.durationMin) + ' min', 'rgba(160,190,210,0.7)');
+  const mvp = mvpForSession(s);
+  if (mvp) chip(mvp === 'match' ? 'MATCH MVP' : 'TEAM MVP', mvp === 'match' ? '#ffd76a' : '#cfd8e3', true);
+
+  // Coach's one-liner + watermark
+  const line = String(s.summary || '').split(/(?<=\.)\s/)[0].slice(0, 96);
+  if (line) {
+    ctx.fillStyle = 'rgba(190,215,230,0.75)'; ctx.font = 'italic 600 15px Inter, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('"' + line + '"', 48, 512);
+  }
+  ctx.textAlign = 'right';
+  ctx.fillStyle = 'rgba(160,190,210,0.5)'; ctx.font = '700 13px Inter, sans-serif';
+  ctx.fillText('ghostcoachai.com', W - 50, 516);
+  return cv;
 }
 
 function renderSessions(d) {

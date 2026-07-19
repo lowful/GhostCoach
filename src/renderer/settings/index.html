@@ -80,6 +80,48 @@
         </div>
       </section>
 
+      <section>
+        <h3>Voice coach</h3>
+        <p class="hint">Your coach speaks tips out loud, like an IGL in your ear. Uses your Windows voices, works offline, and never talks over itself.</p>
+        <div class="seg" id="voicecoach">
+          <button data-val="on">On</button>
+          <button data-val="off">Off</button>
+        </div>
+        <div class="voice-sub" id="voice-sub">
+          <p class="hint sub-hint">Style</p>
+          <div class="seg" id="voicestyle">
+            <button data-val="normal">Normal</button>
+            <button data-val="hype">Hype</button>
+            <button data-val="chill">Chill</button>
+            <button data-val="funny">Funny</button>
+            <button data-val="robot">Robot</button>
+          </div>
+          <p class="hint sub-hint">Volume</p>
+          <div class="scale-row">
+            <input id="voicevol" type="range" min="10" max="100" step="5" value="90" />
+            <b id="voicevol-label" class="scale-label">90%</b>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h3>Coach Cam</h3>
+        <p class="hint">A small live ticker showing what your coach reads from the game in real time: side, score, numbers alive, and the round plan. Proof it sees what you see.</p>
+        <div class="seg" id="coachcam">
+          <button data-val="on">On</button>
+          <button data-val="off">Off</button>
+        </div>
+        <div class="voice-sub" id="cam-sub">
+          <p class="hint sub-hint">Position</p>
+          <div class="seg" id="campos">
+            <button data-val="top-left">Top-left</button>
+            <button data-val="top-right">Top-right</button>
+            <button data-val="bottom-left">Bottom-left</button>
+            <button data-val="bottom-right">Bottom-right</button>
+          </div>
+        </div>
+      </section>
+
       <section class="license">
         <h3>License</h3>
         <div class="kv"><span>Plan</span><b id="lic-plan">·</b></div>

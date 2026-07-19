@@ -172,4 +172,25 @@ section h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; lette
 }
 .ask-btn:hover { filter: brightness(1.1); }
 
+/* Share row: scorecard actions beside Ask Coach */
+.share-row { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+.share-btn {
+  font-family: var(--font); font-size: 11.5px; font-weight: 700; color: var(--cyan);
+  background: rgba(0,240,255,0.08); border: 1px solid rgba(0,240,255,0.3); border-radius: 9px;
+  padding: 7px 12px; cursor: pointer;
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.share-btn:hover { background: rgba(0,240,255,0.16); border-color: rgba(0,240,255,0.5); }
+
+/* Rank journey graph inside the rank drop-down */
+.rank-graph { margin-bottom: 12px; animation: rowIn 240ms var(--ease) both; }
+.rank-graph svg { width: 100%; height: 96px; display: block; border-radius: 8px; background: rgba(0,0,0,0.22); border: 1px solid var(--glass-border); }
+.rg-loading { font-size: 11px; color: var(--text-mute); padding: 8px 0; }
+.rg-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px; }
+.rg-title { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-mute); }
+.rg-net { font-size: 12px; font-weight: 800; border-radius: 999px; padding: 2px 9px; }
+.rg-net.up   { color: #4fd394; background: rgba(79,211,148,0.12); border: 1px solid rgba(79,211,148,0.3); }
+.rg-net.down { color: #ff9aa3; background: rgba(255,70,85,0.12); border: 1px solid rgba(255,70,85,0.3); }
+.rg-foot { display: flex; justify-content: space-between; margin-top: 6px; font-size: 10.5px; color: var(--text-dim); font-weight: 600; }
+
 .empty { font-size: 12.5px; color: var(--text-mute); text-align: center; padding: 16px 8px; background: rgba(0,0,0,0.16); border: 1px dashed var(--glass-border); border-radius: 11px; }

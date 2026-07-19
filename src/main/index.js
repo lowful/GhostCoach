@@ -86,6 +86,11 @@ function buildState() {
     tipPosition:     store.get('tipPosition'),
     tipScale:        store.get('tipScale'),
     showTips:        store.get('showTips'),
+    voiceCoach:      store.get('voiceCoach'),
+    voiceStyle:      store.get('voiceStyle'),
+    voiceVolume:     store.get('voiceVolume'),
+    coachCam:        store.get('coachCam'),
+    coachCamPos:     store.get('coachCamPos'),
     overlayPosition: store.get('overlayPosition'),
     performanceMode: store.get('performanceMode'),
     licensePlan:     store.get('licensePlan'),
@@ -186,6 +191,7 @@ const controller = {
     // re-validation so a genuinely ended subscription locks fast (and a transient
     // server error does not, since revalidate is authoritative).
     engine.on('auth-suspect', () => revalidateNow());
+    engine.on('context', (cam) => registry.broadcast(C.PUSH_CAM, cam));
 
     state.isCoaching = true;
     state.isPaused   = false;
@@ -326,6 +332,25 @@ const controller = {
   /** The assembled extended-stats dashboard: category trends from the local
    *  performance log, rank/win-rate from the tracker profile, and the recent
    *  match list (server-cached 15 min, client-cached alongside). */
+  /** Competitive RR journey for the rank drop-down graph, cached 5 minutes. */
+  async getRankHistory() {
+    const riotId = (store.get('riotId') || '').trim();
+    if (!riotId.includes('#')) return { error: 'no-riot-id' };
+    if (rankHistCache.data && rankHistCache.riotId === riotId && Date.now() - rankHistCache.at < 5 * 60 * 1000) {
+      return rankHistCache.data;
+    }
+    try {
+      const { ok, data } = await api.get('/api/coach/rank-history?username=' + encodeURIComponent(riotId), store.get('licenseKey'), 15000);
+      if (ok && data && !data.error) {
+        rankHistCache = { at: Date.now(), riotId, data };
+        return data;
+      }
+      return (rankHistCache.riotId === riotId && rankHistCache.data) || data || { error: 'unavailable' };
+    } catch {
+      return (rankHistCache.riotId === riotId && rankHistCache.data) || { error: 'unavailable' };
+    }
+  },
+
   async getStatsDashboard(mode, force) {
     const m = mode === 'unrated' ? 'unrated' : 'competitive';
     const perf = loadPerf();            // oldest -> newest
@@ -525,6 +550,7 @@ let statsCache = { at: 0, riotId: '', data: null, lastError: null };
 // Unrated/swiftplay aggregates live in their own cache; the competitive cache
 // below stays the persisted profile the coach and chat run on.
 let unratedStatsCache = { at: 0, riotId: '', data: null };
+let rankHistCache = { at: 0, riotId: '', data: null };
 
 async function fetchUnratedStats(force) {
   const riotId = (store.get('riotId') || '').trim();

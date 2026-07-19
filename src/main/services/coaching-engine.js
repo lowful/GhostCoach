@@ -814,6 +814,16 @@ class CoachingEngine extends EventEmitter {
       this.remember(`Lost round ${team + enemy} (score ${team}-${enemy})`);
       this.lastRoundLostAt = Date.now();   // opens the round-review window
     }
+
+    // Live read for the Coach Cam ticker: what the coach believes right now.
+    const mc = this.matchContext;
+    this.emit('context', {
+      side: mc.side, phase: mc.phase, round: mc.roundNumber,
+      team: mc.teamScore | 0, enemy: mc.enemyScore | 0,
+      alive: mc.playerAlive !== false, mates: mc.teammatesAlive, foes: mc.enemiesAlive,
+      weapon: mc.weapon, map: mc.map, agent: mc.agent,
+      read: mc.teamRead || null, spot: mc.enemySpot || null,
+    });
   }
 
   async requestMatchReview() {

@@ -43,6 +43,31 @@ function wireBoolSeg(id, key) {
 const showTipsSeg = wireBoolSeg('showtips', 'showTips');
 const beginnerSeg = wireBoolSeg('beginner', 'beginnerTips');
 
+// Voice coach + Coach Cam: sub-controls grey out while the feature is off.
+const voiceSeg = wireBoolSeg('voicecoach', 'voiceCoach');
+const styleSeg = document.getElementById('voicestyle');
+wireSeg(styleSeg, 'voiceStyle');
+const voiceSub = document.getElementById('voice-sub');
+voiceSeg.addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (btn) voiceSub.classList.toggle('disabled', btn.dataset.val === 'off');
+});
+const volEl = document.getElementById('voicevol');
+const volLabel = document.getElementById('voicevol-label');
+volEl.addEventListener('input', () => { volLabel.textContent = volEl.value + '%'; });
+volEl.addEventListener('change', () => {
+  window.ghost.setConfig({ voiceVolume: Number(volEl.value) / 100 }).catch(() => {});
+});
+
+const camSeg = wireBoolSeg('coachcam', 'coachCam');
+const camposSeg = document.getElementById('campos');
+wireSeg(camposSeg, 'coachCamPos');
+const camSub = document.getElementById('cam-sub');
+camSeg.addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (btn) camSub.classList.toggle('disabled', btn.dataset.val === 'off');
+});
+
 // Tip size: live label, saved as a ratio (1 = normal).
 const scaleEl = document.getElementById('tipscale');
 const scaleLabel = document.getElementById('tipscale-label');
@@ -141,6 +166,15 @@ async function load() {
       markSeg(tipposSeg, cfg.tipPosition);
       markSeg(showTipsSeg, cfg.showTips === false ? 'off' : 'on');
       markSeg(beginnerSeg, cfg.beginnerTips === false ? 'off' : 'on');
+      markSeg(voiceSeg, cfg.voiceCoach === true ? 'on' : 'off');
+      markSeg(styleSeg, cfg.voiceStyle || 'normal');
+      voiceSub.classList.toggle('disabled', cfg.voiceCoach !== true);
+      const vv = Math.round((cfg.voiceVolume != null ? cfg.voiceVolume : 0.9) * 100);
+      volEl.value = String(vv);
+      volLabel.textContent = vv + '%';
+      markSeg(camSeg, cfg.coachCam === true ? 'on' : 'off');
+      markSeg(camposSeg, cfg.coachCamPos || 'bottom-left');
+      camSub.classList.toggle('disabled', cfg.coachCam !== true);
       const pct = Math.round((Number(cfg.tipScale) || 1) * 100);
       scaleEl.value = String(pct);
       scaleLabel.textContent = scaleText(pct);
