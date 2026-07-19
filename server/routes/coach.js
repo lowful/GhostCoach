@@ -915,6 +915,41 @@ const MATCHES_TTL_MS     = 5 * 60 * 1000;   // fresh games show up fast (swiftpl
 const MATCHES_REFRESH_MS = 3 * 60 * 1000;
 const matchesCache = new Map();   // riotId(lower) -> { data, fetchedAt, lastManualRefresh }
 
+// GET /api/coach/rank-history?username=Name%23TAG
+// Competitive RR/elo movement for the rank journey graph, oldest to newest.
+const rankHistoryCache = new Map();   // riotId(lower) -> { at, data }
+router.get('/rank-history', async (req, res) => {
+  const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
+  if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+  if (!process.env.HENRIKDEV_API_KEY) return res.json({ error: 'No stats provider configured.' });
+  const username = String(req.query.username || '');
+  if (!username.includes('#')) return res.json({ error: 'Riot ID must be Name#TAG.' });
+  const key = username.toLowerCase();
+  const hit = rankHistoryCache.get(key);
+  if (hit && Date.now() - hit.at < 5 * 60 * 1000) return res.json(hit.data);
+  const [name, tag] = username.split('#').map((s) => s.trim());
+  const enc = encodeURIComponent;
+  try {
+    const acct = await henrikGet(`/valorant/v2/account/${enc(name)}/${enc(tag)}`);
+    const region = acct.json?.data?.region;
+    if (!region) return res.json({ error: 'Account not found.' });
+    const mh = await henrikGet(`/valorant/v1/mmr-history/${region}/${enc(name)}/${enc(tag)}`);
+    const arr = (mh.json && Array.isArray(mh.json.data)) ? mh.json.data : [];
+    const points = arr.slice(0, 20).map((e) => ({
+      date:   e.date_raw ? e.date_raw * 1000 : (Date.parse(e.date) || null),
+      elo:    e.elo != null ? e.elo : null,
+      change: e.mmr_change_to_last_game != null ? e.mmr_change_to_last_game : null,
+      tier:   e.currenttierpatched || null,
+    })).filter((p) => p.elo != null).reverse();
+    const data = { points, current: points.length ? points[points.length - 1] : null };
+    rankHistoryCache.set(key, { at: Date.now(), data });
+    res.json(data);
+  } catch (e) {
+    console.error('[coach] rank-history error:', e.message);
+    res.json({ error: 'Could not load rank history.' });
+  }
+});
+
 // Match MVP (top combat score on the winning team) / Team MVP (top score on
 // the losing team). stored-matches only carries the player's own stats, so
 // resolve MVP from the full match detail once and keep it forever, a finished
