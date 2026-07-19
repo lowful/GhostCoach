@@ -597,9 +597,7 @@ async function buildMatchCard(m) {
   const shadowOn  = () => { ctx.shadowColor = 'rgba(0,0,0,0.85)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 2; };
   const shadowOff = () => { ctx.shadowBlur = 0; ctx.shadowOffsetY = 0; };
 
-  const bg = ctx.createLinearGradient(0, 0, W, H);
-  bg.addColorStop(0, '#05070c'); bg.addColorStop(1, '#0a0f1a');
-  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#06080e'; ctx.fillRect(0, 0, W, H);
 
   // Angular shards, randomized so every card is one of one
   for (let i = 0; i < 8; i++) {
@@ -625,8 +623,8 @@ async function buildMatchCard(m) {
     ctx.drawImage(portrait, W - pw * 0.84, H - ph + 18, pw, ph);
     ctx.restore();
     const fade = ctx.createLinearGradient(W * 0.4, 0, W * 0.68, 0);
-    fade.addColorStop(0, 'rgba(5,7,12,0.96)');
-    fade.addColorStop(1, 'rgba(5,7,12,0)');
+    fade.addColorStop(0, 'rgba(6,8,14,0.96)');
+    fade.addColorStop(1, 'rgba(6,8,14,0)');
     ctx.fillStyle = fade; ctx.fillRect(W * 0.4, 0, W * 0.28, H);
   }
 
@@ -634,18 +632,18 @@ async function buildMatchCard(m) {
   if (cardLogo.naturalWidth) ctx.drawImage(cardLogo, L, 34, 30, 36);
   ctx.textAlign = 'left';
   shadowOn();
-  ctx.fillStyle = '#ECF9FF'; ctx.font = '800 26px ' + DISPLAY;
+  ctx.fillStyle = '#ECF9FF'; ctx.font = '900 26px ' + DISPLAY;
   ctx.fillText('GHOSTCOACH', L + 42, 60);
 
   // Player name + context line
   const riot = (dashRiotId || '').trim();
   const name = riot.split('#')[0] || 'GhostCoach Player';
-  ctx.fillStyle = '#F4FBFF'; ctx.font = '800 56px ' + DISPLAY;
+  ctx.fillStyle = '#F4FBFF'; ctx.font = '900 56px ' + DISPLAY;
   ctx.fillText(name.slice(0, 16), L, 158);
   const dateStr = m.startedAt
     ? new Date(m.startedAt).toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase()
     : null;
-  ctx.fillStyle = 'rgba(175,205,225,0.8)'; ctx.font = '700 16px ' + BODY;
+  ctx.fillStyle = 'rgba(175,205,225,0.8)'; ctx.font = '500 15px ' + BODY;
   ctx.fillText([m.agent, m.map, m.queue, dateStr].filter(Boolean).join('  ·  ').toUpperCase(), L + 2, 190);
   shadowOff();
 
@@ -659,15 +657,18 @@ async function buildMatchCard(m) {
   ctx.shadowColor = pillCol[0]; ctx.shadowBlur = 30;
   rr(ctx, L, pillY, pillW, pillH, 16); ctx.fill();
   shadowOff();
-  ctx.fillStyle = '#03140b';
-  ctx.font = '800 50px ' + DISPLAY;
+  ctx.save();
   ctx.textAlign = 'center';
-  ctx.fillText(String(rating), L + pillW / 2, pillY + 56);
+  ctx.translate(L + pillW / 2, pillY + 57);
+  ctx.transform(1, 0, -0.12, 1, 0, 0);   // speed-italic slant
+  ctx.font = '900 54px ' + DISPLAY;
+  ctx.strokeStyle = 'rgba(0,0,0,0.30)';
+  ctx.lineWidth = 6;
+  ctx.strokeText(String(rating), 2.5, 2.5);   // soft depth layer behind
+  ctx.fillStyle = '#03140b';
+  ctx.fillText(String(rating), 0, 0);
+  ctx.restore();
   ctx.textAlign = 'left';
-  shadowOn();
-  ctx.fillStyle = 'rgba(175,205,225,0.7)'; ctx.font = '700 12.5px ' + BODY;
-  ctx.fillText('MATCH RATING', L + 2, pillY + pillH + 24);
-  shadowOff();
 
   // MVP chip aligned with the pill's vertical center
   if (m.mvp) {
@@ -697,9 +698,9 @@ async function buildMatchCard(m) {
   let ry = 362;
   shadowOn();
   for (const [label, value, color] of rows) {
-    ctx.fillStyle = 'rgba(175,205,225,0.7)'; ctx.font = '600 17px ' + BODY;
+    ctx.fillStyle = 'rgba(175,205,225,0.7)'; ctx.font = '500 16px ' + BODY;
     ctx.fillText(label, L, ry);
-    ctx.fillStyle = color; ctx.font = '800 21px ' + DISPLAY;
+    ctx.fillStyle = color; ctx.font = '900 21px ' + DISPLAY;
     ctx.fillText(value, L + 140, ry);
     ry += 31;
   }
@@ -708,7 +709,7 @@ async function buildMatchCard(m) {
   // Stat tiles: the tracker numbers that matter, four equal boxes
   const dd = m.dmgDelta != null ? (m.dmgDelta >= 0 ? '+' : '') + m.dmgDelta : null;
   const cats = [['ACS', m.acs], ['ADR', m.adr], ['HS%', m.headshotPct != null ? m.headshotPct + '%' : null], ['DMG / RD', dd]];
-  const bw = 122, bh = 48, gap = 12, by = 452;
+  const bw = 122, bh = 52, gap = 12, by = 438;
   let bx = L;
   for (const [label, vRaw] of cats) {
     ctx.fillStyle = 'rgba(255,255,255,0.05)';
@@ -716,23 +717,23 @@ async function buildMatchCard(m) {
     ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 1;
     rr(ctx, bx, by, bw, bh, 10); ctx.stroke();
     ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(175,205,225,0.65)'; ctx.font = '700 10.5px ' + BODY;
-    ctx.fillText(label, bx + bw / 2, by + 18);
-    ctx.fillStyle = '#F4FBFF'; ctx.font = '800 19px ' + DISPLAY;
-    ctx.fillText(vRaw == null ? '·' : String(vRaw), bx + bw / 2, by + 40);
+    ctx.fillStyle = 'rgba(175,205,225,0.65)'; ctx.font = '500 10.5px ' + BODY;
+    ctx.fillText(label, bx + bw / 2, by + 19);
+    ctx.fillStyle = '#F4FBFF'; ctx.font = '900 20px ' + DISPLAY;
+    ctx.fillText(vRaw == null ? '·' : String(vRaw), bx + bw / 2, by + 43);
     ctx.textAlign = 'left';
     bx += bw + gap;
   }
 
   // Bottom bar: full riot tag left, site right, one shared baseline
   shadowOn();
-  ctx.fillStyle = '#F4FBFF'; ctx.font = '800 19px ' + DISPLAY;
-  ctx.fillText(riot ? riot.slice(0, 26) : name, L, 536);
-  ctx.textAlign = 'right';
-  ctx.fillStyle = 'rgba(175,205,225,0.7)'; ctx.font = '700 14px ' + BODY;
-  ctx.fillText('ghostcoachai.com', W - 18, 536);
+  ctx.fillStyle = '#F4FBFF'; ctx.font = '900 19px ' + DISPLAY;
+  const tag = riot ? riot.slice(0, 26) : name;
+  ctx.fillText(tag, L, 536);
+  const tagW = ctx.measureText(tag).width;
+  ctx.fillStyle = 'rgba(175,205,225,0.6)'; ctx.font = '500 13.5px ' + BODY;
+  ctx.fillText('ghostcoachai.com', L + tagW + 18, 536);
   shadowOff();
-  ctx.textAlign = 'left';
   return cv;
 }
 
