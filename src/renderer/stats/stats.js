@@ -581,17 +581,19 @@ async function buildScorecard(s) {
     img.src = entry.portrait;
   }) : null;
 
-  const W = 1000, H = 560;
+  const W = 1000, H = 560, L = 48;   // L = the one left margin everything shares
   const cv = document.createElement('canvas');
   cv.width = W; cv.height = H;
   const ctx = cv.getContext('2d');
+  const shadowOn  = () => { ctx.shadowColor = 'rgba(0,0,0,0.85)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 2; };
+  const shadowOff = () => { ctx.shadowBlur = 0; ctx.shadowOffsetY = 0; };
 
-  // Near-black base, PnL-card energy
+  // Near-black base
   const bg = ctx.createLinearGradient(0, 0, W, H);
   bg.addColorStop(0, '#05070c'); bg.addColorStop(1, '#0a0f1a');
   ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
 
-  // Angular shards on the right, randomized so every card is one of one
+  // Angular shards, randomized so every card is one of one
   for (let i = 0; i < 8; i++) {
     const sx = W * 0.5 + Math.random() * W * 0.5;
     const sy = Math.random() * H;
@@ -607,73 +609,78 @@ async function buildScorecard(s) {
     ctx.fill();
   }
 
-  // Agent portrait anchored right, melting into the dark
+  // Agent portrait owns the right side; nothing overlaps it up top anymore
   if (portrait && portrait.naturalWidth) {
-    const ph = H + 70;
+    const ph = H + 46;
     const pw = ph * (portrait.naturalWidth / portrait.naturalHeight);
     ctx.save();
-    ctx.globalAlpha = 0.94;
-    ctx.drawImage(portrait, W - pw * 0.86, H - ph + 26, pw, ph);
+    ctx.globalAlpha = 0.95;
+    ctx.drawImage(portrait, W - pw * 0.84, H - ph + 18, pw, ph);
     ctx.restore();
-    const fade = ctx.createLinearGradient(W * 0.42, 0, W * 0.7, 0);
+    const fade = ctx.createLinearGradient(W * 0.4, 0, W * 0.68, 0);
     fade.addColorStop(0, 'rgba(5,7,12,0.96)');
     fade.addColorStop(1, 'rgba(5,7,12,0)');
-    ctx.fillStyle = fade; ctx.fillRect(W * 0.42, 0, W * 0.28, H);
+    ctx.fillStyle = fade; ctx.fillRect(W * 0.4, 0, W * 0.28, H);
   }
 
-  // Header: ghost logo left, wordmark right
-  if (cardLogo.naturalWidth) ctx.drawImage(cardLogo, 46, 34, 36, 42);
-  ctx.textAlign = 'right';
-  ctx.fillStyle = '#ECF9FF'; ctx.font = '800 30px Inter, sans-serif';
-  ctx.fillText('GHOSTCOACH', W - 92, 64);
-  ctx.fillStyle = '#00F0FF'; ctx.font = '700 20px Inter, sans-serif';
-  ctx.fillText('AI', W - 50, 64);
-
-  // Player name, huge, then agent and map under it
-  const name = (dashRiotId || '').split('#')[0] || 'GhostCoach Player';
+  // Header: THE one ghost logo, wordmark beside it, all top-left
+  if (cardLogo.naturalWidth) ctx.drawImage(cardLogo, L, 34, 30, 36);
   ctx.textAlign = 'left';
-  ctx.fillStyle = '#F4FBFF'; ctx.font = '800 54px Inter, sans-serif';
-  ctx.fillText(name.slice(0, 16), 48, 168);
-  ctx.fillStyle = 'rgba(160,190,210,0.65)'; ctx.font = '700 16px Inter, sans-serif';
-  ctx.fillText([s.agent, s.map, fmtDate(s.at)].filter(Boolean).join('  ·  ').toUpperCase(), 50, 198);
+  shadowOn();
+  ctx.fillStyle = '#ECF9FF'; ctx.font = '800 26px Inter, sans-serif';
+  ctx.fillText('GHOSTCOACH', L + 42, 60);
+  const wmW = ctx.measureText('GHOSTCOACH').width;
+  ctx.fillStyle = '#00F0FF'; ctx.font = '700 18px Inter, sans-serif';
+  ctx.fillText('AI', L + 42 + wmW + 9, 60);
 
-  // The money pill: coach score on a bright gradient with the ghost inside
+  // Player name + context line
+  const riot = (dashRiotId || '').trim();
+  const name = riot.split('#')[0] || 'GhostCoach Player';
+  ctx.fillStyle = '#F4FBFF'; ctx.font = '800 56px Inter, sans-serif';
+  ctx.fillText(name.slice(0, 16), L, 158);
+  ctx.fillStyle = 'rgba(175,205,225,0.8)'; ctx.font = '700 16px Inter, sans-serif';
+  ctx.fillText([s.agent, s.map, fmtDate(s.at)].filter(Boolean).join('  ·  ').toUpperCase(), L + 2, 190);
+  shadowOff();
+
+  // The score pill: number centered, glow matched to grade
   const overall = Math.round(s.overall || 0);
   const pillCol = overall >= 70 ? ['#2BE58D', '#19c97a'] : overall >= 55 ? ['#ffd76a', '#eebc3f'] : ['#ff8a95', '#ff5f6e'];
-  ctx.font = '800 56px Inter, sans-serif';
-  const pillW = ctx.measureText(String(overall)).width + 150;
-  const pg = ctx.createLinearGradient(48, 0, 48 + pillW, 0);
+  const pillW = 190, pillH = 80, pillY = 216;
+  const pg = ctx.createLinearGradient(L, 0, L + pillW, 0);
   pg.addColorStop(0, pillCol[0]); pg.addColorStop(1, pillCol[1]);
   ctx.fillStyle = pg;
-  ctx.shadowColor = pillCol[0]; ctx.shadowBlur = 36;
-  rr(ctx, 48, 222, pillW, 82, 16); ctx.fill();
-  ctx.shadowBlur = 0;
-  if (cardLogo.naturalWidth) ctx.drawImage(cardLogo, 66, 238, 40, 48);
+  ctx.shadowColor = pillCol[0]; ctx.shadowBlur = 30;
+  rr(ctx, L, pillY, pillW, pillH, 16); ctx.fill();
+  shadowOff();
   ctx.fillStyle = '#03140b';
-  ctx.font = '800 56px Inter, sans-serif';
-  ctx.fillText(String(overall), 122, 286);
-  ctx.fillStyle = 'rgba(160,190,210,0.6)'; ctx.font = '700 13px Inter, sans-serif';
-  ctx.fillText('COACH SCORE', 50, 326);
+  ctx.font = '800 54px Inter, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(String(overall), L + pillW / 2, pillY + 58);
+  ctx.textAlign = 'left';
+  shadowOn();
+  ctx.fillStyle = 'rgba(175,205,225,0.7)'; ctx.font = '700 12.5px Inter, sans-serif';
+  ctx.fillText('COACH SCORE', L + 2, pillY + pillH + 24);
+  shadowOff();
 
-  // MVP chip beside the pill, gold and glowing
+  // MVP chip aligned with the pill's vertical center
   const mvp = match && match.mvp;
   if (mvp) {
     const label = mvp === 'match' ? 'MATCH MVP' : 'TEAM MVP';
     const gold = mvp === 'match' ? '#ffd76a' : '#cfd8e3';
-    ctx.font = '800 17px Inter, sans-serif';
+    ctx.font = '800 16px Inter, sans-serif';
     const cw = ctx.measureText(label).width + 40;
-    const mx = 48 + pillW + 18;
-    ctx.shadowColor = gold; ctx.shadowBlur = 22;
+    const mx = L + pillW + 18, my = pillY + (pillH - 40) / 2;
+    ctx.shadowColor = gold; ctx.shadowBlur = 20;
     ctx.fillStyle = 'rgba(255,215,106,0.10)';
-    rr(ctx, mx, 244, cw, 40, 20); ctx.fill();
-    ctx.shadowBlur = 0;
+    rr(ctx, mx, my, cw, 40, 20); ctx.fill();
+    shadowOff();
     ctx.strokeStyle = gold; ctx.lineWidth = 2;
-    rr(ctx, mx, 244, cw, 40, 20); ctx.stroke();
+    rr(ctx, mx, my, cw, 40, 20); ctx.stroke();
     ctx.fillStyle = gold;
-    ctx.fillText(label, mx + 20, 271);
+    ctx.fillText(label, mx + 20, my + 26);
   }
 
-  // Stat rows, label muted left / value bold, PnL style
+  // Stat rows on a fixed two-column grid: labels at L, values at L+182
   const rows = [];
   if (match) {
     rows.push(['RESULT', (match.result === 'Victory' ? 'WIN ' : match.result === 'Defeat' ? 'LOSS ' : '') + match.score,
@@ -683,36 +690,46 @@ async function buildScorecard(s) {
     rows.push(['SESSION', Math.round(s.durationMin || 0) + ' MIN COACHED', '#ECF9FF']);
   }
   if (rrChange != null) rows.push(['RR', (rrChange >= 0 ? '+' : '') + rrChange + ' RR', rrChange >= 0 ? '#2BE58D' : '#ff8a95']);
-  let ry = 372;
+  let ry = 366;
+  shadowOn();
   for (const [label, value, color] of rows) {
-    ctx.fillStyle = 'rgba(160,190,210,0.7)'; ctx.font = '600 19px Inter, sans-serif';
-    ctx.fillText(label, 50, ry);
-    ctx.fillStyle = color; ctx.font = '800 22px Inter, sans-serif';
-    ctx.fillText(value, 240, ry);
-    ry += 42;
+    ctx.fillStyle = 'rgba(175,205,225,0.7)'; ctx.font = '600 17px Inter, sans-serif';
+    ctx.fillText(label, L, ry);
+    ctx.fillStyle = color; ctx.font = '800 21px Inter, sans-serif';
+    ctx.fillText(value, L + 182, ry);
+    ry += 38;
   }
+  shadowOff();
 
-  // Category strip: the four ratings in one quiet line
+  // Category tiles: four equal boxes, one tidy row
   const sc = s.scores || {};
   const cats = [['IMPACT', sc.impact != null ? sc.impact : sc.economy], ['POSITIONING', sc.positioning], ['UTILITY', sc.utility], ['AIM', sc.aim]];
-  let cx2 = 50;
+  const bw = 122, bh = 48, gap = 12, by = 452;
+  let bx = L;
   for (const [label, vRaw] of cats) {
     const v = Math.max(0, Math.min(100, Math.round(vRaw || 0)));
-    ctx.fillStyle = 'rgba(160,190,210,0.55)'; ctx.font = '700 13px Inter, sans-serif';
-    ctx.fillText(label, cx2, 500);
-    cx2 += ctx.measureText(label).width + 8;
-    ctx.fillStyle = '#ECF9FF'; ctx.font = '800 14px Inter, sans-serif';
-    ctx.fillText(String(v), cx2, 500);
-    cx2 += ctx.measureText(String(v)).width + 26;
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    rr(ctx, bx, by, bw, bh, 10); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 1;
+    rr(ctx, bx, by, bw, bh, 10); ctx.stroke();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(175,205,225,0.65)'; ctx.font = '700 10.5px Inter, sans-serif';
+    ctx.fillText(label, bx + bw / 2, by + 18);
+    ctx.fillStyle = '#F4FBFF'; ctx.font = '800 19px Inter, sans-serif';
+    ctx.fillText(String(v), bx + bw / 2, by + 40);
+    ctx.textAlign = 'left';
+    bx += bw + gap;
   }
 
-  // Bottom bar: handle left, site right
-  if (cardLogo.naturalWidth) ctx.drawImage(cardLogo, 48, 520, 20, 24);
-  ctx.fillStyle = '#ECF9FF'; ctx.font = '800 20px Inter, sans-serif';
-  ctx.fillText('@' + name.toLowerCase().slice(0, 20), 78, 539);
+  // Bottom bar: full riot tag left, site right, one shared baseline
+  shadowOn();
+  ctx.fillStyle = '#F4FBFF'; ctx.font = '800 19px Inter, sans-serif';
+  ctx.fillText(riot ? riot.slice(0, 26) : name, L, 536);
   ctx.textAlign = 'right';
-  ctx.fillStyle = 'rgba(160,190,210,0.55)'; ctx.font = '700 14px Inter, sans-serif';
-  ctx.fillText('ghostcoachai.com  ·  your AI Valorant coach', W - 48, 539);
+  ctx.fillStyle = 'rgba(175,205,225,0.7)'; ctx.font = '700 14px Inter, sans-serif';
+  ctx.fillText('ghostcoachai.com', W - L, 536);
+  shadowOff();
+  ctx.textAlign = 'left';
   return cv;
 }
 
