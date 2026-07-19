@@ -326,7 +326,50 @@ function matchRow(m) {
     statTile('Assists/Rd', m.apr,         grade('apr', m.apr)),
     statTile('Dmg +/- Rd', dmgVal,        grade('dmg', m.dmgDelta)),
   );
-  detail.append(tiles);
+  const share = document.createElement('div');
+  share.className = 'share-row';
+  const gen = document.createElement('button');
+  gen.className = 'share-btn';
+  gen.textContent = 'Generate card';
+  gen.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    gen.textContent = 'Generating...';
+    let card = null;
+    try { card = await buildMatchCard(m); } catch {}
+    if (!card) { gen.textContent = 'Failed, try again'; return; }
+    gen.remove();
+    const flashBtn = (btn, text) => {
+      const orig = btn.textContent;
+      btn.textContent = text;
+      setTimeout(() => { btn.textContent = orig; }, 1400);
+    };
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'share-btn';
+    saveBtn.textContent = 'Save card';
+    saveBtn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const a = document.createElement('a');
+      a.download = `ghostcoach-${(m.map || 'match').toLowerCase()}-${m.kills}-${m.deaths}.png`;
+      a.href = card.toDataURL('image/png');
+      a.click();
+      flashBtn(saveBtn, 'Saved!');
+    });
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'share-btn';
+    copyBtn.textContent = 'Copy card';
+    copyBtn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      card.toBlob(async (b) => {
+        try {
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': b })]);
+          flashBtn(copyBtn, 'Copied!');
+        } catch { flashBtn(copyBtn, 'Failed'); }
+      });
+    });
+    share.append(saveBtn, copyBtn);
+  });
+  share.append(gen);
+  detail.append(tiles, share);
   row.append(top, detail);
   row.addEventListener('click', () => row.classList.toggle('open'));
   return row;
@@ -471,44 +514,7 @@ function sessionRow(s, i) {
       scores: s.scores, strengths: s.strengths, weaknesses: s.weaknesses,
     });
   });
-  const share = document.createElement('div');
-  share.className = 'share-row';
-  const saveBtn = document.createElement('button');
-  saveBtn.className = 'share-btn';
-  saveBtn.textContent = 'Save card';
-  const copyBtn = document.createElement('button');
-  copyBtn.className = 'share-btn';
-  copyBtn.textContent = 'Copy card';
-  const flashBtn = (btn, text) => {
-    const orig = btn.textContent;
-    btn.textContent = text;
-    setTimeout(() => { btn.textContent = orig; }, 1400);
-  };
-  saveBtn.addEventListener('click', async (e) => {
-    e.stopPropagation();
-    try {
-      const cv = await buildScorecard(s);
-      const a = document.createElement('a');
-      a.download = `ghostcoach-${(s.map || 'session').toLowerCase()}-${s.overall || 0}.png`;
-      a.href = cv.toDataURL('image/png');
-      a.click();
-      flashBtn(saveBtn, 'Saved!');
-    } catch { flashBtn(saveBtn, 'Failed'); }
-  });
-  copyBtn.addEventListener('click', async (e) => {
-    e.stopPropagation();
-    try {
-      const cv = await buildScorecard(s);
-      cv.toBlob(async (b) => {
-        try {
-          await navigator.clipboard.write([new ClipboardItem({ 'image/png': b })]);
-          flashBtn(copyBtn, 'Copied!');
-        } catch { flashBtn(copyBtn, 'Failed'); }
-      });
-    } catch { flashBtn(copyBtn, 'Failed'); }
-  });
-  share.append(saveBtn, copyBtn, ask);
-  detail.append(scores, rl, rp, sl, sp, wl, wp, share);
+  detail.append(scores, rl, rp, sl, sp, wl, wp, ask);
   row.append(top, detail);
   row.addEventListener('click', () => row.classList.toggle('open'));
   return row;
@@ -566,12 +572,11 @@ async function rrChangeForMatch(m) {
   return best && best.change != null ? best.change : null;
 }
 
-async function buildScorecard(s) {
+async function buildMatchCard(m) {
   if (!cardLogo.complete) await new Promise((res) => { cardLogo.onload = res; cardLogo.onerror = res; });
-  const match = matchForSession(s);
-  const rrChange = await rrChangeForMatch(match);
+  const rrChange = await rrChangeForMatch(m);
   const icons = await loadAgentIcons();
-  const entry = icons[String(s.agent || '').toLowerCase()];
+  const entry = icons[String(m.agent || '').toLowerCase()];
   // crossOrigin keeps the canvas exportable; a tainted canvas cannot be saved
   const portrait = entry && entry.portrait ? await new Promise((resolve) => {
     const img = new Image();
@@ -581,6 +586,10 @@ async function buildScorecard(s) {
     img.src = entry.portrait;
   }) : null;
 
+  // Display faces if the player has them installed, Inter otherwise.
+  const DISPLAY = 'Coolvetica, Konnect, Inter, sans-serif';
+  const BODY = 'Inter, sans-serif';
+
   const W = 1000, H = 560, L = 48;   // L = the one left margin everything shares
   const cv = document.createElement('canvas');
   cv.width = W; cv.height = H;
@@ -588,7 +597,6 @@ async function buildScorecard(s) {
   const shadowOn  = () => { ctx.shadowColor = 'rgba(0,0,0,0.85)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 2; };
   const shadowOff = () => { ctx.shadowBlur = 0; ctx.shadowOffsetY = 0; };
 
-  // Near-black base
   const bg = ctx.createLinearGradient(0, 0, W, H);
   bg.addColorStop(0, '#05070c'); bg.addColorStop(1, '#0a0f1a');
   ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
@@ -609,7 +617,6 @@ async function buildScorecard(s) {
     ctx.fill();
   }
 
-  // Agent portrait owns the right side; nothing overlaps it up top anymore
   if (portrait && portrait.naturalWidth) {
     const ph = H + 46;
     const pw = ph * (portrait.naturalWidth / portrait.naturalHeight);
@@ -623,29 +630,29 @@ async function buildScorecard(s) {
     ctx.fillStyle = fade; ctx.fillRect(W * 0.4, 0, W * 0.28, H);
   }
 
-  // Header: THE one ghost logo, wordmark beside it, all top-left
+  // Header: the one ghost logo with the wordmark beside it
   if (cardLogo.naturalWidth) ctx.drawImage(cardLogo, L, 34, 30, 36);
   ctx.textAlign = 'left';
   shadowOn();
-  ctx.fillStyle = '#ECF9FF'; ctx.font = '800 26px Inter, sans-serif';
+  ctx.fillStyle = '#ECF9FF'; ctx.font = '800 26px ' + DISPLAY;
   ctx.fillText('GHOSTCOACH', L + 42, 60);
   const wmW = ctx.measureText('GHOSTCOACH').width;
-  ctx.fillStyle = '#00F0FF'; ctx.font = '700 18px Inter, sans-serif';
+  ctx.fillStyle = '#00F0FF'; ctx.font = '700 18px ' + BODY;
   ctx.fillText('AI', L + 42 + wmW + 9, 60);
 
   // Player name + context line
   const riot = (dashRiotId || '').trim();
   const name = riot.split('#')[0] || 'GhostCoach Player';
-  ctx.fillStyle = '#F4FBFF'; ctx.font = '800 56px Inter, sans-serif';
+  ctx.fillStyle = '#F4FBFF'; ctx.font = '800 56px ' + DISPLAY;
   ctx.fillText(name.slice(0, 16), L, 158);
-  ctx.fillStyle = 'rgba(175,205,225,0.8)'; ctx.font = '700 16px Inter, sans-serif';
-  ctx.fillText([s.agent, s.map, fmtDate(s.at)].filter(Boolean).join('  ·  ').toUpperCase(), L + 2, 190);
+  ctx.fillStyle = 'rgba(175,205,225,0.8)'; ctx.font = '700 16px ' + BODY;
+  ctx.fillText([m.agent, m.map, m.queue, fmtDate(m.startedAt)].filter(Boolean).join('  ·  ').toUpperCase(), L + 2, 190);
   shadowOff();
 
-  // The score pill: number centered, glow matched to grade
-  const overall = Math.round(s.overall || 0);
-  const pillCol = overall >= 70 ? ['#2BE58D', '#19c97a'] : overall >= 55 ? ['#ffd76a', '#eebc3f'] : ['#ff8a95', '#ff5f6e'];
-  const pillW = 190, pillH = 80, pillY = 216;
+  // The pill leads with K/D, the number that travels
+  const kd = m.kd != null ? m.kd : (m.deaths > 0 ? +(m.kills / m.deaths).toFixed(2) : m.kills);
+  const pillCol = kd >= 1.1 ? ['#2BE58D', '#19c97a'] : kd >= 0.9 ? ['#ffd76a', '#eebc3f'] : ['#ff8a95', '#ff5f6e'];
+  const pillW = 200, pillH = 80, pillY = 216;
   const pg = ctx.createLinearGradient(L, 0, L + pillW, 0);
   pg.addColorStop(0, pillCol[0]); pg.addColorStop(1, pillCol[1]);
   ctx.fillStyle = pg;
@@ -653,21 +660,20 @@ async function buildScorecard(s) {
   rr(ctx, L, pillY, pillW, pillH, 16); ctx.fill();
   shadowOff();
   ctx.fillStyle = '#03140b';
-  ctx.font = '800 54px Inter, sans-serif';
+  ctx.font = '800 50px ' + DISPLAY;
   ctx.textAlign = 'center';
-  ctx.fillText(String(overall), L + pillW / 2, pillY + 58);
+  ctx.fillText(kd.toFixed ? kd.toFixed(2) : String(kd), L + pillW / 2, pillY + 56);
   ctx.textAlign = 'left';
   shadowOn();
-  ctx.fillStyle = 'rgba(175,205,225,0.7)'; ctx.font = '700 12.5px Inter, sans-serif';
-  ctx.fillText('COACH SCORE', L + 2, pillY + pillH + 24);
+  ctx.fillStyle = 'rgba(175,205,225,0.7)'; ctx.font = '700 12.5px ' + BODY;
+  ctx.fillText('K/D RATIO', L + 2, pillY + pillH + 24);
   shadowOff();
 
   // MVP chip aligned with the pill's vertical center
-  const mvp = match && match.mvp;
-  if (mvp) {
-    const label = mvp === 'match' ? 'MATCH MVP' : 'TEAM MVP';
-    const gold = mvp === 'match' ? '#ffd76a' : '#cfd8e3';
-    ctx.font = '800 16px Inter, sans-serif';
+  if (m.mvp) {
+    const label = m.mvp === 'match' ? 'MATCH MVP' : 'TEAM MVP';
+    const gold = m.mvp === 'match' ? '#ffd76a' : '#cfd8e3';
+    ctx.font = '800 16px ' + BODY;
     const cw = ctx.measureText(label).width + 40;
     const mx = L + pillW + 18, my = pillY + (pillH - 40) / 2;
     ctx.shadowColor = gold; ctx.shadowBlur = 20;
@@ -680,53 +686,49 @@ async function buildScorecard(s) {
     ctx.fillText(label, mx + 20, my + 26);
   }
 
-  // Stat rows on a fixed two-column grid: labels at L, values at L+182
-  const rows = [];
-  if (match) {
-    rows.push(['RESULT', (match.result === 'Victory' ? 'WIN ' : match.result === 'Defeat' ? 'LOSS ' : '') + match.score,
-      match.result === 'Victory' ? '#2BE58D' : '#ff8a95']);
-    rows.push(['K / D / A', match.kills + ' / ' + match.deaths + ' / ' + match.assists, '#ECF9FF']);
-  } else {
-    rows.push(['SESSION', Math.round(s.durationMin || 0) + ' MIN COACHED', '#ECF9FF']);
-  }
+  // Stat rows on a tight two-column grid: labels at L, values at L+140
+  const rows = [
+    ['RESULT', (m.result === 'Victory' ? 'WIN ' : m.result === 'Defeat' ? 'LOSS ' : 'DRAW ') + m.score,
+      m.result === 'Victory' ? '#2BE58D' : m.result === 'Defeat' ? '#ff8a95' : '#ECF9FF'],
+    ['K / D / A', m.kills + ' / ' + m.deaths + ' / ' + m.assists, '#ECF9FF'],
+  ];
   if (rrChange != null) rows.push(['RR', (rrChange >= 0 ? '+' : '') + rrChange + ' RR', rrChange >= 0 ? '#2BE58D' : '#ff8a95']);
   let ry = 366;
   shadowOn();
   for (const [label, value, color] of rows) {
-    ctx.fillStyle = 'rgba(175,205,225,0.7)'; ctx.font = '600 17px Inter, sans-serif';
+    ctx.fillStyle = 'rgba(175,205,225,0.7)'; ctx.font = '600 17px ' + BODY;
     ctx.fillText(label, L, ry);
-    ctx.fillStyle = color; ctx.font = '800 21px Inter, sans-serif';
-    ctx.fillText(value, L + 182, ry);
+    ctx.fillStyle = color; ctx.font = '800 21px ' + DISPLAY;
+    ctx.fillText(value, L + 140, ry);
     ry += 38;
   }
   shadowOff();
 
-  // Category tiles: four equal boxes, one tidy row
-  const sc = s.scores || {};
-  const cats = [['IMPACT', sc.impact != null ? sc.impact : sc.economy], ['POSITIONING', sc.positioning], ['UTILITY', sc.utility], ['AIM', sc.aim]];
+  // Stat tiles: the tracker numbers that matter, four equal boxes
+  const dd = m.dmgDelta != null ? (m.dmgDelta >= 0 ? '+' : '') + m.dmgDelta : null;
+  const cats = [['ACS', m.acs], ['ADR', m.adr], ['HS%', m.headshotPct != null ? m.headshotPct + '%' : null], ['DMG / RD', dd]];
   const bw = 122, bh = 48, gap = 12, by = 452;
   let bx = L;
   for (const [label, vRaw] of cats) {
-    const v = Math.max(0, Math.min(100, Math.round(vRaw || 0)));
     ctx.fillStyle = 'rgba(255,255,255,0.05)';
     rr(ctx, bx, by, bw, bh, 10); ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 1;
     rr(ctx, bx, by, bw, bh, 10); ctx.stroke();
     ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(175,205,225,0.65)'; ctx.font = '700 10.5px Inter, sans-serif';
+    ctx.fillStyle = 'rgba(175,205,225,0.65)'; ctx.font = '700 10.5px ' + BODY;
     ctx.fillText(label, bx + bw / 2, by + 18);
-    ctx.fillStyle = '#F4FBFF'; ctx.font = '800 19px Inter, sans-serif';
-    ctx.fillText(String(v), bx + bw / 2, by + 40);
+    ctx.fillStyle = '#F4FBFF'; ctx.font = '800 19px ' + DISPLAY;
+    ctx.fillText(vRaw == null ? '·' : String(vRaw), bx + bw / 2, by + 40);
     ctx.textAlign = 'left';
     bx += bw + gap;
   }
 
   // Bottom bar: full riot tag left, site right, one shared baseline
   shadowOn();
-  ctx.fillStyle = '#F4FBFF'; ctx.font = '800 19px Inter, sans-serif';
+  ctx.fillStyle = '#F4FBFF'; ctx.font = '800 19px ' + DISPLAY;
   ctx.fillText(riot ? riot.slice(0, 26) : name, L, 536);
   ctx.textAlign = 'right';
-  ctx.fillStyle = 'rgba(175,205,225,0.7)'; ctx.font = '700 14px Inter, sans-serif';
+  ctx.fillStyle = 'rgba(175,205,225,0.7)'; ctx.font = '700 14px ' + BODY;
   ctx.fillText('ghostcoachai.com', W - L, 536);
   shadowOff();
   ctx.textAlign = 'left';
