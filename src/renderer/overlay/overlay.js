@@ -216,66 +216,16 @@ function speakTip(tip) {
   } catch (e) { console.error('[overlay] voice failed:', e.message); }
 }
 
-// ── Coach Cam ────────────────────────────────────────────────────────────────
-const camEl      = document.getElementById('coachcam');
-const camSideEl  = document.getElementById('cam-side');
-const camScoreEl = document.getElementById('cam-score');
-const camAliveEl = document.getElementById('cam-alive');
-const camReadEl  = document.getElementById('cam-read');
-let camEnabled = false;
-let camCoaching = false;
-let camHasData = false;
-
-function camVisibility() {
-  camEl.hidden = !(camEnabled && camCoaching && camHasData);
-}
-
-function renderCam(c) {
-  if (!c) return;
-  camHasData = !!(c.phase || c.side || c.round);
-  const side = String(c.side || '');
-  camSideEl.textContent = side ? (side.startsWith('att') ? 'ATK' : 'DEF') : '';
-  camSideEl.className = 'cam-side ' + (side.startsWith('att') ? 'atk' : side ? 'def' : '');
-  camScoreEl.textContent = (c.round ? 'R' + c.round + ' ' : '') + (c.team | 0) + '-' + (c.enemy | 0);
-  camAliveEl.innerHTML = '';
-  if (c.mates != null || c.foes != null) {
-    const m = document.createElement('span'); m.className = 'm';
-    m.textContent = '●'.repeat(Math.max(0, Math.min(4, c.mates | 0)) + (c.alive ? 1 : 0));
-    const f = document.createElement('span'); f.className = 'f';
-    f.textContent = '●'.repeat(Math.max(0, Math.min(5, c.foes | 0)));
-    camAliveEl.append(m, ' ', f);
-  }
-  const bits = [];
-  if (!c.alive) bits.push('dead, reviewing');
-  else if (c.read) bits.push(c.read);
-  else if (c.spot) bits.push('enemy ' + c.spot);
-  else if (c.phase === 'buy') bits.push('reading the setup');
-  else if (c.phase === 'postplant') bits.push('post-plant');
-  else if (c.weapon) bits.push(String(c.weapon).toLowerCase());
-  camReadEl.textContent = bits.join(' · ');
-  camVisibility();
-}
-
 // ── Subscriptions ────────────────────────────────────────────────────────────
 window.ghost.onTip((tip) => { addTip(tip); speakTip(tip); });
-window.ghost.onStatus(({ status }) => {
-  setStatus(status);
-  camCoaching = status === 'coaching';
-  if (!camCoaching) camHasData = false;   // stale reads never linger between games
-  camVisibility();
-});
+window.ghost.onStatus(({ status }) => setStatus(status));
 window.ghost.onState((s) => {
   if (s) {
     setStatus(s.status); setTipPosition(s.tipPosition); setTipScale(s.tipScale); setShowTips(s.showTips);
     voiceCfg = { enabled: s.voiceCoach === true, style: s.voiceStyle || 'normal',
                  volume: s.voiceVolume != null ? s.voiceVolume : 0.9 };
-    camEnabled = s.coachCam === true;
-    if (s.coachCamPos) camEl.dataset.pos = s.coachCamPos;
-    camCoaching = s.status === 'coaching' || s.isCoaching === true;
-    camVisibility();
   }
 });
-window.ghost.onCam(renderCam);
 window.ghost.onMatchReview(showReview);
 window.ghost.onVisibility(({ visible }) => {
   document.body.classList.toggle('hidden-overlay', !visible);

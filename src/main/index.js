@@ -89,8 +89,6 @@ function buildState() {
     voiceCoach:      store.get('voiceCoach'),
     voiceStyle:      store.get('voiceStyle'),
     voiceVolume:     store.get('voiceVolume'),
-    coachCam:        store.get('coachCam'),
-    coachCamPos:     store.get('coachCamPos'),
     overlayPosition: store.get('overlayPosition'),
     performanceMode: store.get('performanceMode'),
     licensePlan:     store.get('licensePlan'),
@@ -191,7 +189,6 @@ const controller = {
     // re-validation so a genuinely ended subscription locks fast (and a transient
     // server error does not, since revalidate is authoritative).
     engine.on('auth-suspect', () => revalidateNow());
-    engine.on('context', (cam) => registry.broadcast(C.PUSH_CAM, cam));
 
     state.isCoaching = true;
     state.isPaused   = false;

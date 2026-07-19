@@ -142,7 +142,17 @@ async function renderRankGraph(host) {
   host.append(wrap);
   let res = null;
   try { res = await window.ghost.rankHistory(); } catch {}
-  const points = (res && !res.error && Array.isArray(res.points)) ? res.points : [];
+  let points = (res && !res.error && Array.isArray(res.points)) ? res.points : [];
+  // Placements and act resets make elo leap by hundreds and fake absurd RR
+  // gains (+1535 from "Unrated" to Diamond). Keep only rated games, then cut
+  // at the newest discontinuity so the graph covers one honest stretch, and
+  // report net RR as the sum of per-game changes, what was actually gained.
+  points = points.filter((p) => p.elo > 0 && p.tier && !/unrated|unranked/i.test(p.tier));
+  let startIdx = 0;
+  for (let i = points.length - 1; i > 0; i--) {
+    if (Math.abs(points[i].elo - points[i - 1].elo) > 300) { startIdx = i; break; }
+  }
+  points = points.slice(startIdx);
   if (points.length < 2) { wrap.remove(); return; }
 
   const W = 560, H = 130, PAD = 10;
@@ -152,7 +162,7 @@ async function renderRankGraph(host) {
   const x = (i) => PAD + (i / (points.length - 1)) * (W - PAD * 2);
   const y = (e) => H - PAD - ((e - min) / span) * (H - PAD * 2);
   const path = points.map((p, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(p.elo).toFixed(1)).join(' ');
-  const net = elos[elos.length - 1] - elos[0];
+  const net = points.reduce((sum, p) => sum + (p.change || 0), 0);
   const last = points[points.length - 1];
 
   wrap.innerHTML = `

@@ -59,14 +59,6 @@ volEl.addEventListener('change', () => {
   window.ghost.setConfig({ voiceVolume: Number(volEl.value) / 100 }).catch(() => {});
 });
 
-const camSeg = wireBoolSeg('coachcam', 'coachCam');
-const camposSeg = document.getElementById('campos');
-wireSeg(camposSeg, 'coachCamPos');
-const camSub = document.getElementById('cam-sub');
-camSeg.addEventListener('click', (e) => {
-  const btn = e.target.closest('button');
-  if (btn) camSub.classList.toggle('disabled', btn.dataset.val === 'off');
-});
 
 // Tip size: live label, saved as a ratio (1 = normal).
 const scaleEl = document.getElementById('tipscale');
@@ -172,9 +164,6 @@ async function load() {
       const vv = Math.round((cfg.voiceVolume != null ? cfg.voiceVolume : 0.9) * 100);
       volEl.value = String(vv);
       volLabel.textContent = vv + '%';
-      markSeg(camSeg, cfg.coachCam === true ? 'on' : 'off');
-      markSeg(camposSeg, cfg.coachCamPos || 'bottom-left');
-      camSub.classList.toggle('disabled', cfg.coachCam !== true);
       const pct = Math.round((Number(cfg.tipScale) || 1) * 100);
       scaleEl.value = String(pct);
       scaleLabel.textContent = scaleText(pct);

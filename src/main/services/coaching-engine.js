@@ -68,6 +68,7 @@ class CoachingEngine extends EventEmitter {
     this.analyzedFrames = 0;      // frames analyzed this session (warm-up gate)
     this.lastDeathAt    = 0;      // when the player last died (death-review window)
     this.lastRoundLostAt = 0;     // when the team last lost a round (round-review window)
+    this.aliveFalseStreak = 0;    // consecutive alive:false reads (2 confirm a death)
 
     this.timers = [];
     this.loopTimer = null;
@@ -758,6 +759,16 @@ class CoachingEngine extends EventEmitter {
     const prevEnemy = this.matchContext.enemyScore | 0;
     const prevAlive = this.matchContext.playerAlive;
 
+    // A single alive:false read can be a flashbang, a smoke, or a misread
+    // killcam; the player only counts as dead after TWO consecutive dead
+    // reads (or an explicit dead phase). One noisy frame cannot fake a death.
+    if (updates.playerAlive === false && updates.phase !== 'dead') {
+      this.aliveFalseStreak = (this.aliveFalseStreak || 0) + 1;
+      if (this.aliveFalseStreak < 2 && prevAlive !== false) delete updates.playerAlive;
+    } else if (updates.playerAlive === true || updates.phase === 'active') {
+      this.aliveFalseStreak = 0;
+    }
+
     for (const key of Object.keys(updates)) {
       const v = updates[key];
       if (v === null || v === undefined) continue;
@@ -815,15 +826,6 @@ class CoachingEngine extends EventEmitter {
       this.lastRoundLostAt = Date.now();   // opens the round-review window
     }
 
-    // Live read for the Coach Cam ticker: what the coach believes right now.
-    const mc = this.matchContext;
-    this.emit('context', {
-      side: mc.side, phase: mc.phase, round: mc.roundNumber,
-      team: mc.teamScore | 0, enemy: mc.enemyScore | 0,
-      alive: mc.playerAlive !== false, mates: mc.teammatesAlive, foes: mc.enemiesAlive,
-      weapon: mc.weapon, map: mc.map, agent: mc.agent,
-      read: mc.teamRead || null, spot: mc.enemySpot || null,
-    });
   }
 
   async requestMatchReview() {
