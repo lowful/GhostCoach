@@ -135,13 +135,15 @@ function rankTier(rankValue) {
 const rankNotesEl = document.getElementById('rank-notes');
 
 // ── Rank journey graph: competitive RR movement, drawn as an SVG line ────────
-async function renderRankGraph(host) {
+async function renderRankGraph(host, opts) {
+  const old = host.querySelector('.rank-graph');
+  if (old) old.remove();
   const wrap = document.createElement('div');
   wrap.className = 'rank-graph';
   wrap.innerHTML = '<div class="rg-loading">Loading your rank journey...</div>';
-  host.append(wrap);
+  host.prepend(wrap);
   let res = null;
-  try { res = await window.ghost.rankHistory(); } catch {}
+  try { res = await window.ghost.rankHistory(!!(opts && opts.force)); } catch {}
   let points = (res && !res.error && Array.isArray(res.points)) ? res.points : [];
   // Placements and act resets make elo leap by hundreds and fake absurd RR
   // gains (+1535 from "Unrated" to Diamond). Keep only rated games, then cut
@@ -351,7 +353,7 @@ function renderMatches(res) {
     return;
   }
   matchEmptyEl.hidden = true;
-  for (const m of matches) if (m.id) knownMatches.set(m.id, { startedAt: m.startedAt, map: m.map, mvp: m.mvp });
+  for (const m of matches) if (m.id) knownMatches.set(m.id, m);
   annotateSessionMvps();
   matches.forEach((m, i) => {
     const r = matchRow(m);
@@ -371,6 +373,8 @@ refreshBtn.addEventListener('click', async () => {
     if (seq === matchSeq && (!res.mode || res.mode === matchMode)) renderMatches(res);
   } catch {}
   refreshDashboardForMode(matchMode, true);   // agents + overview stay fresh too
+  rrPointsCache = null;                       // RR moved? scorecards see it fresh
+  if (!rankNotesEl.hidden) renderRankGraph(rankNotesEl, { force: true });
   tickRefresh();
 });
 
@@ -524,121 +528,191 @@ function rr(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-function mvpForSession(s) {
+function matchForSession(s) {
   const start = (s.at || 0) - ((s.durationMin || 0) + 20) * 60000;
   const end   = (s.at || 0) + 10 * 60000;
+  let best = null;
   for (const m of knownMatches.values()) {
-    if (!m.mvp || !m.startedAt || m.startedAt < start || m.startedAt > end) continue;
+    if (!m.startedAt || m.startedAt < start || m.startedAt > end) continue;
     if (s.map && m.map && s.map !== m.map) continue;
-    return m.mvp;
+    if (!best || m.startedAt > best.startedAt) best = m;
   }
-  return null;
+  return best;
+}
+function mvpForSession(s) {
+  const m = matchForSession(s);
+  return m ? m.mvp || null : null;
+}
+
+// Competitive RR change for a match, from the rank history points (nearest
+// game within 45 minutes). Cached per window; Refresh clears it.
+let rrPointsCache = null;
+async function rrPoints(force) {
+  if (rrPointsCache && !force) return rrPointsCache;
+  try {
+    const r = await window.ghost.rankHistory(force);
+    rrPointsCache = (r && !r.error && Array.isArray(r.points)) ? r.points : [];
+  } catch { rrPointsCache = []; }
+  return rrPointsCache;
+}
+async function rrChangeForMatch(m) {
+  if (!m || !m.startedAt || m.queue !== 'Competitive') return null;
+  const pts = await rrPoints();
+  let best = null;
+  for (const p of pts) {
+    if (!p.date || Math.abs(p.date - m.startedAt) > 45 * 60000) continue;
+    if (!best || Math.abs(p.date - m.startedAt) < Math.abs(best.date - m.startedAt)) best = p;
+  }
+  return best && best.change != null ? best.change : null;
 }
 
 async function buildScorecard(s) {
   if (!cardLogo.complete) await new Promise((res) => { cardLogo.onload = res; cardLogo.onerror = res; });
+  const match = matchForSession(s);
+  const rrChange = await rrChangeForMatch(match);
+  const icons = await loadAgentIcons();
+  const entry = icons[String(s.agent || '').toLowerCase()];
+  // crossOrigin keeps the canvas exportable; a tainted canvas cannot be saved
+  const portrait = entry && entry.portrait ? await new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = entry.portrait;
+  }) : null;
+
   const W = 1000, H = 560;
   const cv = document.createElement('canvas');
   cv.width = W; cv.height = H;
   const ctx = cv.getContext('2d');
 
-  // Deep glass background with red and cyan glow washes
+  // Near-black base, PnL-card energy
   const bg = ctx.createLinearGradient(0, 0, W, H);
-  bg.addColorStop(0, '#0a1119'); bg.addColorStop(1, '#0f1c2a');
+  bg.addColorStop(0, '#05070c'); bg.addColorStop(1, '#0a0f1a');
   ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-  const blob = (x, y, r, color) => {
-    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-    g.addColorStop(0, color); g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-  };
-  blob(W - 150, 80, 360, 'rgba(255,70,85,0.18)');
-  blob(130, H - 60, 340, 'rgba(0,240,255,0.11)');
-  ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 2;
-  rr(ctx, 14, 14, W - 28, H - 28, 26); ctx.stroke();
 
-  // Header: logo, wordmark, date
-  if (cardLogo.naturalWidth) ctx.drawImage(cardLogo, 46, 38, 34, 40);
-  ctx.textAlign = 'left';
-  ctx.fillStyle = '#ECF9FF'; ctx.font = '800 26px Inter, sans-serif';
-  ctx.fillText('GHOSTCOACH', 94, 64);
-  ctx.fillStyle = 'rgba(160,190,210,0.6)'; ctx.font = '700 13px Inter, sans-serif';
-  ctx.fillText('AI COACHED SESSION', 95, 86);
+  // Angular shards on the right, randomized so every card is one of one
+  for (let i = 0; i < 8; i++) {
+    const sx = W * 0.5 + Math.random() * W * 0.5;
+    const sy = Math.random() * H;
+    const ang = Math.random() * Math.PI * 2;
+    const len = 140 + Math.random() * 260;
+    const wid = 16 + Math.random() * 46;
+    ctx.fillStyle = ['rgba(52,74,140,0.20)', 'rgba(255,70,85,0.10)', 'rgba(0,240,255,0.08)'][i % 3];
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(sx + Math.cos(ang) * len, sy + Math.sin(ang) * len);
+    ctx.lineTo(sx + Math.cos(ang + 0.22) * (len * 0.72) + wid, sy + Math.sin(ang + 0.22) * (len * 0.72));
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Agent portrait anchored right, melting into the dark
+  if (portrait && portrait.naturalWidth) {
+    const ph = H + 70;
+    const pw = ph * (portrait.naturalWidth / portrait.naturalHeight);
+    ctx.save();
+    ctx.globalAlpha = 0.94;
+    ctx.drawImage(portrait, W - pw * 0.86, H - ph + 26, pw, ph);
+    ctx.restore();
+    const fade = ctx.createLinearGradient(W * 0.42, 0, W * 0.7, 0);
+    fade.addColorStop(0, 'rgba(5,7,12,0.96)');
+    fade.addColorStop(1, 'rgba(5,7,12,0)');
+    ctx.fillStyle = fade; ctx.fillRect(W * 0.42, 0, W * 0.28, H);
+  }
+
+  // Header: ghost logo left, wordmark right
+  if (cardLogo.naturalWidth) ctx.drawImage(cardLogo, 46, 34, 36, 42);
   ctx.textAlign = 'right';
-  ctx.fillText((fmtDate(s.at) || '').toUpperCase(), W - 50, 64);
+  ctx.fillStyle = '#ECF9FF'; ctx.font = '800 30px Inter, sans-serif';
+  ctx.fillText('GHOSTCOACH', W - 92, 64);
+  ctx.fillStyle = '#00F0FF'; ctx.font = '700 20px Inter, sans-serif';
+  ctx.fillText('AI', W - 50, 64);
 
-  // The big number
-  const overall = Math.round(s.overall || 0);
-  const gradeWord  = overall >= 85 ? 'ELITE' : overall >= 70 ? 'STRONG' : overall >= 55 ? 'SOLID' : 'GRINDING';
-  const scoreColor = overall >= 70 ? '#4fd394' : overall >= 55 ? '#e8d27a' : '#ff8a95';
+  // Player name, huge, then agent and map under it
+  const name = (dashRiotId || '').split('#')[0] || 'GhostCoach Player';
   ctx.textAlign = 'left';
-  ctx.fillStyle = scoreColor;
-  ctx.font = '800 170px Inter, sans-serif';
-  ctx.shadowColor = scoreColor; ctx.shadowBlur = 46;
-  ctx.fillText(String(overall), 48, 316);
-  ctx.shadowBlur = 0;
-  ctx.font = '800 32px Inter, sans-serif';
-  ctx.fillText(gradeWord, 54, 366);
-  ctx.fillStyle = 'rgba(160,190,210,0.65)'; ctx.font = '700 14px Inter, sans-serif';
-  ctx.fillText('SESSION SCORE', 55, 392);
+  ctx.fillStyle = '#F4FBFF'; ctx.font = '800 54px Inter, sans-serif';
+  ctx.fillText(name.slice(0, 16), 48, 168);
+  ctx.fillStyle = 'rgba(160,190,210,0.65)'; ctx.font = '700 16px Inter, sans-serif';
+  ctx.fillText([s.agent, s.map, fmtDate(s.at)].filter(Boolean).join('  ·  ').toUpperCase(), 50, 198);
 
-  // Category bars
+  // The money pill: coach score on a bright gradient with the ghost inside
+  const overall = Math.round(s.overall || 0);
+  const pillCol = overall >= 70 ? ['#2BE58D', '#19c97a'] : overall >= 55 ? ['#ffd76a', '#eebc3f'] : ['#ff8a95', '#ff5f6e'];
+  ctx.font = '800 56px Inter, sans-serif';
+  const pillW = ctx.measureText(String(overall)).width + 150;
+  const pg = ctx.createLinearGradient(48, 0, 48 + pillW, 0);
+  pg.addColorStop(0, pillCol[0]); pg.addColorStop(1, pillCol[1]);
+  ctx.fillStyle = pg;
+  ctx.shadowColor = pillCol[0]; ctx.shadowBlur = 36;
+  rr(ctx, 48, 222, pillW, 82, 16); ctx.fill();
+  ctx.shadowBlur = 0;
+  if (cardLogo.naturalWidth) ctx.drawImage(cardLogo, 66, 238, 40, 48);
+  ctx.fillStyle = '#03140b';
+  ctx.font = '800 56px Inter, sans-serif';
+  ctx.fillText(String(overall), 122, 286);
+  ctx.fillStyle = 'rgba(160,190,210,0.6)'; ctx.font = '700 13px Inter, sans-serif';
+  ctx.fillText('COACH SCORE', 50, 326);
+
+  // MVP chip beside the pill, gold and glowing
+  const mvp = match && match.mvp;
+  if (mvp) {
+    const label = mvp === 'match' ? 'MATCH MVP' : 'TEAM MVP';
+    const gold = mvp === 'match' ? '#ffd76a' : '#cfd8e3';
+    ctx.font = '800 17px Inter, sans-serif';
+    const cw = ctx.measureText(label).width + 40;
+    const mx = 48 + pillW + 18;
+    ctx.shadowColor = gold; ctx.shadowBlur = 22;
+    ctx.fillStyle = 'rgba(255,215,106,0.10)';
+    rr(ctx, mx, 244, cw, 40, 20); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = gold; ctx.lineWidth = 2;
+    rr(ctx, mx, 244, cw, 40, 20); ctx.stroke();
+    ctx.fillStyle = gold;
+    ctx.fillText(label, mx + 20, 271);
+  }
+
+  // Stat rows, label muted left / value bold, PnL style
+  const rows = [];
+  if (match) {
+    rows.push(['RESULT', (match.result === 'Victory' ? 'WIN ' : match.result === 'Defeat' ? 'LOSS ' : '') + match.score,
+      match.result === 'Victory' ? '#2BE58D' : '#ff8a95']);
+    rows.push(['K / D / A', match.kills + ' / ' + match.deaths + ' / ' + match.assists, '#ECF9FF']);
+  } else {
+    rows.push(['SESSION', Math.round(s.durationMin || 0) + ' MIN COACHED', '#ECF9FF']);
+  }
+  if (rrChange != null) rows.push(['RR', (rrChange >= 0 ? '+' : '') + rrChange + ' RR', rrChange >= 0 ? '#2BE58D' : '#ff8a95']);
+  let ry = 372;
+  for (const [label, value, color] of rows) {
+    ctx.fillStyle = 'rgba(160,190,210,0.7)'; ctx.font = '600 19px Inter, sans-serif';
+    ctx.fillText(label, 50, ry);
+    ctx.fillStyle = color; ctx.font = '800 22px Inter, sans-serif';
+    ctx.fillText(value, 240, ry);
+    ry += 42;
+  }
+
+  // Category strip: the four ratings in one quiet line
   const sc = s.scores || {};
-  const cats = [
-    ['IMPACT', sc.impact != null ? sc.impact : sc.economy],
-    ['POSITIONING', sc.positioning], ['UTILITY', sc.utility], ['AIM', sc.aim],
-  ];
-  let y = 178;
+  const cats = [['IMPACT', sc.impact != null ? sc.impact : sc.economy], ['POSITIONING', sc.positioning], ['UTILITY', sc.utility], ['AIM', sc.aim]];
+  let cx2 = 50;
   for (const [label, vRaw] of cats) {
     const v = Math.max(0, Math.min(100, Math.round(vRaw || 0)));
-    ctx.textAlign = 'left';
-    ctx.fillStyle = 'rgba(180,205,220,0.8)'; ctx.font = '700 15px Inter, sans-serif';
-    ctx.fillText(label, 565, y - 12);
-    ctx.textAlign = 'right';
-    ctx.fillStyle = '#ECF9FF'; ctx.font = '800 18px Inter, sans-serif';
-    ctx.fillText(String(v), W - 62, y - 12);
-    ctx.fillStyle = 'rgba(255,255,255,0.10)';
-    rr(ctx, 565, y, W - 62 - 565, 10, 5); ctx.fill();
-    if (v > 0) {
-      const grad = ctx.createLinearGradient(565, 0, W - 62, 0);
-      grad.addColorStop(0, '#FF4655'); grad.addColorStop(1, '#00F0FF');
-      ctx.fillStyle = grad;
-      rr(ctx, 565, y, Math.max(10, (W - 62 - 565) * v / 100), 10, 5); ctx.fill();
-    }
-    y += 60;
+    ctx.fillStyle = 'rgba(160,190,210,0.55)'; ctx.font = '700 13px Inter, sans-serif';
+    ctx.fillText(label, cx2, 500);
+    cx2 += ctx.measureText(label).width + 8;
+    ctx.fillStyle = '#ECF9FF'; ctx.font = '800 14px Inter, sans-serif';
+    ctx.fillText(String(v), cx2, 500);
+    cx2 += ctx.measureText(String(v)).width + 26;
   }
 
-  // Bottom row: match chips + MVP badge
-  let cx = 48;
-  const chip = (text, color, glow) => {
-    ctx.font = '800 15px Inter, sans-serif';
-    const w = ctx.measureText(text).width + 34;
-    ctx.fillStyle = 'rgba(255,255,255,0.06)';
-    if (glow) { ctx.shadowColor = color; ctx.shadowBlur = 18; }
-    rr(ctx, cx, 442, w, 36, 18); ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = color; ctx.lineWidth = 1.5;
-    rr(ctx, cx, 442, w, 36, 18); ctx.stroke();
-    ctx.fillStyle = color;
-    ctx.textAlign = 'left';
-    ctx.fillText(text, cx + 17, 466);
-    cx += w + 12;
-  };
-  if (s.map)   chip(s.map, 'rgba(200,225,240,0.9)');
-  if (s.agent) chip(s.agent, 'rgba(200,225,240,0.9)');
-  if (s.durationMin) chip(Math.round(s.durationMin) + ' min', 'rgba(160,190,210,0.7)');
-  const mvp = mvpForSession(s);
-  if (mvp) chip(mvp === 'match' ? 'MATCH MVP' : 'TEAM MVP', mvp === 'match' ? '#ffd76a' : '#cfd8e3', true);
-
-  // Coach's one-liner + watermark
-  const line = String(s.summary || '').split(/(?<=\.)\s/)[0].slice(0, 96);
-  if (line) {
-    ctx.fillStyle = 'rgba(190,215,230,0.75)'; ctx.font = 'italic 600 15px Inter, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText('"' + line + '"', 48, 512);
-  }
+  // Bottom bar: handle left, site right
+  if (cardLogo.naturalWidth) ctx.drawImage(cardLogo, 48, 520, 20, 24);
+  ctx.fillStyle = '#ECF9FF'; ctx.font = '800 20px Inter, sans-serif';
+  ctx.fillText('@' + name.toLowerCase().slice(0, 20), 78, 539);
   ctx.textAlign = 'right';
-  ctx.fillStyle = 'rgba(160,190,210,0.5)'; ctx.font = '700 13px Inter, sans-serif';
-  ctx.fillText('ghostcoachai.com', W - 50, 516);
+  ctx.fillStyle = 'rgba(160,190,210,0.55)'; ctx.font = '700 14px Inter, sans-serif';
+  ctx.fillText('ghostcoachai.com  ·  your AI Valorant coach', W - 48, 539);
   return cv;
 }
 
@@ -667,15 +741,17 @@ let agentIconMap = null;
 async function loadAgentIcons() {
   if (agentIconMap) return agentIconMap;
   try {
-    const cached = JSON.parse(localStorage.getItem('agentIcons') || 'null');
+    const cached = JSON.parse(localStorage.getItem('agentIcons2') || 'null');
     if (cached && cached.map && Date.now() - cached.at < 7 * 24 * 3600000) return (agentIconMap = cached.map);
   } catch {}
   try {
     const r = await fetch('https://valorant-api.com/v1/agents?isPlayableCharacter=true');
     const j = await r.json();
     const map = {};
-    for (const a of (j && j.data) || []) map[String(a.displayName).toLowerCase()] = a.displayIcon;
-    localStorage.setItem('agentIcons', JSON.stringify({ at: Date.now(), map }));
+    for (const a of (j && j.data) || []) {
+      map[String(a.displayName).toLowerCase()] = { icon: a.displayIcon, portrait: a.fullPortrait };
+    }
+    localStorage.setItem('agentIcons2', JSON.stringify({ at: Date.now(), map }));
     return (agentIconMap = map);
   } catch {
     return (agentIconMap = {});
@@ -699,7 +775,8 @@ async function renderAgents(topAgents) {
     const tile = document.createElement('div');
     tile.className = 'agent-tile';
     tile.style.animationDelay = (i * 70) + 'ms';
-    const url = icons[String(a.name || '').toLowerCase()];
+    const entry = icons[String(a.name || '').toLowerCase()];
+    const url = entry && entry.icon;
     let icon;
     if (url) {
       icon = document.createElement('img');
@@ -751,10 +828,12 @@ async function refreshDashboardForMode(mode, force) {
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
+let dashRiotId = '';
 async function load() {
   try {
     const d = await window.ghost.getDashboard(matchMode);
     if (!d) return;
+    if (typeof d.riotId === 'string') dashRiotId = d.riotId;
     renderCards(d);
     renderAgents(d.topAgents);
     renderMatches(d.matches);

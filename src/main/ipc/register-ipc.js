@@ -52,7 +52,7 @@ function registerIpc(deps) {
   safeHandle(C.STATS_DASHBOARD, async (_e, mode, force) => controller.getStatsDashboard(mode, force));
   safeHandle(C.STATS_REFRESH, async (_e, mode) => controller.getMatches(true, mode));
   safeHandle(C.STATS_MATCHES, async (_e, mode) => controller.getMatches(false, mode));
-  safeHandle(C.STATS_RANK_HISTORY, async () => controller.getRankHistory());
+  safeHandle(C.STATS_RANK_HISTORY, async (_e, force) => controller.getRankHistory(force));
   safeHandle(C.CHAT_SEED, async () => controller.takeChatSeed());
 
   // ── fire-and-forget commands ──────────────────────────────────────────────
@@ -88,6 +88,9 @@ function snapshotConfig() {
     tipScale:        store.get('tipScale'),
     showTips:        store.get('showTips'),
     beginnerTips:    store.get('beginnerTips'),
+    voiceCoach:      store.get('voiceCoach'),
+    voiceStyle:      store.get('voiceStyle'),
+    voiceVolume:     store.get('voiceVolume'),
     panelMinimized:  store.get('panelMinimized'),
   };
 }

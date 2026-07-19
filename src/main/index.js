@@ -229,8 +229,10 @@ const controller = {
           engine.playerNotes.slice(-20));   // observed facts keep the grading honest
       }
       // The match just played should show in stats right away, not after a
-      // cache window; drop the buckets so the next dashboard look refetches.
+      // cache window; drop the caches so the next dashboard look refetches,
+      // and the rank journey moves with the fresh RR.
       matchesClient = { competitive: emptyMatchBucket(), unrated: emptyMatchBucket() };
+      rankHistCache = { at: 0, riotId: '', data: null };
     }
     // Archive the session before tearing the engine down (mix + memory live there).
     saveSessionArchive(engine ? {
@@ -330,10 +332,10 @@ const controller = {
    *  performance log, rank/win-rate from the tracker profile, and the recent
    *  match list (server-cached 15 min, client-cached alongside). */
   /** Competitive RR journey for the rank drop-down graph, cached 5 minutes. */
-  async getRankHistory() {
+  async getRankHistory(force) {
     const riotId = (store.get('riotId') || '').trim();
     if (!riotId.includes('#')) return { error: 'no-riot-id' };
-    if (rankHistCache.data && rankHistCache.riotId === riotId && Date.now() - rankHistCache.at < 5 * 60 * 1000) {
+    if (!force && rankHistCache.data && rankHistCache.riotId === riotId && Date.now() - rankHistCache.at < 5 * 60 * 1000) {
       return rankHistCache.data;
     }
     try {
@@ -376,6 +378,7 @@ const controller = {
       sessions: perf.slice(-15).reverse(),   // newest first for the list
       sessionCount: perf.length,
       matches: await this.getMatches(false, m),
+      riotId: (store.get('riotId') || '').trim(),
       riotConnected: (store.get('riotId') || '').includes('#'),
     };
   },
@@ -557,7 +560,7 @@ async function fetchUnratedStats(force) {
     return unratedStatsCache.data;
   }
   try {
-    const { ok, data } = await api.get('/api/coach/player-stats?mode=unrated&username=' + encodeURIComponent(riotId), store.get('licenseKey'), 15000);
+    const { ok, data } = await api.get('/api/coach/player-stats?mode=unrated&username=' + encodeURIComponent(riotId), store.get('licenseKey'), 22000);
     const stats = ok && data && !data.error ? data : null;
     if (stats) unratedStatsCache = { at: Date.now(), riotId, data: stats };
     return stats || (unratedStatsCache.riotId === riotId ? unratedStatsCache.data : null);
