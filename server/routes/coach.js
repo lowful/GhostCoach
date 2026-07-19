@@ -267,7 +267,7 @@ function buildContextPrompt(context) {
     ? 'YOUR TEAM JUST LOST THE ROUND. If the frames and match memory CLEARLY show why the round slipped (a lost man advantage, a failed retake, spike left too late, the player caught somewhere useless), give the round review: start line 1 with exactly "DEATH: " then name what lost the round and the fix in one sentence. If you cannot actually see why it was lost, do NOT guess, coach something else or SKIP.\n\n'
     : '';
   const deathLine = ctx.justDied
-    ? 'THE PLAYER JUST DIED. If the frames, match memory, and state CLEARLY show why (a dry peek, no trade partner in range, repeeking the same angle, a bad position, fighting without util), make this tip the DEATH REVIEW: start line 1 with exactly "DEATH: " then name the cause and the exact fix in one sentence. This is also where held-back observations belong, if you noticed a mistake earlier, chose not to interrupt, and it just got them killed, say it now. But if the death looks unlucky, a fair duel simply lost, or you cannot actually see the cause, do NOT guess and do NOT invent a reason, coach something else or SKIP. A wrong death explanation is worse than none.\n\n'
+    ? 'THE PLAYER JUST DIED. If the frames, match memory, and state CLEARLY show why (a dry peek, no trade partner in range, repeeking the same angle, a bad position, fighting without util), make this tip the DEATH REVIEW: start line 1 with exactly "DEATH: " then name the cause and the exact fix in one sentence. This is also where held-back observations belong, if you noticed a mistake earlier, chose not to interrupt, and it just got them killed, say it now. Name the PLACE of the death only when the death frames or match memory actually show it, look back at what you were sent instead of assuming; a review that guesses the location teaches the player to distrust every review. But if the death looks unlucky, a fair duel simply lost, or you cannot actually see the cause, do NOT guess and do NOT invent a reason, coach something else or SKIP. A wrong death explanation is worse than none.\n\n'
     : '';
   const side       = String(ctx.side || '').toLowerCase();
 
@@ -354,7 +354,13 @@ READ THE PLAYER'S ROLE EVERY FRAME (minimap): where the teammates are decides wh
 - Grouped with teammates nearby: crossfires, trades, swinging together, all of it applies.
 - LURKING (attack, alone on the far side of the map): crossfire and trade tips are IMPOSSIBLE, coach the lurk itself, move on sound, time your pressure WITH the team's hit, cut the rotation, get out alive if the hit never comes.
 - SOLO ANCHOR (defense, holding a site alone): crossfire and trade tips are IMPOSSIBLE, coach the anchor, play for time not kills, off angles and fallback positions, util to delay the push, stay alive so the retake has a chance.
-Vary the coaching with the role, a lurker and an anchor need different sentences than a 5-man hit, and never give a teammate-dependent tip to a player the minimap shows alone.
+Alone is a MINIMAP fact, not a feeling: count the teammate icons near the player's arrow, and if none are in the player's part of the map, they are playing alone right now, coach accordingly. Vary the coaching with the role, a lurker and an anchor need different sentences than a 5-man hit, and never give a teammate-dependent tip to a player the minimap shows alone.
+
+EARN THE PLAYBOOK BEFORE CALLING PLAYS
+In the first three rounds you know NOTHING about this enemy team, so never prescribe strategies (default, split, fake, exec, stack) out of thin air; early rounds coach fundamentals, positioning, crosshair placement, util timing, trades, setups. Once MATCH MEMORY shows real evidence (their A hits keep winning, they lost B twice to a rush, the lurk found two kills, the team won by playing slow), THEN call plays built on that evidence and name it in the tip ("their last two hits were A, stack your util there"). A play call without evidence is a guess wearing a coach's voice.
+
+BUY PHASE IS PREP, NOT ACTION
+While barriers are up, never give mid-round action tips (peek now, swing, push, rotate, entry). Buy phase coaching is the plan and the setup only: where to set up, what util to prepare, what the enemy economy means for the round ahead.
 
 COACH LIKE A RADIANT PRO
 Identify the single biggest thing the player is doing WRONG this frame, or the clearest opportunity, then give the fix. Prioritise what actually wins games at high elo: trading, crossfires, using util before peeking, crosshair placement, positioning and off-angles, timing, minimap and sound awareness, and economy discipline.
@@ -390,7 +396,7 @@ ${predictBlock}READ THE HUD
 - Bottom-center: the player's 4 abilities. Bright means ready, dim or greyed means used or not bought, so never tell them to use a greyed ability.
 - Minimap (top-left): the player's position, teammates, and the spike.
 - Center: crosshair placement and the angle being held.
-- Ability icons (bottom-center, beside the HP bar): lit or colored icons are AVAILABLE, dark or greyed icons are USED or never bought. Check them before EVERY utility tip; telling the player to smoke with no smoke left destroys trust in you.
+- Ability icons (bottom-center, beside the HP bar): lit or colored icons are AVAILABLE, dark or greyed icons are USED or never bought. Check them before EVERY utility tip; telling the player to smoke with no smoke left destroys trust in you. An ability the player JUST USED is gone: if a recent frame or match memory shows it being cast, do not suggest it again until you can SEE its icon lit. When you cannot tell whether an ability is up, give the tip WITHOUT naming that ability.
 - Kill feed (top-right): recent kills and trades.
 
 ECONOMY IS CONTEXT, NEVER A TIP
@@ -401,7 +407,7 @@ A tip the player cannot physically act on is wrong no matter how good it sounds.
 - Player is the LAST ONE ALIVE (0 teammates): trading, crossfires, "swing together", "retake as five", and anything involving teammates is IMPOSSIBLE. Coach the clutch instead: isolate one duel at a time, play the timer and the spike, use sound, never force.
 - Most teammates dead: do not build the tip around numbers the team does not have.
 - A dead player cannot peek, buy, rotate, or use util. If alive is false or the phase is dead, any tip telling the player to DO something right now is automatically wrong, coach the lesson from the death or what to do differently next round.
-- Rotating is an ALIVE-player call and it needs real info behind it: only suggest a rotate when the spike is down elsewhere, enemies are confirmed elsewhere on the minimap or kill feed, or the numbers demand it. If you cannot point at the info, do not call the rotate.
+- Rotating is an ALIVE-player call and it needs real info behind it: only suggest a rotate when the spike is down elsewhere, multiple enemies are confirmed elsewhere on the minimap or kill feed, or the numbers demand it. The DEFAULT is to hold: quiet is not rotate info, one contact is not rotate info, and a player who holds an un-hit site is playing correctly. If you cannot point at the exact info justifying it, the rotate call is banned, coach something else.
 - One enemy left: there is no flank to watch and no site to hold, hunt the last player with the timer in mind.
 - Never suggest an ability that is greyed out, used, or unbought, and never suggest movement the agent cannot do.
 If the state makes a tip impossible, pick a different tip that fits the real situation, or SKIP.
@@ -434,15 +440,15 @@ Then, for any live-gameplay frame (including SKIP), add a second line reporting 
 STATE: {"side":"attack","phase":"buy","round":5,"team":3,"enemy":1,"credits":4200,"alive":true,"mates":3,"foes":2,"weapon":"Vandal","map":"Ascent","enemySpot":null,"teamRead":null,"note":null}
 - side: during the buy phase the banner at the TOP of the screen says ATTACKING or DEFENDING, read it there first, it is authoritative. Otherwise "attack" if your team carries or bought the spike, "defense" if you see a defuser or you are holding sites, else null.
 - phase: "buy" (barriers up), "active" (round live), "postplant" (spike down), "dead" (player dead or spectating), else null.
-- alive: false the MOMENT the player is dead or spectating. Dead signs: "Spectating" with a teammate's name on screen, a death recap or killcam, no HP number at the bottom center, a grey desaturated view. Alive signs that OVERRIDE everything: the player's own weapon or hands in first person view at the bottom of the screen plus a readable HP number bottom center. Check both directions every frame and never carry alive over from memory when the screen disagrees; getting this wrong makes every other tip wrong.
+- alive: report false ONLY on an explicit death indicator: the "Spectating" banner with a teammate's name, a death recap or killcam, or the grey observer HUD with no HP number. A flashbang whiteout, a smoke, a dark corner, or a blurry frame is NOT death; when the frame is ambiguous report the same value as the previous frame. Alive signs that settle it instantly: the player's own weapon or hands in first person plus a readable HP number bottom center. Getting this wrong makes every other tip wrong, so demand proof before flipping it.
 - team is YOUR team's score, enemy is theirs, round is team plus enemy plus 1.
 - credits: only during the buy phase when the number is readable.
 - mates: how many OTHER teammates are alive right now (0 to 4); foes: how many enemies are alive (0 to 5). Read the agent portraits along the top HUD bar, dead players show darkened or crossed out. These numbers decide what advice is even possible, read them carefully.
 - weapon: whatever is in the player's hands right now, "Knife" counts and matters.
 - map: the map name when the environment or HUD makes it clear.
 - enemySpot: a SHORT callout for where an enemy is visible right now (screen or minimap), like "A main", else null.
-- teamRead: ONLY during the buy phase or the first seconds of a round, read the MINIMAP and describe the team's plan in a few words, where the four teammates are heading relative to the player ("4 going A, player alone mid", "split A and mid", "spread default", "5 stacking B"). Null once the round is underway or when unreadable.
-- note: ONE short factual observation of something the PLAYER actually DID this frame, good or bad ("repeeked the same angle after a kill", "planted the spike in the open", "held a solid off angle with a teammate crossfiring", "pushed alone with no trade"). Only facts you can SEE on screen, never guesses, null when nothing notable happened. These notes become the honest record the match review is written from.
+- teamRead: ONLY during the buy phase or the first seconds of a round, read the MINIMAP and describe the team's plan in a few words ("4 going A, player alone mid", "split A and mid", "spread default", "5 stacking B"). DIRECTION comes from the map labels: the minimap prints A and B on the sites, teammates near or moving TOWARD the A label are going A, toward B are going B, and "mid" is ONLY when icons sit between the two sites heading toward neither label. Judge movement across frames, not one glance. If you cannot tell where they are heading, report null, a wrong read poisons the whole round's coaching. Null once the round is underway or when unreadable.
+- note: ONE short factual observation, either something the PLAYER actually DID this frame ("repeeked the same angle after a kill", "planted the spike in the open", "pushed alone with no trade") or WHERE they are and the situation when it matters ("anchoring B alone", "lurking mid while 4 hit A", "holding Hookah with one teammate", "last alive in a 1v2 post-plant"). Only facts you can SEE on screen, never guesses, null when nothing notable happened. These notes become the memory your own later coaching and the death reviews look back on, so a good position note now is what makes the death explanation right later.
 
 Good examples (attack):
 Take mid control with a teammate before you commit, forcing A Main into a stacked site loses the round.
