@@ -644,7 +644,7 @@ async function buildMatchCard(m) {
     ? new Date(m.startedAt).toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase()
     : null;
   ctx.fillStyle = 'rgba(175,205,225,0.8)'; ctx.font = '500 15px ' + BODY;
-  ctx.fillText([m.agent, m.map, m.queue, dateStr].filter(Boolean).join('  ·  ').toUpperCase(), L + 2, 190);
+  ctx.fillText([m.agent, m.map, m.queue, dateStr].filter(Boolean).join('  ·  ').toUpperCase(), L + 2, 196);
   shadowOff();
 
   // The pill leads with the GhostCoach match rating (0-100, tracker-derived)
@@ -654,7 +654,7 @@ async function buildMatchCard(m) {
   const pg = ctx.createLinearGradient(L, 0, L + pillW, 0);
   pg.addColorStop(0, pillCol[0]); pg.addColorStop(1, pillCol[1]);
   ctx.fillStyle = pg;
-  ctx.shadowColor = pillCol[0]; ctx.shadowBlur = 30;
+  ctx.shadowColor = pillCol[0]; ctx.shadowBlur = 24;
   rr(ctx, L, pillY, pillW, pillH, 16); ctx.fill();
   shadowOff();
   ctx.save();
@@ -662,9 +662,6 @@ async function buildMatchCard(m) {
   ctx.translate(L + pillW / 2, pillY + 57);
   ctx.transform(1, 0, -0.12, 1, 0, 0);   // speed-italic slant
   ctx.font = '900 54px ' + DISPLAY;
-  ctx.strokeStyle = 'rgba(0,0,0,0.30)';
-  ctx.lineWidth = 6;
-  ctx.strokeText(String(rating), 2.5, 2.5);   // soft depth layer behind
   ctx.fillStyle = '#03140b';
   ctx.fillText(String(rating), 0, 0);
   ctx.restore();
@@ -695,7 +692,7 @@ async function buildMatchCard(m) {
     ['K / D / A', m.kills + ' / ' + m.deaths + ' / ' + m.assists, kdaCol],
   ];
   if (rrChange != null) rows.push(['RR', (rrChange >= 0 ? '+' : '') + rrChange + ' RR', rrChange >= 0 ? '#2BE58D' : '#ff8a95']);
-  let ry = 362;
+  let ry = rows.length >= 3 ? 348 : 362;   // three rows start higher, two stay put
   shadowOn();
   for (const [label, value, color] of rows) {
     ctx.fillStyle = 'rgba(175,205,225,0.7)'; ctx.font = '500 16px ' + BODY;
