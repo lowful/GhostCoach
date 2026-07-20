@@ -12,11 +12,6 @@ function sourceLabel(src) {
   return 'GhostCoach';
 }
 
-function formatTime(t) {
-  try { return new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }
-  catch { return ''; }
-}
-
 let tipsVisible = true;   // "Show tips" setting: hidden tips are still recorded
 
 function setShowTips(v) {
@@ -34,10 +29,6 @@ function addTip(tip) {
   meta.className = 'meta';
   meta.innerHTML = tip.death ? '<span class="src-skull">💀</span>' : '<span class="src-dot"></span>';
   meta.append(tip.death ? 'Death Review' : sourceLabel(tip.source));
-  const when = document.createElement('span');
-  when.className = 'when';
-  when.textContent = formatTime(tip.time || Date.now());
-  meta.append(when);
   const text = document.createElement('div');
   text.className = 'text';
   text.textContent = tip.text;

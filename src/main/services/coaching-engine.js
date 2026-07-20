@@ -69,6 +69,8 @@ class CoachingEngine extends EventEmitter {
     this.lastDeathAt    = 0;      // when the player last died (death-review window)
     this.lastRoundLostAt = 0;     // when the team last lost a round (round-review window)
     this.aliveFalseStreak = 0;    // consecutive alive:false reads (2 confirm a death)
+    this.firstHalfSide    = null; // locked first-half side; halftime flip is then arithmetic
+    this.pendingFirstSide = null; // needs two agreeing reads before locking
 
     this.timers = [];
     this.loopTimer = null;
@@ -98,6 +100,8 @@ class CoachingEngine extends EventEmitter {
     this.recentFrames = [];
     this.analyzedFrames = 0;
     this.lastDeathAt = 0;
+    this.firstHalfSide = null;
+    this.pendingFirstSide = null;
     this.emit('status', 'coaching');
 
     this.timers.push(setTimeout(() =>
@@ -824,6 +828,31 @@ class CoachingEngine extends EventEmitter {
     if (enemy > prevEnemy) {
       this.remember(`Lost round ${team + enemy} (score ${team}-${enemy})`);
       this.lastRoundLostAt = Date.now();   // opens the round-review window
+    }
+
+    // Halftime math: a competitive half is 12 rounds and sides swap at round
+    // 13. Vision can misread ATK/DEF, but the round number is reliable, so
+    // once one half's side is known the other half is arithmetic and it
+    // OVERRIDES whatever the model claims. Locking needs two agreeing reads
+    // so a single misread cannot poison the whole match. Overtime (round 25+)
+    // alternates sides every round, so past regulation the HUD read stands.
+    const rn = this.matchContext.roundNumber | 0;
+    const flipSide = (s) => (s === 'attacking' ? 'defending' : s === 'defending' ? 'attacking' : null);
+    if (!this.firstHalfSide && this.matchContext.side && rn >= 1 && rn <= 24) {
+      const asFirstHalf = rn <= 12 ? this.matchContext.side : flipSide(this.matchContext.side);
+      if (this.pendingFirstSide === asFirstHalf) {
+        this.firstHalfSide = asFirstHalf;
+        console.log(`[engine] first-half side locked: ${asFirstHalf}`);
+      } else {
+        this.pendingFirstSide = asFirstHalf;
+      }
+    }
+    if (this.firstHalfSide && rn >= 1 && rn <= 24) {
+      const expected = rn <= 12 ? this.firstHalfSide : flipSide(this.firstHalfSide);
+      if (this.matchContext.side !== expected) {
+        console.log(`[engine] side corrected by halftime math: round ${rn} -> ${expected}`);
+        this.matchContext.side = expected;
+      }
     }
 
   }
