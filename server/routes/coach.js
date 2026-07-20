@@ -381,6 +381,7 @@ ${habitsBlock}
 
 MAP DISCIPLINE (hard rule)
 Current map: ${ctx.map || 'UNKNOWN'}. If the map is UNKNOWN you MUST NOT use any map callout (no Hookah, Market, Garage, Kitchen, Ropes, or any named spot). Give general tips or directions relative to what the player sees ("the door on your left", "the choke ahead"). Identify the map from the environment or HUD and report it in STATE so it locks in. When the map IS known, use only THAT map's real callouts, a Bind callout on Ascent is worse than no tip at all.
+CALLOUT PRECISION: a specific callout (B Main, Hookah, Market) may ONLY be used when the frame or minimap clearly shows the player at that exact spot. When you know the area but not the precise spot, say it at site level instead: "on B", "near A site", "in mid". Saying B Main when the player died on B site is wrong in a way the player instantly notices, and a right-but-general location always beats a specific-but-wrong one. This applies doubly to death reviews: "You died on B holding too wide an angle" is a great review even without the exact pixel.
 
 COACH THE TEAM'S PLAN
 Before the round starts, the minimap tells you the plan: where the four teammates set up or head relative to the player. Coach the player's ROLE inside it:
@@ -438,7 +439,7 @@ When (and ONLY when) the tip explains why the player died or why the round was l
 
 Then, for any live-gameplay frame (including SKIP), add a second line reporting what the HUD actually shows, null for anything unreadable, never guess:
 STATE: {"side":"attack","phase":"buy","round":5,"team":3,"enemy":1,"credits":4200,"alive":true,"mates":3,"foes":2,"weapon":"Vandal","map":"Ascent","enemySpot":null,"teamRead":null,"note":null}
-- side: during the buy phase the banner at the TOP of the screen says ATTACKING or DEFENDING, read it there first, it is authoritative. Otherwise "attack" if your team carries or bought the spike, "defense" if you see a defuser or you are holding sites, else null.
+- side: during the buy phase the banner at the TOP of the screen says ATTACKING or DEFENDING, read it there first, it is authoritative. Otherwise "attack" if your team carries or bought the spike, "defense" if you see a defuser or you are holding sites, else null. HALVES ARE 12 ROUNDS: whatever side the match started on holds through round 12, then flips for rounds 13 to 24. If the score puts the round at 13+ and you knew the first-half side, report the flipped side even when the frame alone is ambiguous. Only overtime (round 25+) alternates again.
 - phase: "buy" (barriers up), "active" (round live), "postplant" (spike down), "dead" (player dead or spectating), else null.
 - alive: report false ONLY on an explicit death indicator: the "Spectating" banner with a teammate's name, a death recap or killcam, or the grey observer HUD with no HP number. A flashbang whiteout, a smoke, a dark corner, or a blurry frame is NOT death; when the frame is ambiguous report the same value as the previous frame. Alive signs that settle it instantly: the player's own weapon or hands in first person plus a readable HP number bottom center. Getting this wrong makes every other tip wrong, so demand proof before flipping it.
 - team is YOUR team's score, enemy is theirs, round is team plus enemy plus 1.
