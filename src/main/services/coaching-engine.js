@@ -71,6 +71,13 @@ class CoachingEngine extends EventEmitter {
     this.aliveFalseStreak = 0;    // consecutive alive:false reads (2 confirm a death)
     this.firstHalfSide    = null; // locked first-half side; halftime flip is then arithmetic
     this.pendingFirstSide = null; // needs two agreeing reads before locking
+    // Game mode decides the halftime math: swiftplay halves are 4 rounds,
+    // unrated/competitive halves are 12. Locked from two agreeing HUD reads,
+    // from score/round arithmetic (a 6th round win or a 10th round can only
+    // be a standard match), or from an observed side swap at round 5.
+    this.pendingMode      = null; // vision-reported mode awaiting a 2nd agreeing read
+    this.standardEvidence = 0;    // consecutive frames whose score/round prove standard
+    this.swapEvidence     = 0;    // consecutive flipped side reads in rounds 5-8 (swiftplay tell)
 
     this.timers = [];
     this.loopTimer = null;
@@ -102,6 +109,9 @@ class CoachingEngine extends EventEmitter {
     this.lastDeathAt = 0;
     this.firstHalfSide = null;
     this.pendingFirstSide = null;
+    this.pendingMode = null;
+    this.standardEvidence = 0;
+    this.swapEvidence = 0;
     this.emit('status', 'coaching');
 
     this.timers.push(setTimeout(() =>
@@ -312,10 +322,17 @@ class CoachingEngine extends EventEmitter {
       this.inLobby = false;
       this.pushFrame(shot);   // confirmed gameplay: keep for chat
       if (tip.length > 10 && tip.toUpperCase() !== 'SKIP') {
-        const sent = this.emitTip(agentData.genericizeAbilities(cleanTip(tip)), 'ai', { death: !!data.death });
-        if (sent) return;
-        // Verify gate dropped the forced tip. This used to end in SILENCE (the
-        // "force tip does nothing" bug); fall through to a guaranteed library tip.
+        const cleaned = agentData.genericizeAbilities(cleanTip(tip));
+        // A manual press deserves a FRESH answer: a repeat of a recent tip
+        // swaps to the library instead of echoing what is already on screen.
+        if (this.isSimilarToRecent(cleaned)) {
+          console.log('[engine] forced tip was a repeat, swapping to library');
+        } else {
+          const sent = this.emitTip(cleaned, 'ai', { death: !!data.death });
+          if (sent) return;
+          // Verify gate dropped the forced tip. This used to end in SILENCE (the
+          // "force tip does nothing" bug); fall through to a guaranteed library tip.
+        }
       }
       this.emitLibraryTip({ force: true, ignoreRatio: true });
     } catch (e) {
@@ -596,12 +613,24 @@ class CoachingEngine extends EventEmitter {
     const inDeathWindow = { death: !!(this.lastDeathAt && Date.now() - this.lastDeathAt < 15000) };
     const agentTip = this.matchContext.agentConfirmed
       ? agentData.getAgentTip(this.matchContext.agent) : null;
-    if (agentTip && !recentTexts.includes(agentTip) && Math.random() < 0.22) {
+    if (agentTip && !recentTexts.includes(agentTip) && !this.isSimilarToRecent(agentTip)
+        && Math.random() < 0.22) {
       this.emitTip(agentTip, 'library', inDeathWindow);
       return;
     }
 
-    const { text } = tipLibrary.selectTip(this.matchContext, recentTexts);
+    // A library tip that reads like the tip before it is still a repeat, even
+    // in different words: re-roll away from near-duplicates. A manual force
+    // press must always answer, so as a last resort it takes the final roll.
+    let { text } = tipLibrary.selectTip(this.matchContext, recentTexts);
+    for (let i = 0; i < 3 && text && this.isSimilarToRecent(text); i++) {
+      recentTexts.push(text);
+      ({ text } = tipLibrary.selectTip(this.matchContext, recentTexts));
+    }
+    if (text && this.isSimilarToRecent(text) && !force) {
+      console.log('[engine] library tip suppressed, too close to a recent tip');
+      return;
+    }
     if (text) this.emitTip(text, 'library', inDeathWindow);
   }
 
@@ -722,18 +751,31 @@ class CoachingEngine extends EventEmitter {
     return true;
   }
 
+  /**
+   * The anti-repeat gate, three rules from strictest to loosest:
+   *   1. VERBATIM: the same sentence (normalized) as any of the last 25 tips
+   *      never shows twice, no matter how much time passed. Repeating
+   *      important advice is fine, repeating the exact wording is lazy.
+   *   2. BACK-TO-BACK: a tip that heavily overlaps the tip right before it
+   *      (a light reshuffle of the same sentence) is a repeat at any age.
+   *   3. RECENT WINDOW: moderate overlap with anything from the last 60
+   *      seconds is a rapid-fire duplicate.
+   * A real re-warning later (fresh wording plus "still" / "again" / "third
+   * time now" escalation) passes: new words drop it under both thresholds.
+   */
   isSimilarToRecent(newTip) {
-    const words = new Set(newTip.toLowerCase().split(/\s+/).filter((w) => w.length > 3));
+    const words = tipWords(newTip);
     if (!words.size) return false;
-    // Only the last 60 seconds count: repeating important advice later is
-    // wanted (the prompt asks for fresh wording and escalation), back-to-back
-    // duplicates are not.
+    const norm = normalizeTip(newTip);
+    const history = this.tipHistory.slice(-25);
+    for (const old of history) {
+      if (normalizeTip(old.text) === norm) return true;              // rule 1
+    }
+    const last = history[history.length - 1];
+    if (last && overlapRatio(words, tipWords(last.text)) > 0.75) return true;   // rule 2
     const cutoff = Date.now() - 60000;
-    for (const old of this.tipHistory.slice(-10).filter((t) => t.time >= cutoff)) {
-      const oldWords = new Set(old.text.toLowerCase().split(/\s+/).filter((w) => w.length > 3));
-      if (!oldWords.size) continue;
-      const overlap = [...words].filter((w) => oldWords.has(w)).length;
-      if (overlap / Math.min(words.size, oldWords.size) > 0.5) return true;
+    for (const old of history.slice(-10).filter((t) => t.time >= cutoff)) {
+      if (overlapRatio(words, tipWords(old.text)) > 0.5) return true;           // rule 3
     }
     return false;
   }
@@ -763,6 +805,39 @@ class CoachingEngine extends EventEmitter {
     const prevEnemy = this.matchContext.enemyScore | 0;
     const prevAlive = this.matchContext.playerAlive;
 
+    // A NEW MATCH in the same session: the round counter falls back to 1 and
+    // the score resets to 0-0. Every per-match side lock must reset with it,
+    // a first-half side carried over from the previous match is exactly the
+    // wrong-side bug. Requires round AND both scores to agree so one misread
+    // digit cannot wipe a live match's locks.
+    if (typeof updates.roundNumber === 'number' && updates.roundNumber <= 2 && prevRound >= 5
+        && typeof updates.teamScore === 'number' && updates.teamScore <= 1
+        && typeof updates.enemyScore === 'number' && updates.enemyScore <= 1) {
+      console.log(`[engine] new match detected (round ${prevRound} -> ${updates.roundNumber}), side and mode locks reset`);
+      this.firstHalfSide = null;
+      this.pendingFirstSide = null;
+      this.pendingMode = null;
+      this.standardEvidence = 0;
+      this.swapEvidence = 0;
+      this.matchContext.gameMode = null;
+      this.matchContext.side = null;   // stale side from the last match: re-read it fresh
+    }
+
+    // Game mode from the HUD (agent select header, loading screen, scoreboard,
+    // end-of-round banner): two agreeing reads lock it for the match, exactly
+    // like the side lock, so one misread frame cannot set the halftime math.
+    if (updates.gameMode === 'swiftplay' || updates.gameMode === 'standard') {
+      if (!this.matchContext.gameMode) {
+        if (this.pendingMode === updates.gameMode) {
+          this.matchContext.gameMode = updates.gameMode;
+          console.log(`[engine] game mode locked: ${updates.gameMode}`);
+        } else {
+          this.pendingMode = updates.gameMode;
+        }
+      }
+      delete updates.gameMode;   // never merged raw; only the lock above sets it
+    }
+
     // A single alive:false read can be a flashbang, a smoke, or a misread
     // killcam; the player only counts as dead after TWO consecutive dead
     // reads (or an explicit dead phase). One noisy frame cannot fake a death.
@@ -780,7 +855,8 @@ class CoachingEngine extends EventEmitter {
         if (!this.matchContext[key]) this.matchContext[key] = v;
         continue;
       }
-      if (key === 'recentTopics' || key === 'playerNote') continue;   // handled separately, never persisted
+      // handled separately (mode needs its 2-read lock), never merged raw
+      if (key === 'recentTopics' || key === 'playerNote' || key === 'gameMode') continue;
       this.matchContext[key] = v;
     }
 
@@ -792,8 +868,12 @@ class CoachingEngine extends EventEmitter {
     if (updates.phase && updates.phase !== prevPhase) {
       this.lastPhaseChange = { from: prevPhase, to: updates.phase, at: Date.now() };
       // A new buy phase means a new plan: drop last round's team read so a
-      // stale "4 stacking A" never coaches this round.
-      if (updates.phase === 'buy') this.matchContext.teamRead = null;
+      // stale "4 stacking A" never coaches this round, and drop the player's
+      // last known spot, everyone is back at spawn.
+      if (updates.phase === 'buy') {
+        this.matchContext.teamRead = null;
+        this.matchContext.playerSpot = null;
+      }
       // The round going live locks the plan into match memory for continuity.
       if (updates.phase === 'active' && prevPhase === 'buy' && this.matchContext.teamRead) {
         this.remember(`Round plan: ${this.matchContext.teamRead}`);
@@ -830,16 +910,61 @@ class CoachingEngine extends EventEmitter {
       this.lastRoundLostAt = Date.now();   // opens the round-review window
     }
 
-    // Halftime math: a competitive half is 12 rounds and sides swap at round
-    // 13. Vision can misread ATK/DEF, but the round number is reliable, so
-    // once one half's side is known the other half is arithmetic and it
-    // OVERRIDES whatever the model claims. Locking needs two agreeing reads
-    // so a single misread cannot poison the whole match. Overtime (round 25+)
-    // alternates sides every round, so past regulation the HUD read stands.
+    // ── Halftime math (mode-aware) ─────────────────────────────────────────
+    // Vision can misread ATK/DEF, but round numbers are reliable, so once one
+    // half's side is known the other half is arithmetic and it OVERRIDES
+    // whatever the model claims. The halves depend on the game mode:
+    //   swiftplay          4-round halves, first to 5, sudden death round 9
+    //   unrated/competitive 12-round halves, overtime from round 25
+    // Until the mode is known, only rounds where both modes agree on the half
+    // are used (1-4 first half; 10+ can only be a standard match), so a
+    // swiftplay's round 5 side swap is never bulldozed by 12-round math.
     const rn = this.matchContext.roundNumber | 0;
     const flipSide = (s) => (s === 'attacking' ? 'defending' : s === 'defending' ? 'attacking' : null);
-    if (!this.firstHalfSide && this.matchContext.side && rn >= 1 && rn <= 24) {
-      const asFirstHalf = rn <= 12 ? this.matchContext.side : flipSide(this.matchContext.side);
+
+    // Score/round arithmetic beats every other mode signal: swiftplay ends at
+    // 5 round wins and 9 rounds total, so a 6th win or a 10th round proves a
+    // standard match. Two consecutive frames of proof are required (a single
+    // misread digit cannot lock it), and the proof even overrides a swiftplay
+    // lock that came from vision, in which case the side locks reset because
+    // they were derived with the wrong half length.
+    if (this.matchContext.gameMode !== 'standard'
+        && ((this.matchContext.teamScore | 0) >= 6 || (this.matchContext.enemyScore | 0) >= 6 || rn >= 10)) {
+      this.standardEvidence++;
+      if (this.standardEvidence >= 2) {
+        if (this.matchContext.gameMode === 'swiftplay') {
+          console.log('[engine] mode corrected to standard (score/round past swiftplay limits), side locks reset');
+          this.firstHalfSide = null;
+          this.pendingFirstSide = null;
+        } else {
+          console.log('[engine] game mode locked: standard (score/round past swiftplay limits)');
+        }
+        this.matchContext.gameMode = 'standard';
+      }
+    } else {
+      this.standardEvidence = 0;
+    }
+
+    // Swiftplay tell: with the first-half side locked, two consecutive FRESH
+    // HUD reads of the flipped side in rounds 5-8 mean the sides already
+    // swapped, which only swiftplay does at that point. (The same side
+    // holding needs no lock: trusting the HUD there gives the same answer.)
+    const sideRead = typeof updates.side === 'string' ? updates.side : null;
+    if (!this.matchContext.gameMode && this.firstHalfSide && sideRead && rn >= 5 && rn <= 8) {
+      if (sideRead === flipSide(this.firstHalfSide)) {
+        this.swapEvidence++;
+        if (this.swapEvidence >= 2) {
+          this.matchContext.gameMode = 'swiftplay';
+          console.log('[engine] game mode locked: swiftplay (side swap observed in rounds 5-8)');
+        }
+      } else {
+        this.swapEvidence = 0;
+      }
+    }
+
+    const half = halfOfRound(rn, this.matchContext.gameMode);
+    if (half && !this.firstHalfSide && this.matchContext.side) {
+      const asFirstHalf = half === 1 ? this.matchContext.side : flipSide(this.matchContext.side);
       if (this.pendingFirstSide === asFirstHalf) {
         this.firstHalfSide = asFirstHalf;
         console.log(`[engine] first-half side locked: ${asFirstHalf}`);
@@ -847,14 +972,13 @@ class CoachingEngine extends EventEmitter {
         this.pendingFirstSide = asFirstHalf;
       }
     }
-    if (this.firstHalfSide && rn >= 1 && rn <= 24) {
-      const expected = rn <= 12 ? this.firstHalfSide : flipSide(this.firstHalfSide);
+    if (half && this.firstHalfSide) {
+      const expected = half === 1 ? this.firstHalfSide : flipSide(this.firstHalfSide);
       if (this.matchContext.side !== expected) {
-        console.log(`[engine] side corrected by halftime math: round ${rn} -> ${expected}`);
+        console.log(`[engine] side corrected by halftime math: round ${rn} -> ${expected} (${this.matchContext.gameMode || 'mode unknown'})`);
         this.matchContext.side = expected;
       }
     }
-
   }
 
   async requestMatchReview() {
@@ -876,16 +1000,54 @@ class CoachingEngine extends EventEmitter {
 function freshContext() {
   return {
     agent: null, agentConfirmed: false, map: null, side: null, teammates: null,
+    gameMode: null,   // 'swiftplay' (4-round halves) | 'standard' (12) | null; locked by 2 agreeing reads or score math
     roundNumber: 0, teamScore: 0, enemyScore: 0,
     phase: 'unknown', playerCredits: null, playerWeapon: null, playerAlive: true,
     teammatesAlive: null, enemiesAlive: null,   // reported by the AI from the HUD bar
     teamRead: null,   // pre-round minimap read of the team's plan ("4 A, player alone mid")
+    playerSpot: null, // the player's own minimap location ("B main", "mid"), cleared each buy phase
     consecutiveDeaths: 0, consecutiveWins: 0, roundsPlayed: 0,
   };
 }
 
+/**
+ * Which half a round belongs to, or null when the side must be trusted from
+ * the HUD instead of derived:
+ *   swiftplay  rounds 1-4 first half, 5-8 second, 9 (sudden death) HUD
+ *   standard   rounds 1-12 first half, 13-24 second, 25+ (overtime) HUD
+ *   unknown    rounds 1-4 first half (both modes agree), 5-9 ambiguous (a
+ *              swiftplay may already have swapped), 10-24 standard halves by
+ *              elimination (swiftplay never reaches round 10), 25+ HUD
+ */
+function halfOfRound(rn, mode) {
+  if (rn < 1) return null;
+  if (mode === 'swiftplay') return rn <= 4 ? 1 : rn <= 8 ? 2 : null;
+  if (mode === 'standard')  return rn <= 12 ? 1 : rn <= 24 ? 2 : null;
+  if (rn <= 4) return 1;
+  if (rn >= 10 && rn <= 24) return rn <= 12 ? 1 : 2;
+  return null;
+}
+
 function cleanTip(tip) {
   return tip.replace(/ - /g, ', ').trim();
+}
+
+// ── repeat detection primitives ─────────────────────────────────────────────
+// Meaningful words only (4+ chars) so overlap measures the advice, not the
+// glue words; punctuation is stripped everywhere so "peek," matches "peek"
+// and a moved comma is never a disguise.
+function tipWords(text) {
+  return new Set(String(text || '').toLowerCase().replace(/[^a-z0-9\s']/g, ' ')
+    .split(/\s+/).filter((w) => w.length > 3));
+}
+function normalizeTip(text) {
+  return String(text || '').toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+}
+function overlapRatio(aWords, bWords) {
+  if (!aWords.size || !bWords.size) return 0;
+  let shared = 0;
+  for (const w of aWords) if (bWords.has(w)) shared++;
+  return shared / Math.min(aWords.size, bWords.size);
 }
 
 function topicOf(text) {

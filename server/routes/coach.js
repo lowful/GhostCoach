@@ -254,6 +254,7 @@ function buildContextPrompt(context) {
   const ctx        = context || {};
   const recentList = ctx.recentTips || ctx.lastTipsGiven || [];
   const recent     = recentList.length ? recentList.map((t, i) => (i + 1) + '. ' + t).join('\n') : '(none yet)';
+  const lastShown  = recentList.length ? String(recentList[recentList.length - 1]).slice(0, 160) : null;
   const topics     = (Array.isArray(ctx.recentTopics) && ctx.recentTopics.length) ? ctx.recentTopics.join(', ') : 'none yet';
   const focusLine  = ctx.focus ? ('This frame, lean toward: ' + ctx.focus + '.\n\n') : '';
   const transLine  = ctx.phaseTransition
@@ -270,6 +271,14 @@ function buildContextPrompt(context) {
     ? 'THE PLAYER JUST DIED. If the frames, match memory, and state CLEARLY show why (a dry peek, no trade partner in range, repeeking the same angle, a bad position, fighting without util), make this tip the DEATH REVIEW: start line 1 with exactly "DEATH: " then name the cause and the exact fix in one sentence. This is also where held-back observations belong, if you noticed a mistake earlier, chose not to interrupt, and it just got them killed, say it now. Name the PLACE of the death only when the death frames or match memory actually show it, look back at what you were sent instead of assuming; a review that guesses the location teaches the player to distrust every review. But if the death looks unlucky, a fair duel simply lost, or you cannot actually see the cause, do NOT guess and do NOT invent a reason, coach something else or SKIP. A wrong death explanation is worse than none.\n\n'
     : '';
   const side       = String(ctx.side || '').toLowerCase();
+  // Game mode drives the halftime arithmetic. The client locks it from HUD
+  // reads and score math; until then the model is told exactly how each mode's
+  // halves work so a swiftplay round 5 swap never gets called with 12-round math.
+  const modeLine = ctx.gameMode === 'swiftplay'
+    ? 'SWIFTPLAY (first to 5: halves are 4 rounds, sides swap at round 5, a 4-4 tie plays sudden death round 9)'
+    : ctx.gameMode === 'standard'
+    ? 'Unrated or Competitive (first to 13: halves are 12 rounds, sides swap at round 13, overtime from round 25 alternates every round)'
+    : 'Unknown, report it in STATE mode the moment you can actually read it';
 
   const sideBlock = side.includes('att')
     ? `YOU ARE ON ATTACK. Attack is initiative: your team picks where and when the fight happens. Take map control with util, gather info, then commit as five, trade every entry, plant for cover, win the post-plant.
@@ -282,7 +291,7 @@ Coach at a Radiant level: hold an off-angle once then move, set crossfires so ev
 Catch and correct: over-peeking after a kill, dying alone on a repeek, holding the same pixel every round, dry retakes one by one, nobody watching the rotate or flank path, and ego duels the site did not need.
 Speak in real defense comms, the words Radiants use: "setup at A", "crossfire", "off angle", "stack", "play retake", "prepare for the fake or rotate". During the buy phase coach the SETUP for the round ("Setup crossfire on A site with your Killjoy", "Take the off angle on Market for first contact, then fall back").
 ROTATE DISCIPLINE: a rotate call is only right on REAL info, the spike going down elsewhere, multiple enemies confirmed on the other site, or a clear numbers read on the minimap. Contact from one enemy at your site is not rotate info, it may be the fake, so say so ("Hold your site, one contact B could be the fake, wait for the spike or a second confirm"). Never suggest a rotate as filler, a wrong rotate loses rounds that patience wins.`
-    : `SIDE UNKNOWN this frame. Read it from the HUD: during the buy phase the banner at the TOP of the screen literally says ATTACKING or DEFENDING, that is authoritative, read it first. Otherwise your team carrying or buying the spike means attack, a defuser in inventory or holding sites means defense. Report it in STATE. Keep advice fundamentals-first so it fits either side: trade, crossfires, util before peeking, minimap awareness, and economy discipline.`;
+    : `SIDE UNKNOWN this frame. Read it from the HUD: during the buy phase the banner at the TOP of the screen literally says ATTACKING or DEFENDING, that is authoritative, read it first. Otherwise your team carrying or buying the spike means attack, a defuser in inventory or holding sites means defense, and spawn barriers near YOUR spawn tell you which end of the map you start from. Cross-check with the halves for the mode (${modeLine}): once you know the side one half started on, the other half is the opposite by arithmetic. Report it in STATE. Getting the side wrong poisons EVERY tip, so when the evidence is thin report null instead of guessing. Keep advice fundamentals-first so it fits either side: trade, crossfires, util before peeking, minimap awareness, and economy discipline.`;
 
   const s = ctx.playerStats;
   const extLine = s && (s.kpr != null || s.adr || s.acs)
@@ -395,7 +404,7 @@ ${predictBlock}READ THE HUD
 - Round and score: top-center, plus the round timer and whether it is buy phase.
 - Credits: shown in buy phase; use them for economy advice.
 - Bottom-center: the player's 4 abilities. Bright means ready, dim or greyed means used or not bought, so never tell them to use a greyed ability.
-- Minimap (top-left): the player's position, teammates, and the spike.
+- Minimap (top-left): the player's position, teammates, and the spike. The player's OWN icon is the arrow with the vision cone; find that arrow relative to the printed A/B (and C) site labels to know where the player actually IS, and report it in STATE playerSpot every frame you can read it. Location tips and death reviews must be anchored to that arrow, not to a guess from the scenery.
 - Center: crosshair placement and the angle being held.
 - Ability icons (bottom-center, beside the HP bar): lit or colored icons are AVAILABLE, dark or greyed icons are USED or never bought. Check them before EVERY utility tip; telling the player to smoke with no smoke left destroys trust in you. An ability the player JUST USED is gone: if a recent frame or match memory shows it being cast, do not suggest it again until you can SEE its icon lit. When you cannot tell whether an ability is up, give the tip WITHOUT naming that ability.
 - Kill feed (top-right): recent kills and trades.
@@ -421,12 +430,15 @@ If the screen is NOT live gameplay (main menu, lobby, agent select, loading scre
 
 ${deathLine}${roundLostLine}${enemyBlock}${memoryBlock}${transLine}${focusLine}CURRENT MATCH STATE (trust this, do not re-derive it every frame):
 - Agent: ${ctx.agent || 'Unknown'} | Map: ${ctx.map || 'Unknown'} | Side: ${ctx.side || 'Unknown'}
+- Mode: ${modeLine}
 - Round: ${ctx.roundNumber || 'Unknown'} | Score: ${ctx.teamScore || 0}-${ctx.enemyScore || 0} | Phase: ${ctx.phase || 'Unknown'}
+- Player location (last minimap read): ${ctx.playerSpot || 'Unknown'}
 - Credits: ${ctx.playerCredits == null ? 'Unknown' : ctx.playerCredits} | Alive: ${ctx.playerAlive === false ? 'No' : 'Yes'} | Deaths in a row: ${ctx.consecutiveDeaths || 0}${ctx.playerAlive === false ? '\n- THE PLAYER IS DEAD RIGHT NOW. They cannot move, peek, rotate, buy, or use util this round. The ONLY valid tips are why they died and what to change, or what to watch and learn while spectating. Any tip telling a dead player to act is automatically wrong.' : ''}
 - Teammates alive: ${ctx.teammatesAlive == null ? 'Unknown' : ctx.teammatesAlive} | Enemies alive: ${ctx.enemiesAlive == null ? 'Unknown' : ctx.enemiesAlive}${ctx.teammatesAlive === 0 && ctx.playerAlive !== false ? ' | THE PLAYER IS SOLO, this is a clutch' : ''}
 
 RECENT TIPS (do not repeat these word for word; if the SAME mistake is still happening and the advice matters, give it again in FRESH wording and mark the repetition, "still", "again", "third time now", important advice bears repeating, lazy copies do not):
 ${recent}
+${lastShown ? 'NEVER REPEAT BACK TO BACK: the last tip shown ("' + lastShown + '") is still on the player\'s screen. Your next tip must either make a DIFFERENT point entirely, or, only if the same mistake is genuinely still happening and urgent, say it in completely fresh words with escalation ("still", "again", "third time now"). A tip that echoes the previous tip\'s advice or wording gets dropped by the app and wastes the slot, so when the only honest tip would be that repeat, prefer SKIP.\n' : ''}
 ${Array.isArray(ctx.badTips) && ctx.badTips.length ? 'The player rejected these tips repeatedly (3 or more times), NEVER give this advice or anything close to it again:\n' + ctx.badTips.slice(0, 6).map((t) => '- ' + t).join('\n') + '\n' : ''}
 ${Array.isArray(ctx.tipFeedback) && ctx.tipFeedback.length ? 'PLAYER FEEDBACK on past tips, their own words on why a tip missed. Learn from these, the reasons matter more than the tips:\n' + ctx.tipFeedback.slice(-6).map((f) => '- "' + String(f.text || '').slice(0, 90) + '" the player said: "' + String(f.reason || '').slice(0, 150) + '"').join('\n') + '\n' : ''}Recent topics: ${topics}. Prefer covering a DIFFERENT one (positioning, utility, aim, rotation, spike, teamwork, mental) unless a repeated mistake demands a repeat.
 
@@ -438,8 +450,10 @@ Line 1 is the tip: one plain sentence, 8 to 22 words, ending with a period. Be d
 When (and ONLY when) the tip explains why the player died or why the round was lost, line 1 starts with exactly "DEATH: " before the sentence. The app renders those as a special review card, so never use the marker on ordinary tips and never skip it on a death or round review.
 
 Then, for any live-gameplay frame (including SKIP), add a second line reporting what the HUD actually shows, null for anything unreadable, never guess:
-STATE: {"side":"attack","phase":"buy","round":5,"team":3,"enemy":1,"credits":4200,"alive":true,"mates":3,"foes":2,"weapon":"Vandal","map":"Ascent","enemySpot":null,"teamRead":null,"note":null}
-- side: during the buy phase the banner at the TOP of the screen says ATTACKING or DEFENDING, read it there first, it is authoritative. Otherwise "attack" if your team carries or bought the spike, "defense" if you see a defuser or you are holding sites, else null. HALVES ARE 12 ROUNDS: whatever side the match started on holds through round 12, then flips for rounds 13 to 24. If the score puts the round at 13+ and you knew the first-half side, report the flipped side even when the frame alone is ambiguous. Only overtime (round 25+) alternates again.
+STATE: {"side":"attack","phase":"buy","round":5,"team":3,"enemy":1,"credits":4200,"alive":true,"mates":3,"foes":2,"weapon":"Vandal","map":"Ascent","mode":null,"playerSpot":null,"enemySpot":null,"teamRead":null,"note":null}
+- side: during the buy phase the banner at the TOP of the screen says ATTACKING or DEFENDING, read it there first, it is authoritative. Otherwise "attack" if your team carries or bought the spike, "defense" if you see a defuser or you are holding sites, else null. Getting the side wrong is the single worst mistake you can make, every tip built on it turns into anti-coaching, so report null over a guess. THE HALVES DEPEND ON THE MODE: in Unrated and Competitive the starting side holds through round 12, flips for rounds 13 to 24, and only overtime (round 25+) alternates. In SWIFTPLAY halves are 4 rounds: the starting side holds rounds 1 to 4, flips for rounds 5 to 8, and a 4-4 sudden death round 9 must be read from the banner. If the round number puts the match past halftime for the mode and you knew the first-half side, report the flipped side even when the frame alone is ambiguous.
+- mode: the queue, ONLY when it is actually printed on screen ("SWIFTPLAY", "COMPETITIVE", "UNRATED" on the agent select header, the loading screen, the scoreboard header, or the end of round banner). Report exactly what you read, else null, never infer it. The mode decides when sides swap, so a wrong mode flips every later side call.
+- playerSpot: where the PLAYER's own minimap arrow is right now, site level only ("A site", "B main", "mid", "attacker spawn"). Read the arrow relative to the printed A/B/C labels, judge across frames when it is moving, and report null when you cannot tell. This is the location later tips and death reviews lean on, so a wrong spot here becomes a wrong callout later.
 - phase: "buy" (barriers up), "active" (round live), "postplant" (spike down), "dead" (player dead or spectating), else null.
 - alive: report false ONLY on an explicit death indicator: the "Spectating" banner with a teammate's name, a death recap or killcam, or the grey observer HUD with no HP number. A flashbang whiteout, a smoke, a dark corner, or a blurry frame is NOT death; when the frame is ambiguous report the same value as the previous frame. Alive signs that settle it instantly: the player's own weapon or hands in first person plus a readable HP number bottom center. Getting this wrong makes every other tip wrong, so demand proof before flipping it.
 - team is YOUR team's score, enemy is theirs, round is team plus enemy plus 1.
@@ -504,6 +518,15 @@ function mapState(s) {
   if (str(s.enemySpot)) out.enemySpot    = str(s.enemySpot);
   if (str(s.teamRead))  out.teamRead     = String(s.teamRead).trim().slice(0, 60);
   if (str(s.note))      out.playerNote   = String(s.note).trim().slice(0, 90);
+  // The game mode decides the halftime math on the client (swiftplay halves
+  // are 4 rounds, unrated/competitive are 12). Anything standard-shaped maps
+  // to 'standard'; the client locks it only after two agreeing reads.
+  const mode = str(s.mode);
+  if (mode && /swift/i.test(mode)) out.gameMode = 'swiftplay';
+  else if (mode && /comp|unrated|standard|premier/i.test(mode)) out.gameMode = 'standard';
+  // Where the player's own minimap arrow sits ("B main", "mid"): feeds the
+  // location context the next tips and death reviews are grounded in.
+  if (str(s.playerSpot)) out.playerSpot = str(s.playerSpot);
   return out;
 }
 
@@ -1481,3 +1504,5 @@ Reply as Coach to the player's last message. Rules:
 module.exports = router;
 module.exports.costStore   = costStore;
 module.exports.globalStats = globalStats;
+module.exports.mapState    = mapState;             // exported for tests
+module.exports.buildContextPrompt = buildContextPrompt;
