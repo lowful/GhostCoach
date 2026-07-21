@@ -7,7 +7,8 @@ const store = require('../services/store');
 
 /**
  * One-time welcome card shown right after the first successful activation:
- * a 20-second tour (start coaching, confirm agent, tips appear) + hotkeys.
+ * a 20-second tour (start coaching, confirm agent, tips appear), the
+ * fundamental-tips question, + hotkeys.
  * Never shown again once dismissed (onboardingCompleted flag).
  */
 function create() {
@@ -16,7 +17,7 @@ function create() {
 
   const win = new BrowserWindow({
     width:  480,
-    height: 680,   // fits the 4-step tour
+    height: 800,   // fits the 4-step tour + the fundamental-tips question
     frame:       false,
     resizable:   false,
     transparent: true,

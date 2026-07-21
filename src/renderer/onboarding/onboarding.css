@@ -42,6 +42,21 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
 .steps b { display: block; font-size: 13px; margin-bottom: 2px; }
 .steps b kbd { font-size: 10.5px; }
 .steps span { font-size: 11.5px; color: var(--text-dim); line-height: 1.4; }
+.steps li > div { flex: 1; min-width: 0; }
+
+/* Fundamental tips question (step 5): on/off choice saved straight to config */
+.seg {
+  display: flex; gap: 5px; margin-top: 9px;
+  background: rgba(0,0,0,0.28); padding: 4px;
+  border-radius: 10px; border: 1px solid var(--glass-border);
+}
+.seg button {
+  flex: 1; font-family: var(--font); font-size: 11.5px; font-weight: 600;
+  color: var(--text-dim); background: transparent; border: none; cursor: pointer;
+  padding: 7px 6px; border-radius: 7px; transition: all var(--t-fast) var(--ease);
+}
+.seg button:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+.seg button.active { background: linear-gradient(135deg, var(--red), var(--red-2)); color: #fff; box-shadow: var(--glow-red); }
 .tip-note { font-size: 11px; color: var(--text-mute); text-align: center; margin: 10px 0 14px; line-height: 1.4; }
 .tip-note kbd { font-size: 10px; }
 
