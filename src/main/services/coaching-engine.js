@@ -322,10 +322,17 @@ class CoachingEngine extends EventEmitter {
       this.inLobby = false;
       this.pushFrame(shot);   // confirmed gameplay: keep for chat
       if (tip.length > 10 && tip.toUpperCase() !== 'SKIP') {
-        const sent = this.emitTip(agentData.genericizeAbilities(cleanTip(tip)), 'ai', { death: !!data.death });
-        if (sent) return;
-        // Verify gate dropped the forced tip. This used to end in SILENCE (the
-        // "force tip does nothing" bug); fall through to a guaranteed library tip.
+        const cleaned = agentData.genericizeAbilities(cleanTip(tip));
+        // A manual press deserves a FRESH answer: a repeat of a recent tip
+        // swaps to the library instead of echoing what is already on screen.
+        if (this.isSimilarToRecent(cleaned)) {
+          console.log('[engine] forced tip was a repeat, swapping to library');
+        } else {
+          const sent = this.emitTip(cleaned, 'ai', { death: !!data.death });
+          if (sent) return;
+          // Verify gate dropped the forced tip. This used to end in SILENCE (the
+          // "force tip does nothing" bug); fall through to a guaranteed library tip.
+        }
       }
       this.emitLibraryTip({ force: true, ignoreRatio: true });
     } catch (e) {

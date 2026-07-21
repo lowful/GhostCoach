@@ -17,7 +17,7 @@ function create() {
 
   const win = new BrowserWindow({
     width:  480,
-    height: 800,   // fits the 4-step tour + the fundamental-tips question
+    height: 940,   // fits the 4-step tour + the fundamental-tips question
     frame:       false,
     resizable:   false,
     transparent: true,
