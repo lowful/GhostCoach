@@ -11,8 +11,8 @@ The Cursor Cloud VM is Linux, but GhostCoach is a Windows-first product. Keep th
 ### Backend (`server/`)
 - Run with `npm start` (or `npm run dev` for nodemon reload) from `server/`; listens on `PORT` (default `3001`).
 - The server needs `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` set at boot or it crashes immediately — `@supabase/supabase-js` `createClient()` throws `supabaseUrl is required.` at module load (caught by the crash guard, so `listen()` never runs). A `server/.env` (gitignored) with placeholder Supabase values is enough to boot; `/health`, `/api/health`, and license input-validation (format/required-field checks) work without real credentials.
-- Real license lookups and the `/api/coach/*` endpoints need real Supabase creds plus an AI key (`AI_API_KEY` for OpenRouter/Qwen, or `GEMINI_API_KEY`). Stats endpoints also need `HENRIKDEV_API_KEY`. Without these, those routes return errors or hang (routes lack try/catch around Supabase calls). Add missing keys as Secrets.
-- Mint a test license (needs real Supabase): `node server/create-test-key.js` inserts an active `GC-XXXX-...` key.
+- Real license lookups and the `/api/coach/*` endpoints need real Supabase creds plus an AI key (`AI_API_KEY` for OpenRouter/Qwen, or `GEMINI_API_KEY`). Stats endpoints also need `HENRIKDEV_API_KEY`. Without these, those routes return errors or hang (routes lack try/catch around Supabase calls). Add missing keys as Secrets. When the Secrets are set they arrive as env vars; `dotenv` won't override an already-set env var, so real values win over any `server/.env` placeholders.
+- Minting a test license: the documented `node server/create-test-key.js` is stale against the live schema — `licenses.user_id` is NOT NULL with a FK to `auth.users`, so a bare insert fails. Create an auth user first (`supabase.auth.admin.createUser({ email, email_confirm: true })`) then insert a `licenses` row with that `user_id`, a `GC-XXXX-XXXX-XXXX-XXXX` `license_key`, `status:"active"`, and a future `expires_at`.
 
 ### Electron client (root)
 - On this Linux desktop (`DISPLAY=:1`), launch with GPU disabled or Electron dies with `GPU process isn't usable. Goodbye.`:
