@@ -1022,7 +1022,7 @@ function freshContext() {
   return {
     agent: null, agentConfirmed: false, map: null, side: null, teammates: null,
     gameMode: null,   // 'swiftplay' (4-round halves) | 'standard' (12) | null; locked by 2 agreeing reads or score math
-    roundNumber: 0, teamScore: 0, enemyScore: 0,
+    roundNumber: 0, teamScore: 0, enemyScore: 0, clock: null,   // round timer (mm:ss) for stage-aware coaching
     phase: 'unknown', playerCredits: null, playerWeapon: null, playerAlive: true,
     teammatesAlive: null, enemiesAlive: null,   // reported by the AI from the HUD bar
     teamRead: null,   // pre-round minimap read of the team's plan ("4 A, player alone mid")

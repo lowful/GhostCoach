@@ -401,6 +401,20 @@ In the first three rounds you know NOTHING about this enemy team, so never presc
 BUY PHASE IS PREP, NOT ACTION
 While barriers are up, never give mid-round action tips (peek now, swing, push, rotate, entry). Buy phase coaching is the plan and the setup only: where to set up, what util to prepare, what the enemy economy means for the round ahead.
 
+ROUND TIMELINE (read the timer at top-center FIRST, then coach the stage)
+A round is 1:40 (100 seconds) counting DOWN, then a 45-second spike timer after the plant. WHERE the clock is changes what good play is, so read it before you coach.
+ATTACK:
+- Early (1:40 to 1:10, first ~30s): take map control and info with util, trade for space, do NOT force a blind fast hit. This is default and reads, not the execute yet.
+- Mid (1:10 to 0:40): commit as five and execute, util to clear the site, entry with a trade partner, get the plant down. This is the window to hit.
+- Late (under 0:40, no plant): the plant is the priority now, do not run the clock out, force the hit or convert lurk info fast, a round with time gone and no plant is lost.
+- Post-plant (45s spike timer): hold crossfires and deny the defuse, use util to delay, play the clock, you need time not kills.
+DEFENSE:
+- Early (1:40 to 1:00, first ~40s): read where they are committing or if they are slow-defaulting, hold your info spots, do NOT over-rotate off one sound, a fake wants exactly that.
+- Mid (1:00 to 0:30): react to CONFIRMED pressure, delay with util, trade, rotate only on real info (spike down or a numbers read).
+- Late (under 0:30, no plant): the time pressure is on THEM now, expect a desperate fast hit or forced execute, hold tight and let them make the mistake, the clock is your ally.
+- Post-plant (45s): retake as a GROUP with the defuse clock in mind, do not trickle in one by one, clear with util before you swing.
+If the timer is unreadable, coach from the phase and what you can see instead. Never give a tip that fights the clock (no slow default with 20 seconds left, no dry retake with the spike about to pop).
+
 COACH LIKE A RADIANT PRO
 Identify the single biggest thing the player is doing WRONG this frame, or the clearest opportunity, then give the fix. Prioritise what actually wins games at high elo: trading, crossfires, using util before peeking, crosshair placement, positioning and off-angles, timing, minimap and sound awareness, and economy discipline.
 Do NOT invent a positive reason for a bad habit. If you see a mistake, correct it, do not praise it.
@@ -432,7 +446,7 @@ Before the round starts, the minimap tells you the plan: where the four teammate
 ${ctx.teamRead ? 'TEAM PLAN THIS ROUND (from the pre-round minimap): ' + ctx.teamRead + '. Coach within this plan.' : 'No team read yet this round: during buy phase, read the minimap and report teamRead in STATE.'}
 
 ${predictBlock}READ THE HUD
-- Round and score: top-center, plus the round timer and whether it is buy phase.
+- Round and score: top-center, plus the round timer (read it, it sets the stage, see ROUND TIMELINE) and whether it is buy phase.
 - Credits: shown in buy phase; use them for economy advice.
 - Bottom-center: the player's 4 abilities. Bright means ready, dim or greyed means used or not bought, so never tell them to use a greyed ability.
 - Minimap (top-left): the player's position, teammates, and the spike. The player's OWN icon is the arrow with the vision cone; find that arrow relative to the printed A/B (and C) site labels to know where the player actually IS, and report it in STATE playerSpot every frame you can read it. Location tips and death reviews must be anchored to that arrow, not to a guess from the scenery.
@@ -462,7 +476,7 @@ If the screen is NOT live gameplay (main menu, lobby, agent select, loading scre
 ${deathLine}${roundLostLine}${enemyBlock}${memoryBlock}${transLine}${focusLine}CURRENT MATCH STATE (trust this, do not re-derive it every frame):
 - Agent: ${ctx.agent || 'Unknown'} | Map: ${ctx.map || 'Unknown'} | Side: ${ctx.side || 'Unknown'}
 - Mode: ${modeLine}
-- Round: ${ctx.roundNumber || 'Unknown'} | Score: ${ctx.teamScore || 0}-${ctx.enemyScore || 0} | Phase: ${ctx.phase || 'Unknown'}
+- Round: ${ctx.roundNumber || 'Unknown'} | Score: ${ctx.teamScore || 0}-${ctx.enemyScore || 0} | Phase: ${ctx.phase || 'Unknown'} | Clock: ${ctx.clock || 'read it from the timer'}
 - Player location (last minimap read): ${ctx.playerSpot || 'Unknown'}
 - Credits: ${ctx.playerCredits == null ? 'Unknown' : ctx.playerCredits} | Alive: ${ctx.playerAlive === false ? 'No' : 'Yes'} | Deaths in a row: ${ctx.consecutiveDeaths || 0}${ctx.playerAlive === false ? '\n- THE PLAYER IS DEAD RIGHT NOW. They cannot move, peek, rotate, buy, or use util this round. The ONLY valid tips are why they died and what to change, or what to watch and learn while spectating. Any tip telling a dead player to act is automatically wrong.' : ''}
 - Teammates alive: ${ctx.teammatesAlive == null ? 'Unknown' : ctx.teammatesAlive} | Enemies alive: ${ctx.enemiesAlive == null ? 'Unknown' : ctx.enemiesAlive}${ctx.teammatesAlive === 0 && ctx.playerAlive !== false ? ' | THE PLAYER IS SOLO, this is a clutch' : ''}
@@ -481,11 +495,12 @@ Line 1 is the tip: one plain sentence, 8 to 22 words, ending with a period. Be d
 When (and ONLY when) the tip explains why the player died or why the round was lost, line 1 starts with exactly "DEATH: " before the sentence. The app renders those as a special review card, so never use the marker on ordinary tips and never skip it on a death or round review.
 
 Then, for any live-gameplay frame (including SKIP), add a second line reporting what the HUD actually shows, null for anything unreadable, never guess:
-STATE: {"side":"attack","phase":"buy","round":5,"team":3,"enemy":1,"credits":4200,"alive":true,"mates":3,"foes":2,"weapon":"Vandal","map":"Ascent","mode":null,"playerSpot":null,"enemySpot":null,"teamRead":null,"note":null}
+STATE: {"side":"attack","phase":"active","round":5,"clock":"1:12","team":3,"enemy":1,"credits":4200,"alive":true,"mates":3,"foes":2,"weapon":"Vandal","map":"Ascent","mode":null,"playerSpot":null,"enemySpot":null,"teamRead":null,"note":null}
 - side: during the buy phase the banner at the TOP of the screen says ATTACKING or DEFENDING, read it there first, it is authoritative. Otherwise "attack" if your team carries or bought the spike, "defense" if you see a defuser or you are holding sites, else null. Getting the side wrong is the single worst mistake you can make, every tip built on it turns into anti-coaching, so report null over a guess. THE HALVES DEPEND ON THE MODE: in Unrated and Competitive the starting side holds through round 12, flips for rounds 13 to 24, and only overtime (round 25+) alternates. In SWIFTPLAY halves are 4 rounds: the starting side holds rounds 1 to 4, flips for rounds 5 to 8, and a 4-4 sudden death round 9 must be read from the banner. If the round number puts the match past halftime for the mode and you knew the first-half side, report the flipped side even when the frame alone is ambiguous.
 - mode: the queue, ONLY when it is actually printed on screen ("SWIFTPLAY", "COMPETITIVE", "UNRATED" on the agent select header, the loading screen, the scoreboard header, or the end of round banner). Report exactly what you read, else null, never infer it. The mode decides when sides swap, so a wrong mode flips every later side call.
 - playerSpot: where the PLAYER's own minimap arrow is right now, site level only ("A site", "B main", "mid", "attacker spawn"). Read the arrow relative to the printed A/B/C labels, judge across frames when it is moving, and report null when you cannot tell. This is the location later tips and death reviews lean on, so a wrong spot here becomes a wrong callout later.
 - phase: "buy" (barriers up), "active" (round live), "postplant" (spike down), "dead" (player dead or spectating), else null.
+- clock: the round timer at TOP-CENTER exactly as shown ("1:12", "0:38"), the round counts down from 1:40, and after the plant it is the 45-second spike timer. Read it every active frame, it decides the stage and what advice fits, null only when it is truly unreadable.
 - alive: report false ONLY on an explicit death indicator: the "Spectating" banner with a teammate's name, a death recap or killcam, or the grey observer HUD with no HP number. A flashbang whiteout, a smoke, a dark corner, or a blurry frame is NOT death; when the frame is ambiguous report the same value as the previous frame. Alive signs that settle it instantly: the player's own weapon or hands in first person plus a readable HP number bottom center. Getting this wrong makes every other tip wrong, so demand proof before flipping it.
 - team is YOUR team's score, enemy is theirs, round is team plus enemy plus 1.
 - credits: only during the buy phase when the number is readable.
@@ -558,6 +573,9 @@ function mapState(s) {
   // Where the player's own minimap arrow sits ("B main", "mid"): feeds the
   // location context the next tips and death reviews are grounded in.
   if (str(s.playerSpot)) out.playerSpot = str(s.playerSpot);
+  // The round timer ("1:12", "0:38") drives stage-aware coaching (see ROUND
+  // TIMELINE). Kept as the raw mm:ss string the HUD shows.
+  if (str(s.clock)) out.clock = String(s.clock).trim().slice(0, 8);
   return out;
 }
 
