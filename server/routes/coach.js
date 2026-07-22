@@ -698,7 +698,12 @@ router.post('/analyze', async (req, res) => {
     res.json({ tip: tip || '', death: deathReview, context: outCtx });
   } catch (err) {
     console.error('[coach] analyze error:', err.message, err.stack && err.stack.split('\n')[1]);
-    res.json({ tip: '', context: {} });
+    // A thrown analyze (AI provider rejected the request, a timeout, a parse
+    // failure) is a real outage, NOT "no tip this frame". Returning a 200 here
+    // made the client treat the empty body as a normal reply and sit silent,
+    // with no coaching and no warning. A 5xx makes the client surface the
+    // "coach's AI is temporarily down" notice and fall back to library tips.
+    res.status(503).json({ tip: '', context: {}, error: 'coach-unavailable' });
   }
 });
 
