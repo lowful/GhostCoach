@@ -48,11 +48,12 @@ const AI = {
   provider:    (process.env.AI_PROVIDER || (process.env.AI_API_KEY ? 'openai' : 'gemini')).toLowerCase(),
   baseUrl:     (process.env.AI_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/+$/, ''),
   apiKey:      process.env.AI_API_KEY || '',
-  // Vision runs the live tip loop, which is on a tight timeout, so it uses the
-  // FAST instruct model; a thinking model reasons past the timeout and most
-  // frames fall back to library tips. Text tasks (grading, chat, reviews) are
-  // not latency bound, so they use the stronger thinking model for free.
-  visionModel: process.env.AI_VISION_MODEL || 'qwen/qwen3-vl-235b-a22b-instruct',
+  // Accuracy-first: the reasoning (thinking) model runs everything, including
+  // the live tip loop, because better reads matter more than tip speed here.
+  // Timeouts and reasoning headroom are sized for it (see chatCall and the
+  // analyze visionTimeout). Set AI_VISION_MODEL to the instruct model instead
+  // if you want fast tips over deep reasoning.
+  visionModel: process.env.AI_VISION_MODEL || 'qwen/qwen3-vl-235b-a22b-thinking',
   textModel:   process.env.AI_TEXT_MODEL   || 'qwen/qwen3-vl-235b-a22b-thinking',
 };
 
@@ -74,8 +75,10 @@ async function chatCall({ prompt, imageB64, maxTokens, temperature }) {
   // top of the caller's budget: less for vision (the live loop is on a tight
   // timeout) and more for text (chat, grading, reviews are not latency bound).
   // A no-op for instruct models (headroom 0), so this is safe either way.
+  // Accuracy-first: give a thinking model generous room to reason before the
+  // answer. Bounded so total generation still lands inside the raised timeouts.
   const isThinking = /thinking/i.test(model);
-  const budget = (maxTokens || 100) + (isThinking ? (images.length ? 200 : 800) : 0);
+  const budget = (maxTokens || 100) + (isThinking ? 700 : 0);
 
   const resp = await fetch(`${AI.baseUrl}/chat/completions`, {
     method: 'POST',
@@ -621,10 +624,11 @@ router.post('/analyze', async (req, res) => {
   try {
     // When audio already spent up to 3.5s, trim the vision budget so the
     // whole request stays inside the client's timeout.
-    // Thinking models need a little longer; kept safely under the client's 16s
-    // request timeout so a slow reasoning frame degrades to a library tip, not
-    // a false "server down".
-    const visionTimeout = (prevImage ? 14000 : 12000) - (audioBlock ? 2500 : 0);
+    // Accuracy-first mode runs a reasoning model on live tips, which is slow,
+    // so the timeout is generous and kept safely under the client's 30s request
+    // timeout: a reasoning frame that still runs long degrades to a library tip
+    // rather than a false "server down".
+    const visionTimeout = (prevImage ? 26000 : 24000) - (audioBlock ? 2500 : 0);
     const raw = await Promise.race([
       visionInfer(prevImage ? [prevImage, image] : image, prompt, 220, false),
       new Promise((_, rej) => setTimeout(() => rej(new Error('Gemini timeout')), visionTimeout)),
@@ -744,7 +748,7 @@ router.post('/summary/round', async (req, res) => {
   try {
     const text = await Promise.race([
       visionInfer(req.body.toString('base64'), ROUND_SUMMARY_PROMPT, 400),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 12000)),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 24000)),
     ]);
     trackCall(licenseKey);
     res.json(JSON.parse(text.replace(/```json|```/g, '').trim()));
@@ -771,7 +775,7 @@ router.post('/summary/match', async (req, res) => {
   try {
     const text = await Promise.race([
       textInfer(sysPrompt, 600),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 12000)),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 24000)),
     ]);
     trackCall(licenseKey);
     res.json(JSON.parse(text.replace(/```json|```/g, '').trim()));
@@ -793,7 +797,7 @@ router.post('/recap', async (req, res) => {
   try {
     const recap = await Promise.race([
       textInfer(prompt, 100),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 10000)),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 22000)),
     ]);
     trackCall(licenseKey);
     res.json({ recap: recap || '' });
@@ -1166,7 +1170,7 @@ strengths: 1-2 sentences on what the coaching did NOT have to correct or praised
     try {
       const raw = await Promise.race([
         textInfer(prompt, 420),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 14000)),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 26000)),
       ]);
       trackCall(licenseKey);
       const parsed = JSON.parse(String(raw).replace(/```json|```/g, '').trim());
@@ -1287,7 +1291,7 @@ router.post('/match-review', async (req, res) => {
 
     const review = await Promise.race([
       textInfer(prompt, 200),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 12000)),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 24000)),
     ]);
     trackCall(licenseKey);
     res.json({ review: review || 'Could not generate review.' });
@@ -1345,7 +1349,7 @@ If you cannot clearly see all 4 ability icons or are not 100% sure, respond with
 
     const text = await Promise.race([
       visionInfer(image, prompt, 20, false),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000)),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 22000)),
     ]);
     trackCall(licenseKey);
 
@@ -1388,7 +1392,7 @@ Return only the exact tip text. No quotes, no formatting, no explanation.`;
 
     const text = await Promise.race([
       textInfer(prompt, 100),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000)),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 22000)),
     ]);
     trackCall(licenseKey);
     const tip = String(text || '').trim().replace(/^["']|["']$/g, '');
