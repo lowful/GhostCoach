@@ -48,8 +48,8 @@ const AI = {
   provider:    (process.env.AI_PROVIDER || (process.env.AI_API_KEY ? 'openai' : 'gemini')).toLowerCase(),
   baseUrl:     (process.env.AI_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/+$/, ''),
   apiKey:      process.env.AI_API_KEY || '',
-  visionModel: process.env.AI_VISION_MODEL || 'qwen/qwen3-vl-235b-a22b-instruct',
-  textModel:   process.env.AI_TEXT_MODEL   || process.env.AI_VISION_MODEL || 'qwen/qwen3-vl-235b-a22b-instruct',
+  visionModel: process.env.AI_VISION_MODEL || 'qwen/qwen3-vl-235b-a22b-thinking',
+  textModel:   process.env.AI_TEXT_MODEL   || process.env.AI_VISION_MODEL || 'qwen/qwen3-vl-235b-a22b-thinking',
 };
 
 // One OpenAI-style chat call. `imageB64` present => multimodal (vision) request.
@@ -64,6 +64,15 @@ async function chatCall({ prompt, imageB64, maxTokens, temperature }) {
       ]
     : prompt;
 
+  const model = images.length ? AI.visionModel : AI.textModel;
+  // Thinking models spend tokens reasoning BEFORE the answer, so a small answer
+  // budget would truncate before any tip appears. Give reasoning headroom on
+  // top of the caller's budget: less for vision (the live loop is on a tight
+  // timeout) and more for text (chat, grading, reviews are not latency bound).
+  // A no-op for instruct models (headroom 0), so this is safe either way.
+  const isThinking = /thinking/i.test(model);
+  const budget = (maxTokens || 100) + (isThinking ? (images.length ? 450 : 800) : 0);
+
   const resp = await fetch(`${AI.baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -73,9 +82,9 @@ async function chatCall({ prompt, imageB64, maxTokens, temperature }) {
       'X-Title':       'GhostCoach',
     },
     body: JSON.stringify({
-      model:       images.length ? AI.visionModel : AI.textModel,
+      model,
       messages:    [{ role: 'user', content }],
-      max_tokens:  maxTokens || 100,
+      max_tokens:  budget,
       temperature: temperature == null ? 0.7 : temperature,
     }),
   });
@@ -86,7 +95,20 @@ async function chatCall({ prompt, imageB64, maxTokens, temperature }) {
     throw new Error(`AI ${resp.status}`);
   }
   const data = await resp.json();
-  return (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+  const raw = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+  return stripThinking(raw);
+}
+
+// Thinking models wrap their reasoning in <think>...</think> before the answer.
+// Strip it so the tip and STATE parsing only ever see the final answer. Handles
+// closed blocks, a dangling close (reasoning with no open tag), and a dangling
+// open (truncated mid-thought, nothing usable after it). No-op on plain output.
+function stripThinking(text) {
+  let s = String(text || '');
+  s = s.replace(/<think>[\s\S]*?<\/think>/gi, ' ');   // closed reasoning blocks
+  if (/<\/think>/i.test(s)) s = s.replace(/^[\s\S]*<\/think>/i, ' ');  // dangling close: drop up to it
+  s = s.replace(/<think>[\s\S]*$/i, ' ');             // dangling open (truncated): drop to end
+  return s.trim();
 }
 
 // Unified entry points the routes call: dispatch to the configured provider.
@@ -595,7 +617,10 @@ router.post('/analyze', async (req, res) => {
   try {
     // When audio already spent up to 3.5s, trim the vision budget so the
     // whole request stays inside the client's timeout.
-    const visionTimeout = (prevImage ? 13000 : 10000) - (audioBlock ? 2500 : 0);
+    // Thinking models need a little longer; kept safely under the client's 16s
+    // request timeout so a slow reasoning frame degrades to a library tip, not
+    // a false "server down".
+    const visionTimeout = (prevImage ? 14000 : 12000) - (audioBlock ? 2500 : 0);
     const raw = await Promise.race([
       visionInfer(prevImage ? [prevImage, image] : image, prompt, 220, false),
       new Promise((_, rej) => setTimeout(() => rej(new Error('Gemini timeout')), visionTimeout)),
