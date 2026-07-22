@@ -109,8 +109,17 @@ app.use('/api/coach',    coachRoutes);
 app.use('/api/admin',    adminRoutes);
 
 // ─── Health checks ────────────────────────────────────────────────────────────
-app.get('/health',     (_, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
-app.get('/api/health', (_, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
+// Reports the live AI model config (public model slugs only, never the key) so
+// a model/env mismatch is observable instead of guessed from response latency.
+const healthInfo = () => ({
+  status: 'ok',
+  timestamp: new Date().toISOString(),
+  provider: process.env.AI_API_KEY ? 'openai' : 'gemini',
+  visionModel: process.env.AI_VISION_MODEL || 'qwen/qwen3-vl-235b-a22b-instruct',
+  textModel:   process.env.AI_TEXT_MODEL   || 'qwen/qwen3-vl-235b-a22b-thinking',
+});
+app.get('/health',     (_, res) => res.json(healthInfo()));
+app.get('/api/health', (_, res) => res.json(healthInfo()));
 
 // ─── 404 / Error ─────────────────────────────────────────────────────────────
 app.use((_, res) => res.status(404).json({ error: 'Not found' }));
