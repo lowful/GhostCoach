@@ -71,6 +71,7 @@ class CoachingEngine extends EventEmitter {
     this.aliveFalseStreak = 0;    // consecutive alive:false reads (2 confirm a death)
     this.firstHalfSide    = null; // locked first-half side; halftime flip is then arithmetic
     this.pendingFirstSide = null; // needs two agreeing reads before locking
+    this.pendingMap       = null; // map needs two agreeing reads before locking
     // Game mode decides the halftime math: swiftplay halves are 4 rounds,
     // unrated/competitive halves are 12. Locked from two agreeing HUD reads,
     // from score/round arithmetic (a 6th round win or a 10th round can only
@@ -109,6 +110,7 @@ class CoachingEngine extends EventEmitter {
     this.lastDeathAt = 0;
     this.firstHalfSide = null;
     this.pendingFirstSide = null;
+    this.pendingMap = null;
     this.pendingMode = null;
     this.standardEvidence = 0;
     this.swapEvidence = 0;
@@ -814,7 +816,7 @@ class CoachingEngine extends EventEmitter {
     if (typeof updates.roundNumber === 'number' && updates.roundNumber <= 2 && prevRound >= 5
         && typeof updates.teamScore === 'number' && updates.teamScore <= 1
         && typeof updates.enemyScore === 'number' && updates.enemyScore <= 1) {
-      console.log(`[engine] new match detected (round ${prevRound} -> ${updates.roundNumber}), side and mode locks reset`);
+      console.log(`[engine] new match detected (round ${prevRound} -> ${updates.roundNumber}), side/mode/map locks reset`);
       this.firstHalfSide = null;
       this.pendingFirstSide = null;
       this.pendingMode = null;
@@ -822,6 +824,8 @@ class CoachingEngine extends EventEmitter {
       this.swapEvidence = 0;
       this.matchContext.gameMode = null;
       this.matchContext.side = null;   // stale side from the last match: re-read it fresh
+      this.matchContext.map = null;    // a new match may be a new map: re-read and re-lock
+      this.pendingMap = null;
     }
 
     // Game mode from the HUD (agent select header, loading screen, scoreboard,
@@ -852,8 +856,24 @@ class CoachingEngine extends EventEmitter {
     for (const key of Object.keys(updates)) {
       const v = updates[key];
       if (v === null || v === undefined) continue;
-      if (key === 'agent' || key === 'map') {            // locked once set
-        if (!this.matchContext[key]) this.matchContext[key] = v;
+      if (key === 'agent') {                              // locked once set
+        if (!this.matchContext.agent) this.matchContext.agent = v;
+        continue;
+      }
+      // Map locks only after TWO agreeing reads. A single misread (Haven seen
+      // as Bind) used to lock for the whole match and let foreign callouts
+      // ("go to Hookah" on Haven) pass, since the callout gate trusts the lock.
+      // Until it locks, the map stays unknown and every named callout is
+      // rejected, so unlocked frames only ever get general directions.
+      if (key === 'map') {
+        if (!this.matchContext.map && v) {
+          if (this.pendingMap && this.pendingMap.toLowerCase() === String(v).toLowerCase()) {
+            this.matchContext.map = v;
+            console.log(`[engine] map locked: ${v}`);
+          } else {
+            this.pendingMap = v;
+          }
+        }
         continue;
       }
       // handled separately (mode needs its 2-read lock), never merged raw
