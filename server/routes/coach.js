@@ -71,7 +71,7 @@ async function chatCall({ prompt, imageB64, maxTokens, temperature }) {
   // timeout) and more for text (chat, grading, reviews are not latency bound).
   // A no-op for instruct models (headroom 0), so this is safe either way.
   const isThinking = /thinking/i.test(model);
-  const budget = (maxTokens || 100) + (isThinking ? (images.length ? 450 : 800) : 0);
+  const budget = (maxTokens || 100) + (isThinking ? (images.length ? 200 : 800) : 0);
 
   const resp = await fetch(`${AI.baseUrl}/chat/completions`, {
     method: 'POST',
