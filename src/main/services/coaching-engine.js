@@ -346,11 +346,12 @@ class CoachingEngine extends EventEmitter {
   async callServer(path, body, opts = {}) {
     try {
       const headers = opts.forced ? { 'X-Forced': 'true' } : undefined;
-      // 16s: past the server's own worst-case AI timeout (13s on two-frame
-      // analyses) plus network, so slow successes never read as failures,
-      // while a genuinely hung request stalls the single-in-flight loop for
-      // as short a time as possible.
-      const { ok, status, data } = await api.post(path, body, this.licenseKey, 16000, headers);
+      // 30s: accuracy-first mode runs a reasoning model on live tips, which can
+      // take 15 to 25s. This sits past the server's own 24/26s AI timeout plus
+      // network, so a slow reasoning reply is waited out instead of aborted and
+      // wrongly read as a failure. The loop is single-in-flight, so a genuinely
+      // hung request stalls at most one cycle.
+      const { ok, status, data } = await api.post(path, body, this.licenseKey, 30000, headers);
       this.lastServerStatus = status;
       if (!ok) { console.error('[engine] server', path, 'status', status); return null; }
       return data;

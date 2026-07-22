@@ -603,7 +603,7 @@ async function fetchLastMatch() {
   const licenseKey = store.get('licenseKey');
   if (!riotId || !riotId.includes('#') || !licenseKey) return null;
   try {
-    const { ok, data } = await api.get('/api/coach/last-match?username=' + encodeURIComponent(riotId), licenseKey, 15000);
+    const { ok, data } = await api.get('/api/coach/last-match?username=' + encodeURIComponent(riotId), licenseKey, 30000);
     if (!ok || !data || data.error || !data.result) return null;
     if (!data.startedAt || Date.now() - data.startedAt > 3 * 60 * 60 * 1000) return null;
     return data;
@@ -714,7 +714,7 @@ async function logSessionPerformance(tips, mctx, durationMin, notes) {
     const { ok, data } = await api.post('/api/coach/score-session',
       { tips: tips.slice(0, 30), notes: Array.isArray(notes) ? notes.slice(0, 20) : [],
         context: { map: mctx.map, agent: mctx.agent, durationMin } },
-      store.get('licenseKey'), 20000);
+      store.get('licenseKey'), 32000);
     const impact = data && (data.impact != null ? data.impact : data.economy);
     if (!ok || !data || data.error || impact == null) return;
     const scores = { impact, positioning: data.positioning,
