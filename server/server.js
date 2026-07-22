@@ -115,8 +115,9 @@ const healthInfo = () => ({
   status: 'ok',
   timestamp: new Date().toISOString(),
   provider: process.env.AI_API_KEY ? 'openai' : 'gemini',
-  visionModel: process.env.AI_VISION_MODEL || 'qwen/qwen3-vl-235b-a22b-instruct',
-  textModel:   process.env.AI_TEXT_MODEL   || 'qwen/qwen3-vl-235b-a22b-thinking',
+  visionModel:     process.env.AI_VISION_MODEL      || 'qwen/qwen3-vl-235b-a22b-instruct',   // live action
+  visionDeepModel: process.env.AI_VISION_MODEL_DEEP || 'qwen/qwen3-vl-235b-a22b-thinking',   // buy phase
+  textModel:       process.env.AI_TEXT_MODEL        || 'qwen/qwen3-vl-235b-a22b-thinking',
 });
 app.get('/health',     (_, res) => res.json(healthInfo()));
 app.get('/api/health', (_, res) => res.json(healthInfo()));

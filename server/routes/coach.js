@@ -48,19 +48,20 @@ const AI = {
   provider:    (process.env.AI_PROVIDER || (process.env.AI_API_KEY ? 'openai' : 'gemini')).toLowerCase(),
   baseUrl:     (process.env.AI_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/+$/, ''),
   apiKey:      process.env.AI_API_KEY || '',
-  // Accuracy-first: the reasoning (thinking) model runs everything, including
-  // the live tip loop, because better reads matter more than tip speed here.
-  // Timeouts and reasoning headroom are sized for it (see chatCall and the
-  // analyze visionTimeout). Set AI_VISION_MODEL to the instruct model instead
-  // if you want fast tips over deep reasoning.
-  visionModel: process.env.AI_VISION_MODEL || 'qwen/qwen3-vl-235b-a22b-thinking',
-  textModel:   process.env.AI_TEXT_MODEL   || 'qwen/qwen3-vl-235b-a22b-thinking',
+  // HYBRID vision: the fast instruct model runs live action (reliable, timely),
+  // and the deep reasoning model runs buy-phase reads (the pre-round minimap
+  // plan, where a 30-40s barrier gives it time to reason). The analyze route
+  // picks between them by phase. Text tasks (grading, chat, reviews) are not
+  // latency bound, so they use the reasoning model too.
+  visionModel: process.env.AI_VISION_MODEL      || 'qwen/qwen3-vl-235b-a22b-instruct',  // live action
+  visionDeep:  process.env.AI_VISION_MODEL_DEEP || 'qwen/qwen3-vl-235b-a22b-thinking',  // buy-phase reads
+  textModel:   process.env.AI_TEXT_MODEL        || 'qwen/qwen3-vl-235b-a22b-thinking',
 };
 
 // One OpenAI-style chat call. `imageB64` present => multimodal (vision) request.
 // Accepts a single base64 string or an ordered array (frame memory sends
 // [previousFrame, currentFrame]; the prompt explains the order).
-async function chatCall({ prompt, imageB64, maxTokens, temperature }) {
+async function chatCall({ prompt, imageB64, maxTokens, temperature, model: pinnedModel }) {
   const images  = Array.isArray(imageB64) ? imageB64 : (imageB64 ? [imageB64] : []);
   const content = images.length
     ? [
@@ -69,14 +70,14 @@ async function chatCall({ prompt, imageB64, maxTokens, temperature }) {
       ]
     : prompt;
 
-  const model = images.length ? AI.visionModel : AI.textModel;
+  // The caller can pin a model (the hybrid runs the deep reasoning model on
+  // buy-phase reads and the fast model on live action); otherwise use the
+  // configured vision/text model.
+  const model = pinnedModel || (images.length ? AI.visionModel : AI.textModel);
   // Thinking models spend tokens reasoning BEFORE the answer, so a small answer
   // budget would truncate before any tip appears. Give reasoning headroom on
-  // top of the caller's budget: less for vision (the live loop is on a tight
-  // timeout) and more for text (chat, grading, reviews are not latency bound).
-  // A no-op for instruct models (headroom 0), so this is safe either way.
-  // Accuracy-first: give a thinking model generous room to reason before the
-  // answer. Bounded so total generation still lands inside the raised timeouts.
+  // top of the caller's budget, bounded so total generation lands inside the
+  // timeouts. A no-op for instruct models (headroom 0), safe either way.
   const isThinking = /thinking/i.test(model);
   const budget = (maxTokens || 100) + (isThinking ? 700 : 0);
 
@@ -119,9 +120,9 @@ function stripThinking(text) {
 }
 
 // Unified entry points the routes call: dispatch to the configured provider.
-async function visionInfer(imageB64, prompt, maxTokens, jsonMode) {
+async function visionInfer(imageB64, prompt, maxTokens, jsonMode, model) {
   if (AI.provider === 'gemini') return geminiCall(imageB64, prompt, maxTokens, jsonMode);
-  const text = await chatCall({ imageB64, prompt, maxTokens, temperature: 0.7 });
+  const text = await chatCall({ imageB64, prompt, maxTokens, temperature: 0.7, model });
   return jsonMode ? text : sanitize(text);
 }
 async function textInfer(prompt, maxTokens) {
@@ -624,13 +625,16 @@ router.post('/analyze', async (req, res) => {
   try {
     // When audio already spent up to 3.5s, trim the vision budget so the
     // whole request stays inside the client's timeout.
-    // Accuracy-first mode runs a reasoning model on live tips, which is slow,
-    // so the timeout is generous and kept safely under the client's 30s request
-    // timeout: a reasoning frame that still runs long degrades to a library tip
-    // rather than a false "server down".
-    const visionTimeout = (prevImage ? 26000 : 24000) - (audioBlock ? 2500 : 0);
+    // Hybrid model pick: buy phase gets the deep reasoning model (barriers are
+    // up, so a slow, thorough minimap/plan read is affordable and gets a
+    // generous timeout under the client's 30s); every other phase gets the fast
+    // instruct model so live action tips stay timely and reliable.
+    const deepRead     = String(context.phase || '').toLowerCase() === 'buy';
+    const visionModel  = deepRead ? AI.visionDeep : AI.visionModel;
+    const answerBudget = deepRead ? 320 : 220;
+    const visionTimeout = (deepRead ? (prevImage ? 26000 : 24000) : (prevImage ? 13000 : 11000)) - (audioBlock ? 2500 : 0);
     const raw = await Promise.race([
-      visionInfer(prevImage ? [prevImage, image] : image, prompt, 220, false),
+      visionInfer(prevImage ? [prevImage, image] : image, prompt, answerBudget, false, visionModel),
       new Promise((_, rej) => setTimeout(() => rej(new Error('Gemini timeout')), visionTimeout)),
     ]);
     trackCall(licenseKey, (prevImage ? 2 : 1) + (audio ? 1 : 0));
