@@ -70,6 +70,15 @@ function blockedBadTips() {
   return Object.keys(counts).filter((t) => counts[t] >= 3);
 }
 
+// The player's 3 most-played agent names, for the one-tap agent-select bubble.
+// Guarded by Riot ID so a switched account never offers the old player's mains.
+function topAgentNames() {
+  const ps = store.get('playerStats');
+  const rid = (store.get('riotId') || '').trim();
+  if (!ps || ps._riotId !== rid || !Array.isArray(ps.topAgents)) return [];
+  return ps.topAgents.slice(0, 3).map((a) => a && a.name).filter(Boolean);
+}
+
 function buildState() {
   return {
     isCoaching: state.isCoaching,
@@ -84,6 +93,7 @@ function buildState() {
     licenseActive: state.licenseActive,
     licenseReason: state.licenseReason,
     riotId:          (store.get('riotId') || '').trim(),
+    topAgents:       topAgentNames(),   // player's 3 most-played, for one-tap agent select
     tipPosition:     store.get('tipPosition'),
     tipScale:        store.get('tipScale'),
     showTips:        store.get('showTips'),

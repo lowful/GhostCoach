@@ -19,6 +19,9 @@ const abDone      = document.getElementById('ab-done');
 const abName      = document.getElementById('ab-name');
 const abDoneName  = document.getElementById('ab-done-name');
 const abInput     = document.getElementById('ab-input');
+const abQuick     = document.getElementById('ab-quick');
+const abQuickBtns = document.getElementById('ab-quick-btns');
+let topAgents     = [];   // player's 3 most-played, from state, for one-tap select
 
 let isCoaching = false;
 let isPaused   = false;
@@ -88,13 +91,34 @@ function hideAgentUI() {
   formActive = false;
   if (doneTimer) { clearTimeout(doneTimer); doneTimer = null; }
   agentBubble.hidden = true;
+  abQuick.hidden = true;
 }
-function showDetecting() { if (!agentAnswered) { formActive = false; showRow('detect'); } }
+
+// One-tap quick-picks for the player's most-played agents. Shown while the
+// bubble is still asking (detect/confirm/type), so the usual case (playing a
+// main) is a single tap instead of typing. Tapping sets the agent like the form.
+function renderQuickPicks() {
+  if (agentAnswered || !topAgents.length) { abQuick.hidden = true; return; }
+  abQuickBtns.innerHTML = '';
+  for (const name of topAgents) {
+    const b = document.createElement('button');
+    b.className = 'ab-quick-btn no-drag';
+    b.type = 'button';
+    b.textContent = name;
+    b.addEventListener('click', () => {
+      window.ghost.setAgent(name).catch(() => {});   // success returns via PUSH_AGENT
+    });
+    abQuickBtns.append(b);
+  }
+  abQuick.hidden = false;
+}
+function showDetecting() { if (!agentAnswered) { formActive = false; showRow('detect'); renderQuickPicks(); } }
 function showConfirm(name) {
   if (agentAnswered) return;
   formActive = false;
   abName.textContent = name;
   showRow('ask');
+  renderQuickPicks();
 }
 function showForm() {
   if (agentAnswered) return;
@@ -103,11 +127,13 @@ function showForm() {
   abInput.classList.remove('bad');
   abInput.value = '';
   abInput.placeholder = 'Type your agent';
+  renderQuickPicks();
   setTimeout(() => abInput.focus(), 30);
 }
 function showDoneAndHide(name) {
   agentAnswered = true;
   formActive = false;
+  abQuick.hidden = true;
   abDoneName.textContent = '✓ ' + name;
   showRow('done');
   if (doneTimer) clearTimeout(doneTimer);
@@ -147,6 +173,10 @@ function applyState(s) {
   isPaused   = !!s.isPaused;
   if (typeof s.tipCount === 'number') tipCount = s.tipCount;
   if (typeof s.licenseActive === 'boolean') licenseActive = s.licenseActive;
+  if (Array.isArray(s.topAgents)) {
+    topAgents = s.topAgents.slice(0, 3);
+    if (!agentBubble.hidden && !agentAnswered) renderQuickPicks();   // fill in if stats arrived after the bubble
+  }
   render();
   if (!isCoaching) { sessionActive = false; agentAnswered = false; hideAgentUI(); }
 }
