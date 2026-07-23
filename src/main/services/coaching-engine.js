@@ -1233,17 +1233,41 @@ const TEAM_PLAY_TIP = /\btrad(?:e|es|ed|ing)\b|\bteammates?\b|\bcrossfire\b|\bsw
 // is dropped outright: "hold the cross in Hookah" on Ascent is worse than
 // silence. Only distinctive names are listed; shared words (mid, heaven,
 // main, site) are never gated.
+// Distinctive callout -> the standard 5v5 map(s) it belongs to. Verified against
+// the game's own region data (valorant-api.com/v1/maps): a callout maps to EVERY
+// map that has it, so the gate only rejects it when it is truly foreign. Famous
+// community callouts the game data does not name (Hookah, Showers) are kept;
+// ambiguous common words (cave, ropes) and generic region names (Icebox's color
+// callouts, main/site/etc.) are left out so they never false-reject a real tip.
 const MAP_CALLOUTS = {
-  hookah: ['bind'], showers: ['bind'], lamps: ['bind'],
-  catwalk: ['ascent'], market: ['ascent', 'sunset'], tree: ['ascent', 'lotus'],
-  garage: ['haven'],
-  ropes: ['split'], vents: ['split'], mail: ['split'], sewer: ['split'],
-  kitchen: ['icebox'], boiler: ['icebox'], nest: ['icebox'], fridge: ['icebox'],
-  pyramids: ['breeze'], cave: ['breeze'],
-  dish: ['fracture'], arcade: ['fracture'], canteen: ['fracture'],
-  flowers: ['pearl'],
-  rubble: ['lotus'], waterfall: ['lotus'],
+  // Bind
+  hookah: ['bind'], showers: ['bind'], lamps: ['bind'], teleporter: ['bind'],
+  // Ascent
+  pizza: ['ascent'], wine: ['ascent'],
+  catwalk: ['ascent', 'abyss'], market: ['ascent', 'sunset'],
+  // Sunset
   boba: ['sunset'],
+  // Haven / Split / Icebox (garage is on all three; sewer on Haven + Split)
+  garage: ['haven', 'split', 'icebox'], sewer: ['haven', 'split'],
+  // Split
+  mail: ['split'], vents: ['split', 'abyss'],
+  // Icebox
+  kitchen: ['icebox'], boiler: ['icebox'], snowman: ['icebox'], tube: ['icebox'],
+  // Breeze
+  pyramids: ['breeze'], cannon: ['breeze'],
+  // Fracture (tree is also Ascent + Lotus)
+  dish: ['fracture'], arcade: ['fracture'], canteen: ['fracture'],
+  tree: ['ascent', 'fracture', 'lotus'],
+  // Pearl
+  flowers: ['pearl'], dugout: ['pearl'],
+  // Lotus
+  rubble: ['lotus'], waterfall: ['lotus'], gravel: ['lotus'], mound: ['lotus'],
+  // Abyss
+  library: ['abyss'],
+  // Corrode
+  crane: ['corrode'],
+  // shared across a few (only reject when foreign to all)
+  nest: ['abyss', 'breeze', 'icebox'],
 };
 const CALLOUT_RE = new RegExp('\\b(' + Object.keys(MAP_CALLOUTS).join('|') + ')\\b', 'gi');
 function wrongMapCallout(text, map) {
