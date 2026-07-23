@@ -1,0 +1,402 @@
+{
+  "generatedAt": "2026-07-23T19:45:42.086Z",
+  "source": "valorant-api.com",
+  "agents": {
+    "Gekko": {
+      "role": "Initiator",
+      "abilities": [
+        "wingman",
+        "dizzy",
+        "mosh pit",
+        "thrash"
+      ]
+    },
+    "Fade": {
+      "role": "Initiator",
+      "abilities": [
+        "seize",
+        "haunt",
+        "prowler",
+        "nightfall"
+      ]
+    },
+    "Breach": {
+      "role": "Initiator",
+      "abilities": [
+        "flashpoint",
+        "fault line",
+        "aftershock",
+        "rolling thunder"
+      ]
+    },
+    "Deadlock": {
+      "role": "Sentinel",
+      "abilities": [
+        "sonic sensor",
+        "barrier mesh",
+        "gravnet",
+        "annihilation"
+      ]
+    },
+    "Tejo": {
+      "role": "Initiator",
+      "abilities": [
+        "guided salvo",
+        "special delivery",
+        "armageddon",
+        "stealth drone"
+      ]
+    },
+    "Raze": {
+      "role": "Duelist",
+      "abilities": [
+        "blast pack",
+        "paint shells",
+        "boom bot",
+        "showstopper"
+      ]
+    },
+    "Chamber": {
+      "role": "Sentinel",
+      "abilities": [
+        "rendezvous",
+        "trademark",
+        "headhunter",
+        "tour de force"
+      ]
+    },
+    "KAY/O": {
+      "role": "Initiator",
+      "abilities": [
+        "frag/ment",
+        "flash/drive",
+        "zero/point",
+        "null/cmd"
+      ]
+    },
+    "Skye": {
+      "role": "Initiator",
+      "abilities": [
+        "trailblazer",
+        "guiding light",
+        "regrowth",
+        "seekers"
+      ]
+    },
+    "Cypher": {
+      "role": "Sentinel",
+      "abilities": [
+        "cyber cage",
+        "spycam",
+        "trapwire",
+        "neural theft"
+      ]
+    },
+    "Sova": {
+      "role": "Initiator",
+      "abilities": [
+        "shock bolt",
+        "recon bolt",
+        "owl drone",
+        "hunter's fury"
+      ]
+    },
+    "Miks": {
+      "role": "Controller",
+      "abilities": [
+        "m-pulse",
+        "waveform",
+        "harmonize",
+        "bassquake"
+      ]
+    },
+    "Killjoy": {
+      "role": "Sentinel",
+      "abilities": [
+        "nanoswarm",
+        "alarmbot",
+        "turret",
+        "lockdown"
+      ]
+    },
+    "Harbor": {
+      "role": "Controller",
+      "abilities": [
+        "high tide",
+        "storm surge",
+        "cove",
+        "reckoning"
+      ]
+    },
+    "Vyse": {
+      "role": "Sentinel",
+      "abilities": [
+        "shear",
+        "arc rose",
+        "razorvine",
+        "steel garden"
+      ]
+    },
+    "Viper": {
+      "role": "Controller",
+      "abilities": [
+        "poison cloud",
+        "toxic screen",
+        "snake bite",
+        "viper's pit"
+      ]
+    },
+    "Phoenix": {
+      "role": "Duelist",
+      "abilities": [
+        "blaze",
+        "hot hands",
+        "curveball",
+        "run it back"
+      ]
+    },
+    "Veto": {
+      "role": "Sentinel",
+      "abilities": [
+        "interceptor",
+        "crosscut",
+        "evolution",
+        "chokehold"
+      ]
+    },
+    "Astra": {
+      "role": "Controller",
+      "abilities": [
+        "nova pulse",
+        "nebula  / dissipate",
+        "gravity well",
+        "astral form / cosmic divide"
+      ]
+    },
+    "Brimstone": {
+      "role": "Controller",
+      "abilities": [
+        "stim beacon",
+        "incendiary",
+        "sky smoke",
+        "orbital strike"
+      ]
+    },
+    "Iso": {
+      "role": "Duelist",
+      "abilities": [
+        "undercut",
+        "kill contract",
+        "double tap",
+        "contingency"
+      ]
+    },
+    "Clove": {
+      "role": "Controller",
+      "abilities": [
+        "pick-me-up",
+        "ruse",
+        "not dead yet",
+        "meddle"
+      ]
+    },
+    "Neon": {
+      "role": "Duelist",
+      "abilities": [
+        "high gear",
+        "relay bolt",
+        "fast lane",
+        "overdrive"
+      ]
+    },
+    "Yoru": {
+      "role": "Duelist",
+      "abilities": [
+        "fakeout",
+        "blindside",
+        "gatecrash",
+        "dimensional drift"
+      ]
+    },
+    "Waylay": {
+      "role": "Duelist",
+      "abilities": [
+        "refract",
+        "saturate",
+        "lightspeed",
+        "convergent paths"
+      ]
+    },
+    "Sage": {
+      "role": "Sentinel",
+      "abilities": [
+        "slow orb",
+        "healing orb",
+        "barrier orb",
+        "resurrection"
+      ]
+    },
+    "Reyna": {
+      "role": "Duelist",
+      "abilities": [
+        "devour",
+        "dismiss",
+        "leer",
+        "empress"
+      ]
+    },
+    "Omen": {
+      "role": "Controller",
+      "abilities": [
+        "paranoia",
+        "dark cover",
+        "shrouded step",
+        "from the shadows"
+      ]
+    },
+    "Jett": {
+      "role": "Duelist",
+      "abilities": [
+        "updraft",
+        "tailwind",
+        "cloudburst",
+        "blade storm"
+      ]
+    }
+  },
+  "maps": [
+    "Abyss",
+    "Ascent",
+    "Bind",
+    "Breeze",
+    "Corrode",
+    "Fracture",
+    "Haven",
+    "Icebox",
+    "Lotus",
+    "Pearl",
+    "Split",
+    "Summit",
+    "Sunset"
+  ],
+  "threeSiteMaps": [
+    "Haven",
+    "Lotus"
+  ],
+  "mapCallouts": {
+    "arcade": [
+      "fracture"
+    ],
+    "bath": [
+      "bind"
+    ],
+    "boba": [
+      "sunset"
+    ],
+    "boiler": [
+      "icebox"
+    ],
+    "cannon": [
+      "breeze"
+    ],
+    "canteen": [
+      "fracture"
+    ],
+    "catwalk": [
+      "abyss",
+      "ascent"
+    ],
+    "crane": [
+      "corrode"
+    ],
+    "dish": [
+      "fracture"
+    ],
+    "dugout": [
+      "pearl"
+    ],
+    "flowers": [
+      "pearl"
+    ],
+    "garage": [
+      "haven",
+      "icebox",
+      "split"
+    ],
+    "gravel": [
+      "lotus"
+    ],
+    "hookah": [
+      "bind"
+    ],
+    "kitchen": [
+      "icebox"
+    ],
+    "lamps": [
+      "bind"
+    ],
+    "library": [
+      "abyss"
+    ],
+    "mail": [
+      "split"
+    ],
+    "market": [
+      "ascent",
+      "sunset"
+    ],
+    "mound": [
+      "lotus"
+    ],
+    "nest": [
+      "abyss",
+      "breeze",
+      "icebox"
+    ],
+    "pizza": [
+      "ascent"
+    ],
+    "pyramids": [
+      "breeze"
+    ],
+    "rubble": [
+      "lotus"
+    ],
+    "sewer": [
+      "haven",
+      "split"
+    ],
+    "showers": [
+      "bind"
+    ],
+    "snowman": [
+      "icebox"
+    ],
+    "teleporter": [
+      "bind"
+    ],
+    "tree": [
+      "ascent",
+      "fracture",
+      "lotus"
+    ],
+    "tube": [
+      "icebox"
+    ],
+    "tunnel": [
+      "breeze",
+      "fracture",
+      "pearl"
+    ],
+    "vent": [
+      "abyss",
+      "split"
+    ],
+    "waterfall": [
+      "lotus"
+    ],
+    "wine": [
+      "ascent"
+    ]
+  }
+}
