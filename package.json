@@ -1,6 +1,6 @@
 {
   "name": "ghostcoach",
-  "version": "2.2.4",
+  "version": "2.2.5",
   "description": "Real-time Valorant AI coaching overlay",
   "main": "src/main/index.js",
   "scripts": {
@@ -10,7 +10,8 @@
     "dist:win": "electron-builder --win",
     "dist:mac": "electron-builder --mac",
     "dist": "electron-builder --win --mac",
-    "release": "electron-builder --win --publish always"
+    "release": "electron-builder --win --publish always",
+    "sync:valorant": "node scripts/sync-valorant-data.js"
   },
   "build": {
     "appId": "com.ghostcoach.app2",

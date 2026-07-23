@@ -1233,42 +1233,20 @@ const TEAM_PLAY_TIP = /\btrad(?:e|es|ed|ing)\b|\bteammates?\b|\bcrossfire\b|\bsw
 // is dropped outright: "hold the cross in Hookah" on Ascent is worse than
 // silence. Only distinctive names are listed; shared words (mid, heaven,
 // main, site) are never gated.
-// Distinctive callout -> the standard 5v5 map(s) it belongs to. Verified against
-// the game's own region data (valorant-api.com/v1/maps): a callout maps to EVERY
-// map that has it, so the gate only rejects it when it is truly foreign. Famous
-// community callouts the game data does not name (Hookah, Showers) are kept;
-// ambiguous common words (cave, ropes) and generic region names (Icebox's color
-// callouts, main/site/etc.) are left out so they never false-reject a real tip.
-const MAP_CALLOUTS = {
-  // Bind
-  hookah: ['bind'], showers: ['bind'], lamps: ['bind'], teleporter: ['bind'],
-  // Ascent
-  pizza: ['ascent'], wine: ['ascent'],
-  catwalk: ['ascent', 'abyss'], market: ['ascent', 'sunset'],
-  // Sunset
-  boba: ['sunset'],
-  // Haven / Split / Icebox (garage is on all three; sewer on Haven + Split)
-  garage: ['haven', 'split', 'icebox'], sewer: ['haven', 'split'],
-  // Split
-  mail: ['split'], vents: ['split', 'abyss'],
-  // Icebox
-  kitchen: ['icebox'], boiler: ['icebox'], snowman: ['icebox'], tube: ['icebox'],
-  // Breeze
-  pyramids: ['breeze'], cannon: ['breeze'],
-  // Fracture (tree is also Ascent + Lotus)
-  dish: ['fracture'], arcade: ['fracture'], canteen: ['fracture'],
-  tree: ['ascent', 'fracture', 'lotus'],
-  // Pearl
-  flowers: ['pearl'], dugout: ['pearl'],
-  // Lotus
-  rubble: ['lotus'], waterfall: ['lotus'], gravel: ['lotus'], mound: ['lotus'],
-  // Abyss
-  library: ['abyss'],
-  // Corrode
-  crane: ['corrode'],
-  // shared across a few (only reject when foreign to all)
-  nest: ['abyss', 'breeze', 'icebox'],
-};
+// Distinctive callout -> the standard 5v5 map(s) it belongs to, generated from
+// the game's own region data (valorant-api.com) by `npm run sync:valorant`, so
+// a callout maps to EVERY map that has it and the gate only rejects it when it
+// is truly foreign, and it stays current when a new map ships. A small fallback
+// covers the (never-in-practice) case of the generated file being absent.
+const MAP_CALLOUTS = (() => {
+  try {
+    const c = require('../../shared/valorant-data.generated.json').mapCallouts;
+    if (c && Object.keys(c).length) return c;
+  } catch (e) { console.error('[engine] generated callouts missing, using fallback:', e.message); }
+  return { hookah: ['bind'], showers: ['bind'], lamps: ['bind'], kitchen: ['icebox'],
+    garage: ['haven', 'split', 'icebox'], pyramids: ['breeze'], dish: ['fracture'],
+    tree: ['ascent', 'fracture', 'lotus'], flowers: ['pearl'], waterfall: ['lotus'] };
+})();
 const CALLOUT_RE = new RegExp('\\b(' + Object.keys(MAP_CALLOUTS).join('|') + ')\\b', 'gi');
 function wrongMapCallout(text, map) {
   const found = String(text || '').toLowerCase().match(CALLOUT_RE);

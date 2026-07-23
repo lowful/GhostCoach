@@ -7,42 +7,62 @@
  *
  * `abilities` are lowercased for substring matching in the validator.
  */
-const AGENTS = {
-  // ── Duelists ────────────────────────────────────────────────────────────────
-  Jett:    { role: 'Duelist', abilities: ['cloudburst', 'updraft', 'tailwind', 'blade storm', 'dash', 'knives'], tip: 'Use your dash to entry, but save it to bail, don’t ego-peek with it on cooldown.' },
-  Raze:    { role: 'Duelist', abilities: ['boom bot', 'blast pack', 'paint shells', 'showstopper', 'satchel'], tip: 'Satchel into site and nade the corners, you’re the space-taker, so trade-bait with your team behind.' },
-  Reyna:   { role: 'Duelist', abilities: ['leer', 'devour', 'dismiss', 'empress'], tip: 'Reyna’s only as good as her frags, get a pick, dismiss out, reset. Don’t dry-peek without a soul nearby.' },
-  Phoenix: { role: 'Duelist', abilities: ['blaze', 'curveball', 'hot hands', 'run it back'], tip: 'Flash your own peeks and self-heal off the molly. Use ult to get info for free.' },
-  Yoru:    { role: 'Duelist', abilities: ['fakeout', 'blindside', 'gatecrash', 'dimensional drift'], tip: 'Sell the fake, TP behind them or flank while they watch your decoy.' },
-  Neon:    { role: 'Duelist', abilities: ['fast lane', 'relay bolt', 'high gear', 'overdrive'], tip: 'Slide-peek for the speed advantage, stun before you swing, and don’t over-run into their crosshair.' },
-  Iso:     { role: 'Duelist', abilities: ['contingency', 'undercut', 'double tap', 'kill contract'], tip: 'Pop your shield before a duel and take the 1v1s, your kit wants isolated fights.' },
-  Waylay:  { role: 'Duelist', abilities: ['saturate', 'lightspeed', 'refract', 'convergent paths'], tip: 'Use Lightspeed to entry and Refract to rewind out of trouble, play fast but reset safe.' },
+// Verified game data (roster, roles, ability names) is generated from
+// valorant-api.com by `npm run sync:valorant`, so it never drifts when Riot
+// adds or reworks an agent. The casual per-agent tip, community ability
+// aliases, and generic kit stay hand-authored below and are merged on top.
+// If the generated file is ever missing, agent features degrade off, no crash.
+let GENERATED = { agents: {} };
+try { GENERATED = require('../../shared/valorant-data.generated.json'); }
+catch (e) { console.error('[agent-data] generated Valorant data missing, agent features limited:', e.message); }
 
-  // ── Controllers ─────────────────────────────────────────────────────────────
-  Brimstone: { role: 'Controller', abilities: ['incendiary', 'stim beacon', 'sky smoke', 'orbital strike'], tip: 'Drop stim for the entry and molly the corners on exec. Your smokes are instant, use them on contact.' },
-  Viper:     { role: 'Controller', abilities: ['snake bite', 'poison cloud', 'toxic screen', 'viper’s pit', 'vipers pit'], tip: 'Manage your fuel, wall the exec, save snakebite for post-plant defuse denial.' },
-  Omen:      { role: 'Controller', abilities: ['shrouded step', 'paranoia', 'dark cover', 'from the shadows'], tip: 'TP to off-angles and one-way your smokes. Paranoia before you swing for a free duel.' },
-  Astra:     { role: 'Controller', abilities: ['gravity well', 'nova pulse', 'nebula', 'cosmic divide'], tip: 'Set stars in setup and use the wall to split a site or save a retake.' },
-  Harbor:    { role: 'Controller', abilities: ['cascade', 'cove', 'high tide', 'reckoning'], tip: 'Wall the exec and bubble the plant, your util takes space, push behind it as a team.' },
-  Clove:     { role: 'Controller', abilities: ['pick-me-up', 'meddle', 'ruse', 'not dead yet'], tip: 'You can smoke from anywhere, even dead. Play aggressive, you self-revive off a kill.' },
-
-  // ── Initiators ──────────────────────────────────────────────────────────────
-  Sova:    { role: 'Initiator', abilities: ['owl drone', 'shock bolt', 'recon bolt', 'hunter’s fury', 'hunters fury'], tip: 'Recon the site before exec, shock-dart common spots, and lineup post-plant darts.' },
-  Breach:  { role: 'Initiator', abilities: ['aftershock', 'flashpoint', 'fault line', 'rolling thunder'], tip: 'Flash and fault-line through the wall for the team entry, stack your util with the swing.' },
-  Skye:    { role: 'Initiator', abilities: ['regrowth', 'trailblazer', 'guiding light', 'seekers'], tip: 'Flash for your team’s entry and trail-blaze to clear corners. Heal the team in setup.' },
-  'KAY/O': { role: 'Initiator', abilities: ['frag/ment', 'flash/drive', 'zero/point', 'null/cmd', 'kayo'], tip: 'Knife to suppress before exec, a suppressed site can’t use util. Flash your own swings.' },
-  Fade:    { role: 'Initiator', abilities: ['prowler', 'seize', 'haunt', 'nightfall'], tip: 'Haunt the site for info, prowler to chase them out, seize to trap for the trade.' },
-  Gekko:   { role: 'Initiator', abilities: ['mosh pit', 'wingman', 'dizzy', 'thrash'], tip: 'Send Wingman to plant or clear, and reclaim your util, Dizzy flashes the whole site.' },
-  Tejo:    { role: 'Initiator', abilities: ['stealth drone', 'special delivery', 'guided salvo', 'armageddon'], tip: 'Drone for info and salvo the choke before your team swings the angle.' },
-
-  // ── Sentinels ───────────────────────────────────────────────────────────────
-  Killjoy:  { role: 'Sentinel', abilities: ['alarmbot', 'nanoswarm', 'turret', 'lockdown'], tip: 'Lock down your flank and stack util on a corner. Save swarm grenades for post-plant.' },
-  Cypher:   { role: 'Sentinel', abilities: ['trapwire', 'cyber cage', 'spycam', 'neural theft'], tip: 'Trip the flank and cam the choke, info wins your rounds, not frags.' },
-  Sage:     { role: 'Sentinel', abilities: ['barrier orb', 'slow orb', 'healing orb', 'resurrection', 'barrier', 'slow'], tip: 'Wall to take space or delay a push, slow the exec, and save heal for your star player.' },
-  Chamber:  { role: 'Sentinel', abilities: ['trademark', 'headhunter', 'rendezvous', 'tour de force'], tip: 'Hold an aggressive angle and TP out after the pick, play the OP off your anchor.' },
-  Deadlock: { role: 'Sentinel', abilities: ['gravnet', 'sonic sensor', 'barrier mesh', 'annihilation'], tip: 'Mesh the choke and sensor the flank, your wall buys time, don’t waste it early.' },
-  Vyse:     { role: 'Sentinel', abilities: ['shear', 'arc rose', 'razorvine', 'steel garden'], tip: 'Set razorvine on entry paths and flash with arc rose, your steel garden shuts down a buy.' },
+// Casual, agent-specific playstyle reminder (coaching flavor, not a fact).
+const AGENT_TIPS = {
+  Jett: 'Use your dash to entry, but save it to bail, don’t ego-peek with it on cooldown.',
+  Raze: 'Satchel into site and nade the corners, you’re the space-taker, so trade-bait with your team behind.',
+  Reyna: 'Reyna’s only as good as her frags, get a pick, dismiss out, reset. Don’t dry-peek without a soul nearby.',
+  Phoenix: 'Flash your own peeks and self-heal off the molly. Use ult to get info for free.',
+  Yoru: 'Sell the fake, TP behind them or flank while they watch your decoy.',
+  Neon: 'Slide-peek for the speed advantage, stun before you swing, and don’t over-run into their crosshair.',
+  Iso: 'Pop your shield before a duel and take the 1v1s, your kit wants isolated fights.',
+  Waylay: 'Use Lightspeed to entry and Refract to rewind out of trouble, play fast but reset safe.',
+  Brimstone: 'Drop stim for the entry and molly the corners on exec. Your smokes are instant, use them on contact.',
+  Viper: 'Manage your fuel, wall the exec, save snakebite for post-plant defuse denial.',
+  Omen: 'TP to off-angles and one-way your smokes. Paranoia before you swing for a free duel.',
+  Astra: 'Set stars in setup and use the wall to split a site or save a retake.',
+  Harbor: 'Wall the exec and bubble the plant, your util takes space, push behind it as a team.',
+  Clove: 'You can smoke from anywhere, even dead. Play aggressive, you self-revive off a kill.',
+  Sova: 'Recon the site before exec, shock-dart common spots, and lineup post-plant darts.',
+  Breach: 'Flash and fault-line through the wall for the team entry, stack your util with the swing.',
+  Skye: 'Flash for your team’s entry and trail-blaze to clear corners. Heal the team in setup.',
+  'KAY/O': 'Knife to suppress before exec, a suppressed site can’t use util. Flash your own swings.',
+  Fade: 'Haunt the site for info, prowler to chase them out, seize to trap for the trade.',
+  Gekko: 'Send Wingman to plant or clear, and reclaim your util, Dizzy flashes the whole site.',
+  Tejo: 'Drone for info and salvo the choke before your team swings the angle.',
+  Killjoy: 'Lock down your flank and stack util on a corner. Save swarm grenades for post-plant.',
+  Cypher: 'Trip the flank and cam the choke, info wins your rounds, not frags.',
+  Sage: 'Wall to take space or delay a push, slow the exec, and save heal for your star player.',
+  Chamber: 'Hold an aggressive angle and TP out after the pick, play the OP off your anchor.',
+  Deadlock: 'Mesh the choke and sensor the flank, your wall buys time, don’t waste it early.',
+  Vyse: 'Set razorvine on entry paths and flash with arc rose, your steel garden shuts down a buy.',
 };
+
+// Community ability terms the game's official names do not use, so a tip that
+// says "dash" or "vipers pit" still validates for the right agent.
+const ABILITY_ALIASES = {
+  Jett: ['dash', 'knives'], Viper: ['vipers pit'], Sova: ['hunters fury'],
+  'KAY/O': ['kayo'], Sage: ['barrier', 'slow'],
+};
+
+// Merge: verified roster/roles/abilities from the API + hand-authored flavor.
+const AGENTS = {};
+for (const [name, info] of Object.entries(GENERATED.agents || {})) {
+  AGENTS[name] = {
+    role: info.role,
+    abilities: [...(info.abilities || []), ...(ABILITY_ALIASES[name] || [])],
+    tip: AGENT_TIPS[name] || null,
+  };
+}
 
 const ROLE_TIP = {
   Duelist:    'You’re the entry, take space with util, but make sure your team’s right behind to trade.',
