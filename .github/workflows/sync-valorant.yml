@@ -50,7 +50,7 @@ jobs:
         run: |
           CHANGES=$(sed -n '/Changes since last sync:/,$p' sync-output.txt)
           gh issue create \
-            --title "Valorant data changed — cut a client release" \
+            --title "Valorant data changed, cut a client release" \
             --body "The scheduled sync found new game data and committed it. The server updates automatically on deploy, but the desktop client bundles this data, so run \`npm run release\` (bump the patch version first) to ship it to users.
 
           $CHANGES" \
