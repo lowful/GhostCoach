@@ -1,0 +1,57 @@
+name: Sync Valorant data
+
+# Runs the game-data sync (agents, roles, abilities, maps, callouts) from
+# valorant-api.com on a schedule so GhostCoach's data never drifts after a
+# Valorant patch. If the generated data actually changed, it commits the update
+# (the server picks it up on the next Railway deploy) and opens an issue so a
+# human cuts a client release, since the client bundles this data.
+on:
+  schedule:
+    - cron: '0 15 * * *'   # daily at 15:00 UTC, catches any patch within a day
+  workflow_dispatch: {}     # also runnable by hand from the Actions tab
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run the sync
+        id: sync
+        run: |
+          node scripts/sync-valorant-data.js | tee sync-output.txt
+          if git diff --quiet -- src/shared/valorant-data.generated.json server/valorant-data.generated.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit the updated data
+        if: steps.sync.outputs.changed == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add src/shared/valorant-data.generated.json server/valorant-data.generated.json
+          git commit -m "data: sync Valorant game data from valorant-api.com (automated)"
+          git push
+
+      - name: Open a release reminder
+        if: steps.sync.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          CHANGES=$(sed -n '/Changes since last sync:/,$p' sync-output.txt)
+          gh issue create \
+            --title "Valorant data changed — cut a client release" \
+            --body "The scheduled sync found new game data and committed it. The server updates automatically on deploy, but the desktop client bundles this data, so run \`npm run release\` (bump the patch version first) to ship it to users.
+
+          $CHANGES" \
+            --label "release" 2>/dev/null || echo "issue create skipped (label may not exist)"
