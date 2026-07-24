@@ -1,0 +1,152 @@
+{
+  "generatedAt": "2026-07-24T00:53:24.415Z",
+  "patch": "13.01",
+  "buildDate": "2026-07-16T17:42:16Z",
+  "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-13-01/",
+  "headline": "Adjustments to Iso, Yoru, and Outlaw, and punishing rank manipulators.",
+  "changes": [
+    {
+      "type": "agent",
+      "names": [
+        "Iso"
+      ],
+      "line": "Iso buff to weapon equip speed after unequipping Double Tap"
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Yoru"
+      ],
+      "line": "Yoru buff with an increase in duration of Gatecrash"
+    },
+    {
+      "type": "weapon",
+      "names": [
+        "Outlaw"
+      ],
+      "line": "Outlaw adjustment to allow for more expression and control"
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Yoru"
+      ],
+      "line": "To further satisfy his deception fantasy, clones from Fakeout will now hold Yoru's last equipped weapon, instead of defaulting to his strongest weapon."
+    },
+    {
+      "type": "weapon",
+      "names": [
+        "Outlaw"
+      ],
+      "line": "Outlaw has been performing strongly and we still want it to feel powerful with its back-to-back shots, but allow for some expression and some control to warrant that power."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Astra"
+      ],
+      "line": "Fixed an issue where Astra's ability cooldown timer could sometimes remain visible after the ability had already been used."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Clove"
+      ],
+      "line": "Fixed an issue where Clove could gain an extra charge of Ruse during the Buy Phase by purchasing and reselling ability charges."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Cypher"
+      ],
+      "line": "Fixed an issue where Cyber Cage's trajectory indicator would not appear when throwing the ability into locations outside of Cypher's line of sight."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Jett"
+      ],
+      "line": "Fixed an inconsistency where Jett could not pick up the Spike or weapons during Tailwind ."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Killjoy",
+        "Split"
+      ],
+      "line": "Fixed an issue on Split where Killjoy's Alarmbot could interact with players through certain wooden covers."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Miks"
+      ],
+      "line": "Fixed an issue where Miks could gain an extra charge of Waveform during the Buy Phase by purchasing and reselling ability charges."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Neon"
+      ],
+      "line": "Fixed an issue where Neon could be unable to pick up the Spike while sliding over it."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Reyna"
+      ],
+      "line": "Fixed an issue where Dismiss could occasionally leave Reyna unable to equip a weapon."
+    },
+    {
+      "type": "map",
+      "names": [
+        "Abyss"
+      ],
+      "line": "Fixed an issue on Abyss where Leer could apply its blind effect in unintended locations near A Main."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Viper",
+        "Sage"
+      ],
+      "line": "Fixed an issue where players revived by Sage inside Viper's Pit or Poison Cloud would not correctly receive the nearsighted debuff."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Skye"
+      ],
+      "line": "Fixed an issue where Skye could gain an extra charge of Guiding Light during the Buy Phase by purchasing and reselling ability charges."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Viper"
+      ],
+      "line": "Fixed an issue where players using controllable abilities could briefly see through Viper's Pit ."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Yoru"
+      ],
+      "line": "Fixed an issue that allowed Yoru to gain unintended movement speed while in Dimensional Drift when interacting with Flex/Totems."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Iso"
+      ],
+      "line": "Fixed an issue where Iso could survive the falling door crush."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Waylay"
+      ],
+      "line": "Fixed an issue where Waylay could reach unintended locations using Refract and Lightspeed ."
+    }
+  ],
+  "notesFound": true
+}

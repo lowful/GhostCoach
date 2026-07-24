@@ -2,6 +2,8 @@
 const express  = require('express');
 const supabase = require('../db/supabase');
 const knowledge = require('../services/knowledge');
+const locator   = require('../services/callout-locator');
+const patchCtx  = require('../services/patch-context');
 const router = express.Router();
 
 // ─── Cost tracking (in-memory, resets on server restart) ──────────────────────
@@ -323,6 +325,26 @@ Speak in real defense comms, the words Radiants use: "setup at A", "crossfire", 
 ROTATE DISCIPLINE: a rotate call is only right on REAL info, the spike going down elsewhere, multiple enemies confirmed on the other site, or a clear numbers read on the minimap. Contact from one enemy at your site is not rotate info, it may be the fake, so say so ("Hold your site, one contact B could be the fake, wait for the spike or a second confirm"). Never suggest a rotate as filler, a wrong rotate loses rounds that patience wins.`
     : `SIDE UNKNOWN this frame. Read it from the HUD: during the buy phase the banner at the TOP of the screen literally says ATTACKING or DEFENDING, that is authoritative, read it first. Otherwise your team carrying or buying the spike means attack, a defuser in inventory or holding sites means defense, and spawn barriers near YOUR spawn tell you which end of the map you start from. Cross-check with the halves for the mode (${modeLine}): once you know the side one half started on, the other half is the opposite by arithmetic. Report it in STATE. Getting the side wrong poisons EVERY tip, so when the evidence is thin report null instead of guessing. Keep advice fundamentals-first so it fits either side: trade, crossfires, util before peeking, minimap awareness, and economy discipline.`;
 
+  // The real minimap layout for the map actually being played (sites, whether a
+  // mid exists, and the only callouts that legitimately exist there). Empty
+  // until the map is locked, which is deliberate: with no verified map we would
+  // rather give general directions than a confident callout from the wrong map.
+  const mapBlock = locator.minimapBrief(ctx.map);
+
+  // What the live patch changed for THIS player's agent and gun, in Riot's own
+  // words, so the coach never teaches a habit that was just nerfed.
+  const patchBlock = patchCtx.patchBrief(ctx.agent, ctx.playerWeapon);
+
+  // Everything the coach sees is a few seconds old by the time the player hears
+  // it, so location wording has to survive the player having moved on.
+  const delayBlock = `
+
+THE PLAYER HAS ALREADY MOVED. This frame reached you seconds ago, so by the time they hear you they are somewhere slightly different. Never phrase a tip as if you are watching them live in that exact spot.
+- Say the AREA, not the pixel: "around A Main", "near Hookah", "on your way to B", not "you are standing at the top of A Main right now".
+- Never give a tip that only works if they are still in the exact spot you saw ("turn left now", "shoot the guy in front of you"). Coach the next few seconds instead: what to set up, where to go, what to expect, what to stop doing.
+- Ongoing habits and positioning always beat frame-perfect reactions, because habits are still true ten seconds later.
+- If the only honest tip would need the player frozen where you saw them, SKIP.`;
+
   const s = ctx.playerStats;
   const extLine = s && (s.kpr != null || s.adr || s.acs)
     ? `Per round over their last ${s.matches || 'few'} matches: ${s.kpr != null ? s.kpr + ' kills, ' : ''}${s.dpr != null ? s.dpr + ' deaths, ' : ''}${s.apr != null ? s.apr + ' assists, ' : ''}${s.adr ? s.adr + ' damage (ADR), ' : ''}${s.acs ? s.acs + ' combat score (ACS)' : ''}.
@@ -515,9 +537,9 @@ ${deathLine}${roundLostLine}${enemyBlock}${memoryBlock}${transLine}${focusLine}C
 - Agent: ${ctx.agent || 'Unknown'} | Map: ${ctx.map || 'Unknown'} | Side: ${ctx.side || 'Unknown'}
 - Mode: ${modeLine}
 - Round: ${ctx.roundNumber || 'Unknown'} | Score: ${ctx.teamScore || 0}-${ctx.enemyScore || 0} | Phase: ${ctx.phase || 'Unknown'} | Clock: ${ctx.clock || 'read it from the timer'}
-- Player location (last minimap read): ${ctx.playerSpot || 'Unknown'}
+- Player location (read from the minimap a few seconds ago): ${ctx.playerSpot || 'Unknown'}${ctx.playerSpotVerified ? ' (this one was resolved from the minimap coordinates, it is reliable)' : ''}
 - Credits: ${ctx.playerCredits == null ? 'Unknown' : ctx.playerCredits} | Alive: ${ctx.playerAlive === false ? 'No' : 'Yes'} | Deaths in a row: ${ctx.consecutiveDeaths || 0}${ctx.playerAlive === false ? '\n- THE PLAYER IS DEAD RIGHT NOW. They cannot move, peek, rotate, buy, or use util this round. The ONLY valid tips are why they died and what to change, or what to watch and learn while spectating. Any tip telling a dead player to act is automatically wrong.' : ''}
-- Teammates alive: ${ctx.teammatesAlive == null ? 'Unknown' : ctx.teammatesAlive} | Enemies alive: ${ctx.enemiesAlive == null ? 'Unknown' : ctx.enemiesAlive}${ctx.teammatesAlive === 0 && ctx.playerAlive !== false ? ' | THE PLAYER IS SOLO, this is a clutch' : ''}
+- Teammates alive: ${ctx.teammatesAlive == null ? 'Unknown' : ctx.teammatesAlive} | Enemies alive: ${ctx.enemiesAlive == null ? 'Unknown' : ctx.enemiesAlive}${ctx.teammatesAlive === 0 && ctx.playerAlive !== false ? ' | THE PLAYER IS SOLO, this is a clutch' : ''}${mapBlock}${patchBlock}${delayBlock}
 
 RECENT TIPS (do not repeat these word for word; if the SAME mistake is still happening and the advice matters, give it again in FRESH wording and mark the repetition, "still", "again", "third time now", important advice bears repeating, lazy copies do not):
 ${recent}
@@ -533,13 +555,21 @@ Line 1 is the tip: one plain sentence, 8 to 22 words, ending with a period. Talk
 When (and ONLY when) the tip explains why the player died or why the round was lost, line 1 starts with exactly "DEATH: " before the sentence. The app renders those as a special review card, so never use the marker on ordinary tips and never skip it on a death or round review.
 
 Then, for any live-gameplay frame (including SKIP), add a second line reporting what the HUD actually shows, null for anything unreadable, never guess:
-STATE: {"side":"attack","phase":"active","round":5,"clock":"1:12","team":3,"enemy":1,"credits":4200,"alive":true,"mates":3,"foes":2,"weapon":"Vandal","map":"Ascent","mode":null,"playerSpot":null,"enemySpot":null,"teamRead":null,"note":null}
+STATE: {"side":"attack","phase":"active","round":5,"clock":"1:12","team":3,"enemy":1,"credits":4200,"alive":true,"aliveTell":"own rifle and HP 100 bottom center","mates":3,"foes":2,"weapon":"Vandal","map":"Ascent","mode":null,"mmPos":[0.48,0.2],"playerSpot":null,"enemySpot":null,"teamRead":null,"note":null}
 - side: during the buy phase the banner at the TOP of the screen says ATTACKING or DEFENDING, read it there first, it is authoritative. Otherwise "attack" if your team carries or bought the spike, "defense" if you see a defuser or you are holding sites, else null. Getting the side wrong is the single worst mistake you can make, every tip built on it turns into anti-coaching, so report null over a guess. THE HALVES DEPEND ON THE MODE: in Unrated and Competitive the starting side holds through round 12, flips for rounds 13 to 24, and only overtime (round 25+) alternates. In SWIFTPLAY halves are 4 rounds: the starting side holds rounds 1 to 4, flips for rounds 5 to 8, and a 4-4 sudden death round 9 must be read from the banner. If the round number puts the match past halftime for the mode and you knew the first-half side, report the flipped side even when the frame alone is ambiguous.
 - mode: the queue, ONLY when it is actually printed on screen ("SWIFTPLAY", "COMPETITIVE", "UNRATED" on the agent select header, the loading screen, the scoreboard header, or the end of round banner). Report exactly what you read, else null, never infer it. The mode decides when sides swap, so a wrong mode flips every later side call.
-- playerSpot: where the PLAYER's own YELLOW/GOLD minimap arrow (the one with the vision cone, NOT the blue teammate icons) is right now, site level only ("A site", "B main", "mid", "attacker spawn"). Read the yellow arrow relative to the printed A/B/C labels, judge across frames when it is moving, and report null when you cannot tell. This is the location later tips and death reviews lean on, so a wrong spot here becomes a wrong callout later.
+- mmPos: THE MOST IMPORTANT FIELD FOR LOCATION. Where the player's own YELLOW/GOLD minimap arrow (the one with the vision cone, NOT the blue teammate icons) sits ON THE MINIMAP, as two decimals [across, down]. Treat the minimap box's top-left corner as [0,0] and its bottom-right corner as [1,1]: so [0.5,0.5] is the middle of the minimap, [0.5,0.1] is near the top edge, [0.9,0.5] is near the right edge. Just measure where the yellow arrow is in that box, you do NOT need to know the callout's name. The app converts these numbers into the correct callout using the real map data, which is far more reliable than naming the spot yourself. Report null ONLY if the minimap or the yellow arrow is genuinely not visible.
+  IMPORTANT: only report mmPos if the minimap is in its normal fixed orientation (north up, the layout matching the map above). If the player uses a ROTATING minimap that spins as they turn, the numbers would be meaningless, so report null and fall back to playerSpot.
+- playerSpot: a backup, plain-words location for when you cannot give mmPos ("A site", "B main", "mid", "attacker spawn"). Use ONLY callouts that exist on this map. Report null when you cannot tell, a guessed spot becomes a wrong callout later.
 - phase: "buy" (barriers up), "active" (round live), "postplant" (spike down), "dead" (player dead or spectating), else null.
 - clock: the round timer at TOP-CENTER exactly as shown ("1:12", "0:38"), the round counts down from 1:40, and after the plant it is the 45-second spike timer. Read it every active frame, it decides the stage and what advice fits, null only when it is truly unreadable.
-- alive: report false the moment the player is dead and SPECTATING. The clearest tell is the BOTTOM-LEFT of the screen: when alive it shows the player's OWN weapons and ability icons, but when dead and spectating it shows the spectated teammate's name and loadout with a "Spectating" label, that name at bottom-left means the player is dead, watching someone else. Other dead tells: a death recap or killcam, the grey observer HUD, no HP number bottom center. A flashbang whiteout, a smoke, a dark corner, or a blurry frame is NOT death; when the frame is ambiguous report the same value as the previous frame. Alive signs that settle it instantly: the player's own weapon or hands in first person plus a readable HP number bottom center. Getting this wrong makes every other tip wrong, so watch that bottom-left corner every frame.
+- alive AND aliveTell: DO THIS CHECK FIRST, BEFORE ANYTHING ELSE IN THE FRAME. Answer one question: can I see the player's OWN health number at the bottom-center of the screen, with their OWN weapon and ability icons at the bottom-left?
+  YES, own HP and own loadout visible  -> alive: true,  aliveTell: what you saw ("own HP 87 and Vandal bottom left").
+  NO  -> the player is DEAD and spectating a teammate -> alive: false, aliveTell: the dead tell you saw.
+  The dead tells, any ONE of these is enough, you do not need two: a teammate's NAME shown at the bottom-left instead of your own loadout, the word "Spectating" anywhere, a death recap or killcam, the greyed-out observer HUD, a "You died" or respawn banner, or simply no HP number at the bottom-center at all.
+  aliveTell must be a SHORT phrase naming the actual evidence, never a guess and never empty. Writing the evidence down is what makes this read accurate, so always fill it in.
+  NOT death, do not be fooled: a flashbang whiteout, a smoke, a dark corner, a scoped-in view, or a blurry frame. In those the HP number is usually still there. If the frame is truly unreadable, repeat the previous frame's value and say so in aliveTell ("unreadable, kept previous").
+  This is the single most important field in the whole report. A dead player cannot peek, rotate, buy, or use util, so every tip built on a wrong alive read is nonsense the player will notice immediately.
 - team is YOUR team's score, enemy is theirs, round is team plus enemy plus 1.
 - credits: only during the buy phase when the number is readable.
 - mates: how many OTHER teammates are alive right now (0 to 4); foes: how many enemies are alive (0 to 5). Read the agent portraits along the top HUD bar, dead players show darkened or crossed out. These numbers decide what advice is even possible, read them carefully.
@@ -595,6 +625,10 @@ function mapState(s) {
   if (num(s.enemy)   != null && s.enemy   >= 0 && s.enemy   <= 30)    out.enemyScore    = Math.round(s.enemy);
   if (num(s.credits) != null && s.credits >= 0 && s.credits <= 30000) out.playerCredits = Math.round(s.credits);
   if (typeof s.alive === 'boolean') out.playerAlive = s.alive;
+  // The evidence behind the alive read. A named dead tell (a spectate label, a
+  // teammate's name bottom-left, a killcam) is strong enough for the client to
+  // register the death from ONE frame instead of waiting for a second one.
+  if (str(s.aliveTell)) out.aliveTell = String(s.aliveTell).trim().slice(0, 60);
   if (num(s.mates) != null && s.mates >= 0 && s.mates <= 4) out.teammatesAlive = Math.round(s.mates);
   if (num(s.foes)  != null && s.foes  >= 0 && s.foes  <= 5) out.enemiesAlive   = Math.round(s.foes);
   if (str(s.weapon))    out.playerWeapon = str(s.weapon);
@@ -609,8 +643,19 @@ function mapState(s) {
   if (mode && /swift/i.test(mode)) out.gameMode = 'swiftplay';
   else if (mode && /comp|unrated|standard|premier/i.test(mode)) out.gameMode = 'standard';
   // Where the player's own minimap arrow sits ("B main", "mid"): feeds the
-  // location context the next tips and death reviews are grounded in.
+  // location context the next tips and death reviews are grounded in. The
+  // analyze route overwrites this with the coordinate-resolved callout whenever
+  // mmPos gives one, since that name is guaranteed to exist on this map.
   if (str(s.playerSpot)) out.playerSpot = str(s.playerSpot);
+  // The yellow arrow's position on the minimap, [across, down] in 0..1. Only a
+  // well-formed pair inside the minimap box is kept; anything else is dropped
+  // so a malformed read can never place the player somewhere invented.
+  if (Array.isArray(s.mmPos) && s.mmPos.length === 2) {
+    const [mx, my] = s.mmPos.map((v) => (typeof v === 'number' && isFinite(v) ? v : null));
+    if (mx != null && my != null && mx >= 0 && mx <= 1 && my >= 0 && my <= 1) {
+      out.mmPos = [mx, my];
+    }
+  }
   // The round timer ("1:12", "0:38") drives stage-aware coaching (see ROUND
   // TIMELINE). Kept as the raw mm:ss string the HUD shows.
   if (str(s.clock)) out.clock = String(s.clock).trim().slice(0, 8);
@@ -771,6 +816,35 @@ router.post('/analyze', async (req, res) => {
     if (/^DEATH\s*[:,]\s*/i.test(tip)) { deathReview = true; tip = tip.replace(/^DEATH\s*[:,]\s*/i, ''); }
     // HUD state report wins over anything the legacy JSON path produced.
     let outCtx = { ...finalContext, ...hudState };
+
+    // DETERMINISTIC LOCATION: the model reported WHERE the yellow arrow sits on
+    // the minimap; the callout NAME comes from the map's real geometry, never
+    // from the model's memory. This is what stops callouts belonging to another
+    // map. Needs a locked map (the client only sends one after two agreeing
+    // reads), so an unknown map simply keeps the model's own wording.
+    const mapForSpot = outCtx.map || context.map;
+    if (outCtx.mmPos && mapForSpot) {
+      const fix = locator.resolveSpot(mapForSpot, outCtx.mmPos[0], outCtx.mmPos[1]);
+      if (fix) {
+        // Cross-check against the model's own words. If it also named a spot and
+        // the two disagree about which SITE the player is on, one of the reads is
+        // wrong and we do not know which, so we keep neither rather than state a
+        // confident lie. (A rotating minimap shows up exactly this way.)
+        const claimed = String(outCtx.playerSpot || '').toLowerCase();
+        const sup     = String(fix.superRegion || '').toLowerCase();
+        const claimsOtherSite = claimed && /\b[abc]\b|\bmid\b/.test(claimed)
+          && !claimed.includes(sup) && sup.length <= 3;
+        if (claimsOtherSite) {
+          console.log(`[coach] location conflict: coords say ${fix.spot}, model said "${outCtx.playerSpot}", dropping both`);
+          delete outCtx.playerSpot;
+        } else {
+          outCtx.playerSpot = fix.spot;
+          outCtx.playerSpotVerified = true;
+          console.log(`[coach] location resolved: ${mapForSpot} ${JSON.stringify(outCtx.mmPos)} -> ${fix.spot} (${fix.precision})`);
+        }
+      }
+    }
+    delete outCtx.mmPos;   // raw coordinates are of no use to the client
     console.log('[coach] FINAL TIP:', tip.slice(0, 100));
 
     // Enforce complete sentence on the server before sending to client
