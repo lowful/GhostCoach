@@ -62,6 +62,7 @@ const CHANNELS = {
   PUSH_AGENT:        'push:agent',        // { agent, confirmed, role }, drives the confirm bubble
   PUSH_MATCH_REVIEW: 'push:matchReview',  // { review, game, timestamp, tipsCount }
   PUSH_OVERLAY_VIS:  'push:overlayVisibility', // { visible }
+  PUSH_NUDGE:        'push:nudge',        // { kind: 'minimize' } one-off coaching hint on the panel
 };
 
 // Channels the renderer is allowed to subscribe to (defensive whitelist used
@@ -73,6 +74,7 @@ CHANNELS.PUSH_LIST = [
   CHANNELS.PUSH_AGENT,
   CHANNELS.PUSH_MATCH_REVIEW,
   CHANNELS.PUSH_OVERLAY_VIS,
+  CHANNELS.PUSH_NUDGE,
 ];
 
 module.exports = CHANNELS;

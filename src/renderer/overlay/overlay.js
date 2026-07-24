@@ -59,6 +59,18 @@ function setTipPosition(pos) {
   if (pos) tipsEl.dataset.pos = pos;
 }
 
+// Card look and see-through amount. Both are single values the CSS reads, so
+// changing them in Settings re-skins the live stack with no re-render.
+const TIP_STYLES = ['glass', 'solid', 'minimal', 'neon'];
+function setTipStyle(style) {
+  tipsEl.dataset.style = TIP_STYLES.includes(style) ? style : 'glass';
+}
+function setTipOpacity(v) {
+  const n = Number(v);
+  const val = isFinite(n) && n > 0 ? Math.min(1, Math.max(0.25, n)) : 0.9;
+  tipsEl.style.setProperty('--tip-alpha', val);
+}
+
 // Scale the tip stack in ratio, anchored to its corner so it grows inward and
 // pairs with every position (top/bottom, left/right). 1 = normal size.
 const SCALE_ORIGIN = {
@@ -213,6 +225,7 @@ window.ghost.onStatus(({ status }) => setStatus(status));
 window.ghost.onState((s) => {
   if (s) {
     setStatus(s.status); setTipPosition(s.tipPosition); setTipScale(s.tipScale); setShowTips(s.showTips);
+    setTipStyle(s.tipStyle); setTipOpacity(s.tipOpacity);
     voiceCfg = { enabled: s.voiceCoach === true, style: s.voiceStyle || 'normal',
                  volume: s.voiceVolume != null ? s.voiceVolume : 0.9 };
   }

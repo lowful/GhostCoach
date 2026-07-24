@@ -36,4 +36,5 @@ contextBridge.exposeInMainWorld('ghost', {
   onStatus: (cb) => subscribe(C.PUSH_STATUS, cb),
   onState:  (cb) => subscribe(C.PUSH_STATE, cb),
   onAgent:  (cb) => subscribe(C.PUSH_AGENT, cb),
+  onNudge:  (cb) => subscribe(C.PUSH_NUDGE, cb),
 });

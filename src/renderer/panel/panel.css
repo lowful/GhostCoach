@@ -51,13 +51,18 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
 .ab-quick { margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--glass-border); display: flex; flex-direction: column; gap: 6px; animation: abQuickIn 180ms var(--ease) both; }
 @keyframes abQuickIn { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
 .ab-quick-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-mute); }
-.ab-quick-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+/* Four mains on one row. Equal columns rather than flex-wrap so a long agent
+   name (Deadlock, Killjoy) cannot push the fourth pick onto a second line. */
+.ab-quick-btns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
 .ab-quick-btn {
-  font-family: var(--font); font-size: 12px; font-weight: 700; color: var(--text);
+  font-family: var(--font); font-size: 11.5px; font-weight: 700; color: var(--text);
   background: rgba(0,240,255,0.08); border: 1px solid rgba(0,240,255,0.28); border-radius: 8px;
-  padding: 6px 12px; cursor: pointer; transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+  padding: 6px 4px; cursor: pointer; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
 }
-.ab-quick-btn:hover { background: rgba(0,240,255,0.16); border-color: rgba(0,240,255,0.5); }
+.ab-quick-btn:hover  { background: rgba(0,240,255,0.16); border-color: rgba(0,240,255,0.5); }
+.ab-quick-btn:active { transform: scale(0.96); }
 
 .ab-input {
   flex: 1; min-width: 0; height: 30px; padding: 0 11px; border-radius: 9px;
@@ -117,3 +122,57 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
 .last-tip.has-tip .lt-text { color: var(--text); }
 .last-tip.flash { animation: ltflash 0.5s var(--ease); }
 @keyframes ltflash { 0% { background: rgba(0,240,255,0.14); } 100% { background: rgba(0,0,0,0.22); } }
+
+/* ── Minimize hint ─────────────────────────────────────────────────────────
+   A speech bubble that slides in from the right edge with its tail pointing up
+   at the minimize button. Shown at most once a session: for the first ten
+   sessions right after the agent is set, and after that only if the panel is
+   still up a minute into a live match. */
+.nudge {
+  position: relative;
+  display: flex; align-items: flex-start; gap: 8px;
+  margin-top: 10px;
+  padding: 10px 11px;
+  background: linear-gradient(135deg, rgba(0,240,255,0.13), rgba(0,240,255,0.05));
+  border: 1px solid rgba(0,240,255,0.34);
+  border-radius: var(--r-md);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.38);
+  animation: nudgeIn 460ms var(--ease-spring) both;
+}
+.nudge.out { animation: nudgeOut 220ms var(--ease) both; }
+/* Tail, aimed at the minimize button in the header above. */
+.nudge::before {
+  content: '';
+  position: absolute; top: -6px; right: 42px;
+  width: 11px; height: 11px;
+  background: rgba(0,240,255,0.13);
+  border-left: 1px solid rgba(0,240,255,0.34);
+  border-top: 1px solid rgba(0,240,255,0.34);
+  transform: rotate(45deg);
+}
+.nudge-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.nudge-body b {
+  font-size: 12px; font-weight: 700; color: var(--text);
+}
+.nudge-body span {
+  font-size: 10.5px; line-height: 1.45; color: var(--text-dim);
+}
+.nudge kbd {
+  font-family: var(--font); font-size: 9.5px; font-weight: 700;
+  color: var(--cyan);
+  background: rgba(0,0,0,0.34);
+  border: 1px solid rgba(0,240,255,0.28);
+  border-radius: 4px; padding: 1px 4px;
+}
+.nudge-x {
+  flex: none; margin-left: auto;
+  width: 20px; height: 20px; line-height: 1;
+  font-size: 11px; color: var(--text-mute);
+  background: transparent; border: none; border-radius: 5px;
+  cursor: pointer; transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.nudge-x:hover { color: var(--text); background: rgba(255,255,255,0.08); }
+
+/* Slides in from the right, so it reads as arriving rather than appearing. */
+@keyframes nudgeIn  { from { opacity: 0; transform: translateX(26px); } to { opacity: 1; transform: none; } }
+@keyframes nudgeOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(26px); } }

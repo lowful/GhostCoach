@@ -69,7 +69,7 @@ h3 {
 }
 .top-card {
   flex: 1;
-  background: var(--sheen), var(--glass-fill-2);
+  background: var(--glass-fill-2);
   border: 1px solid var(--glass-border);
   border-radius: var(--r-md);
   padding: 11px 12px;

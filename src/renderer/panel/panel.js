@@ -19,9 +19,10 @@ const abDone      = document.getElementById('ab-done');
 const abName      = document.getElementById('ab-name');
 const abDoneName  = document.getElementById('ab-done-name');
 const abInput     = document.getElementById('ab-input');
+const nudgeEl     = document.getElementById('nudge');
 const abQuick     = document.getElementById('ab-quick');
 const abQuickBtns = document.getElementById('ab-quick-btns');
-let topAgents     = [];   // player's 3 most-played, from state, for one-tap select
+let topAgents     = [];   // player's 4 most-played, from state, for one-tap select
 
 let isCoaching = false;
 let isPaused   = false;
@@ -105,6 +106,7 @@ function renderQuickPicks() {
     b.className = 'ab-quick-btn no-drag';
     b.type = 'button';
     b.textContent = name;
+    b.title = name;   // names can ellipsis at four across
     b.addEventListener('click', () => {
       window.ghost.setAgent(name).catch(() => {});   // success returns via PUSH_AGENT
     });
@@ -180,6 +182,25 @@ function applyState(s) {
   render();
   if (!isCoaching) { sessionActive = false; agentAnswered = false; hideAgentUI(); }
 }
+
+// ── Minimize hint ────────────────────────────────────────────────────────────
+// The main process decides WHEN this is worth showing; the panel just presents
+// it. Auto-dismisses so it never becomes another thing to click away mid-match.
+let nudgeTimer = null;
+function hideNudge() {
+  if (nudgeEl.hidden) return;
+  clearTimeout(nudgeTimer);
+  nudgeEl.classList.add('out');
+  setTimeout(() => { nudgeEl.hidden = true; nudgeEl.classList.remove("out"); syncHeight(); }, 220);
+}
+function showNudge() {
+  clearTimeout(nudgeTimer);
+  nudgeEl.hidden = false;
+  syncHeight();
+  nudgeTimer = setTimeout(hideNudge, 11000);   // long enough to read, short enough to forget
+}
+document.getElementById('nudge-x').addEventListener('click', hideNudge);
+window.ghost.onNudge((n) => { if (n && n.kind === 'minimize') showNudge(); });
 
 window.ghost.onState(applyState);
 window.ghost.onStatus(({ status }) => {

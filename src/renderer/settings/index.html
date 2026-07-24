@@ -63,6 +63,38 @@
       </section>
 
       <section>
+        <h3>Tip style</h3>
+        <p class="hint">How the coaching cards look. Solid is the easiest to read over a busy screen, Minimal is the least distracting.</p>
+        <div class="style-grid" id="tipstyle">
+          <button data-val="glass" class="style-opt">
+            <span class="sp sp-glass"><i></i></span>
+            <b>Glass</b><em>Frosted, default</em>
+          </button>
+          <button data-val="solid" class="style-opt">
+            <span class="sp sp-solid"><i></i></span>
+            <b>Solid</b><em>Clearest to read</em>
+          </button>
+          <button data-val="minimal" class="style-opt">
+            <span class="sp sp-minimal"><i></i></span>
+            <b>Minimal</b><em>Text only</em>
+          </button>
+          <button data-val="neon" class="style-opt">
+            <span class="sp sp-neon"><i></i></span>
+            <b>Neon</b><em>Glowing edge</em>
+          </button>
+        </div>
+      </section>
+
+      <section>
+        <h3>Tip background</h3>
+        <p class="hint">How see-through the cards are. Lower shows more of the game behind them, higher is easier to read.</p>
+        <div class="scale-row">
+          <input id="tipopacity" type="range" min="25" max="100" step="5" value="90" />
+          <b id="tipopacity-label" class="scale-label">90%</b>
+        </div>
+      </section>
+
+      <section>
         <h3>Tip size</h3>
         <p class="hint">Scales the tip cards in ratio. 100% is the normal size, and the cards stay anchored to your chosen corner.</p>
         <div class="scale-row">

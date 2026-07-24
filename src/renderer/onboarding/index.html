@@ -15,34 +15,82 @@
   <main class="card glass">
     <button id="close" class="icon-btn x" title="Close">✕</button>
 
-    <div class="hero">
-      <img class="ghost" src="../../../assets/logo-ghost.svg" alt="" width="56" height="65" />
-      <h1>You're in.</h1>
-      <p class="sub">Here's the 20-second tour.</p>
+    <!-- ── 1. Welcome ─────────────────────────────────────────────────── -->
+    <section class="page" data-page="0">
+      <div class="hero">
+        <img class="ghost" src="../../../assets/logo-ghost.svg" alt="" width="56" height="65" />
+        <h1>You're in.</h1>
+        <p class="sub">Four quick things, then you're playing.</p>
+      </div>
+      <ol class="steps">
+        <li><span class="n">1</span><div><b>Start coaching</b><span>Set Valorant to Windowed Fullscreen, then hit the red button on the panel once you're in a match.</span></div></li>
+        <li><span class="n">2</span><div><b>Confirm your agent</b><span>A bubble asks who you're playing. Tap ✓, or pick one of your mains. Until you do, you only get general tips and no ability advice.</span></div></li>
+      </ol>
+    </section>
+
+    <!-- ── 2. Stay out of the way ─────────────────────────────────────── -->
+    <section class="page" data-page="1" hidden>
+      <div class="hero">
+        <h1>Keep it out of your way</h1>
+        <p class="sub">The panel should never catch your mouse mid-aim.</p>
+      </div>
+      <p class="lead">While you play, minimize the panel with <kbd>Ctrl+Shift+M</kbd>. Coaching keeps running and tips still appear on the overlay. The same shortcut brings it back.</p>
+      <div class="keys">
+        <div class="k"><span>Minimize panel</span><kbd>Ctrl+Shift+M</kbd></div>
+        <div class="k"><span>Force a tip</span><kbd>Ctrl+Shift+X</kbd></div>
+        <div class="k"><span>Pause / resume</span><kbd>Ctrl+Shift+P</kbd></div>
+        <div class="k"><span>Settings</span><kbd>Ctrl+Shift+S</kbd></div>
+      </div>
+    </section>
+
+    <!-- ── 3. Tip look ────────────────────────────────────────────────── -->
+    <section class="page" data-page="2" hidden>
+      <div class="hero">
+        <h1>Pick your tip look</h1>
+        <p class="sub">Tap one to try it. You can change it any time in Settings.</p>
+      </div>
+      <div class="style-grid" id="tipstyle">
+        <button data-val="glass" class="style-opt active">
+          <span class="sp sp-glass"><i></i></span><b>Glass</b><em>Frosted, default</em>
+        </button>
+        <button data-val="solid" class="style-opt">
+          <span class="sp sp-solid"><i></i></span><b>Solid</b><em>Clearest to read</em>
+        </button>
+        <button data-val="minimal" class="style-opt">
+          <span class="sp sp-minimal"><i></i></span><b>Minimal</b><em>Text only</em>
+        </button>
+        <button data-val="neon" class="style-opt">
+          <span class="sp sp-neon"><i></i></span><b>Neon</b><em>Glowing edge</em>
+        </button>
+      </div>
+      <div class="op-row">
+        <label for="tipopacity">See-through</label>
+        <input id="tipopacity" type="range" min="25" max="100" step="5" value="90" />
+        <b id="tipopacity-label">90%</b>
+      </div>
+      <p class="tip-note">Lower shows more of the game behind the card, higher is easier to read.</p>
+    </section>
+
+    <!-- ── 4. Tips mix + progress ─────────────────────────────────────── -->
+    <section class="page" data-page="3" hidden>
+      <div class="hero">
+        <h1>One last call</h1>
+        <p class="sub">Want the fundamentals mixed in?</p>
+      </div>
+      <p class="lead">Curated basics (crosshair placement, trading, positioning) alongside the AI tips. New, or Silver and below? Keep them on. Ranked higher? Off is the usual pick.</p>
+      <div class="seg" id="fundamentals">
+        <button data-val="on" class="active">On, coach the basics</button>
+        <button data-val="off">Off, AI tips only</button>
+      </div>
+      <p class="tip-note">The bar-chart button on the panel opens your Stats: session scores with trends, your recent matches rated 0 to 100, and your weekly report.</p>
+    </section>
+
+    <!-- ── Footer nav ─────────────────────────────────────────────────── -->
+    <div class="nav">
+      <button id="back" class="btn btn-ghost">Back</button>
+      <div class="dots" id="dots"></div>
+      <button id="next" class="btn btn-primary">Next</button>
     </div>
-
-    <ol class="steps">
-      <li><span class="n">1</span><div><b>Start coaching</b><span>Set Valorant to Windowed Fullscreen, then hit the red button on the panel when you're in a match.</span></div></li>
-      <li><span class="n">2</span><div><b>Confirm your agent (important)</b><span>A bubble asks who you're playing. Tap ✓ or type it. Until you do, you only get general tips, no ability advice.</span></div></li>
-      <li><span class="n">3</span><div><b>Minimize with <kbd>Ctrl+Shift+M</kbd></b><span>Always minimize the panel while you play so it can never catch your mouse mid-aim. Tips still show on the overlay.</span></div></li>
-      <li><span class="n">4</span><div><b>Track your progress</b><span>The bar-chart button on the panel opens your Stats: session scores with trends, and your recent matches rated 0 to 100.</span></div></li>
-      <li><span class="n">5</span><div><b>Want fundamental tips in the mix?</b><span>Curated basics (crosshair, trades, positioning) in the mix. New or Silver and below? Keep them on. Ranked higher? Off is the usual pick. Change it later in Settings.</span>
-        <div class="seg" id="fundamentals">
-          <button data-val="on" class="active">On, coach the basics</button>
-          <button data-val="off">Off, AI tips only</button>
-        </div>
-      </div></li>
-    </ol>
-    <p class="tip-note">Coaching keeps running while minimized. Bring the panel back any time with <kbd>Ctrl+Shift+M</kbd>.</p>
-
-    <div class="keys">
-      <div class="k"><span>Minimize panel</span><kbd>Ctrl+Shift+M</kbd></div>
-      <div class="k"><span>Force a tip</span><kbd>Ctrl+Shift+X</kbd></div>
-      <div class="k"><span>Pause / resume</span><kbd>Ctrl+Shift+P</kbd></div>
-      <div class="k"><span>Settings</span><kbd>Ctrl+Shift+S</kbd></div>
-    </div>
-
-    <button id="go" class="btn btn-primary full">Let's go</button>
   </main>
 
   <script src="onboarding.js"></script>

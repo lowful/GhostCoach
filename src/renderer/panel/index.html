@@ -75,6 +75,15 @@
       <button id="pause" class="icon-btn lg" title="Pause / Resume (Ctrl+Shift+P)" disabled>⏸</button>
     </div>
 
+    <!-- One-off hint: slides in from the right, pointing at the minimize button -->
+    <div id="nudge" class="nudge no-drag" hidden>
+      <div class="nudge-body">
+        <b>Tuck me away while you play</b>
+        <span>Press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd> to minimize. Tips keep coming on the overlay.</span>
+      </div>
+      <button id="nudge-x" class="nudge-x" title="Got it" aria-label="Dismiss">✕</button>
+    </div>
+
     <button class="last-tip no-drag" id="last-tip" title="Open tip history">
       <span class="lt-dot"></span>
       <span class="lt-text">No tips yet, start coaching.</span>

@@ -76,13 +76,14 @@ function blockedBadTips() {
   return Object.keys(counts).filter((t) => counts[t] >= 3);
 }
 
-// The player's 3 most-played agent names, for the one-tap agent-select bubble.
+// The player's 4 most-played agent names, for the one-tap agent-select bubble.
+// Four is what the bubble's width actually fits on one row.
 // Guarded by Riot ID so a switched account never offers the old player's mains.
 function topAgentNames() {
   const ps = store.get('playerStats');
   const rid = (store.get('riotId') || '').trim();
   if (!ps || ps._riotId !== rid || !Array.isArray(ps.topAgents)) return [];
-  return ps.topAgents.slice(0, 3).map((a) => a && a.name).filter(Boolean);
+  return ps.topAgents.slice(0, 4).map((a) => a && a.name).filter(Boolean);
 }
 
 function buildState() {
@@ -102,6 +103,8 @@ function buildState() {
     topAgents:       topAgentNames(),   // player's 3 most-played, for one-tap agent select
     tipPosition:     store.get('tipPosition'),
     tipScale:        store.get('tipScale'),
+    tipStyle:        store.get('tipStyle'),
+    tipOpacity:      store.get('tipOpacity'),
     showTips:        store.get('showTips'),
     voiceCoach:      store.get('voiceCoach'),
     voiceStyle:      store.get('voiceStyle'),
@@ -114,12 +117,48 @@ function buildState() {
   };
 }
 
+// ── Minimize hint ────────────────────────────────────────────────────────────
+// New players leave the panel sitting on screen while they play, where it can
+// swallow a click mid-aim. One small bubble points at the shortcut.
+//
+// While they are still learning the app (first 10 sessions) it appears shortly
+// after the agent is locked in, which is the natural pause before the match.
+// After that they know the shortcut, so it only reappears if the panel has
+// genuinely been left up for over a minute WITH tips flowing, i.e. they are
+// actually mid-match and have forgotten.
+const NUDGE_LEARNING_SESSIONS = 10;
+const NUDGE_LATE_AFTER_MS     = 60 * 1000;
+
+function nudgeMinimize() {
+  if (state.nudgedThisSession) return;
+  if (panelWindow.isMinimized()) return;         // already minimized, nothing to teach
+  state.nudgedThisSession = true;
+  registry.broadcast(C.PUSH_NUDGE, { kind: 'minimize' });
+  console.log('[nudge] minimize hint shown');
+}
+
+/** Called once the player has settled their agent. */
+function maybeNudgeAfterAgent() {
+  if ((store.get('coachStartCount') || 0) > NUDGE_LEARNING_SESSIONS) return;
+  setTimeout(() => { if (state.isCoaching) nudgeMinimize(); }, 2600);
+}
+
+/** Experienced players: only if the panel is still up well into a live match. */
+function maybeNudgeLate() {
+  if (!state.isCoaching || state.nudgedThisSession) return;
+  if ((store.get('coachStartCount') || 0) <= NUDGE_LEARNING_SESSIONS) return;
+  const running = state.sessionStartedAt ? Date.now() - state.sessionStartedAt : 0;
+  const gotTips = state.tips.some((t) => t.source === 'ai' || t.source === 'library');
+  if (running >= NUDGE_LATE_AFTER_MS && gotTips) nudgeMinimize();
+}
+
 function pushTip(tip) {
   const full = { text: tip.text, source: tip.source || 'system', time: tip.time || Date.now() };
   state.tips.unshift(full);
   if (state.tips.length > 50) state.tips.pop();
   registry.broadcast(C.PUSH_TIP, full);
   registry.broadcast(C.PUSH_STATE, buildState());
+  maybeNudgeLate();   // a real tip landing is the signal the match is underway
 }
 
 function setStatus(status) {
@@ -198,9 +237,12 @@ const controller = {
       }
     });
     engine.on('agent', (info) => {
+      const wasConfirmed = !!(state.agent && state.agent.confirmed);
       state.agent = info || { agent: null, confirmed: false, role: null };
       registry.broadcast(C.PUSH_AGENT, state.agent);
       registry.broadcast(C.PUSH_STATE, buildState());
+      // Agent just settled: the quiet moment before the match starts.
+      if (!wasConfirmed && state.agent.confirmed) maybeNudgeAfterAgent();
     });
     // The server rejected our license key (401/403), confirm with an immediate
     // re-validation so a genuinely ended subscription locks fast (and a transient
@@ -210,6 +252,8 @@ const controller = {
     state.isCoaching = true;
     state.isPaused   = false;
     state.sessionStartedAt = Date.now();   // drives the 5-minute grading gate
+    state.nudgedThisSession = false;       // the minimize hint is once per session
+    store.set('coachStartCount', (store.get('coachStartCount') || 0) + 1);
     state.agent      = { agent: null, confirmed: false, role: null };
     state.tips       = [];   // fresh session; the previous one is archived on stop
     engine.start();

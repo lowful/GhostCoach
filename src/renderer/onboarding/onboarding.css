@@ -70,3 +70,44 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
 kbd { font-family: 'Consolas', monospace; font-size: 10.5px; background: rgba(0,0,0,0.32); border: 1px solid var(--glass-border); border-radius: 5px; padding: 2px 6px; color: var(--text-dim); white-space: nowrap; }
 
 .full { width: 100%; height: 44px; font-size: 14px; margin-top: auto; }
+
+/* ── Paged tour ────────────────────────────────────────────────────────────
+   The card holds four pages; only one is in the DOM flow at a time. A minimum
+   height keeps the window from jumping as pages of different lengths swap. */
+.page {
+  min-height: 292px;
+  animation: pageIn 280ms var(--ease-expo) both;
+}
+@keyframes pageIn { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
+
+.lead {
+  font-size: 13px; line-height: 1.6; color: var(--text-dim);
+  margin-bottom: 14px;
+}
+
+/* Footer: back on the left, dots centred, next on the right. */
+.nav {
+  display: flex; align-items: center; gap: 12px;
+  margin-top: 18px; padding-top: 14px;
+  border-top: 1px solid var(--glass-border);
+}
+.nav .btn { min-width: 96px; }
+.dots { flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px; }
+.dot-nav {
+  width: 7px; height: 7px; padding: 0;
+  border-radius: 50%; border: none; cursor: pointer;
+  background: rgba(255,255,255,0.18);
+  transition: background var(--t-med) var(--ease), transform var(--t-med) var(--ease-spring), width var(--t-med) var(--ease);
+}
+.dot-nav:hover  { background: rgba(255,255,255,0.34); }
+.dot-nav.done   { background: rgba(0,240,255,0.45); }
+.dot-nav.active { width: 20px; border-radius: 4px; background: var(--cyan); box-shadow: 0 0 10px rgba(0,240,255,0.5); }
+
+/* Transparency row on the tip-style page. */
+.op-row {
+  display: flex; align-items: center; gap: 11px;
+  margin-top: 14px;
+}
+.op-row label { font-size: 12px; font-weight: 600; color: var(--text-dim); flex: none; }
+.op-row input[type="range"] { flex: 1; }
+.op-row b { font-size: 12px; font-weight: 700; color: var(--text); min-width: 40px; text-align: right; }

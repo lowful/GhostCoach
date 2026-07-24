@@ -88,6 +88,8 @@ function snapshotConfig() {
     overlayPosition: store.get('overlayPosition'),
     tipPosition:     store.get('tipPosition'),
     tipScale:        store.get('tipScale'),
+    tipStyle:        store.get('tipStyle'),
+    tipOpacity:      store.get('tipOpacity'),
     showTips:        store.get('showTips'),
     beginnerTips:    store.get('beginnerTips'),
     voiceCoach:      store.get('voiceCoach'),

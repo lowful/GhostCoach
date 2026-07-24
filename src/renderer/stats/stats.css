@@ -37,7 +37,7 @@ section h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; lette
 /* ── Overview cards: 3x2 symmetric grid ── */
 .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .card {
-  background: var(--sheen), rgba(0,0,0,0.22);
+  background: rgba(0,0,0,0.22);
   border: 1px solid var(--glass-border); border-radius: 12px;
   padding: 11px 12px; display: flex; flex-direction: column; gap: 5px; min-height: 64px;
   box-shadow: var(--edge-top);

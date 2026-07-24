@@ -121,3 +121,51 @@
   background-clip: text;
   color: transparent;
 }
+
+/* ── Tip style picker ──────────────────────────────────────────────────────
+   Lives in shared so Settings and the onboarding tour show the SAME previews
+   from one definition; a second copy would drift the moment either changed.
+   Each preview is a miniature of the real card: accent bar plus two text bars,
+   with the same background treatment the style uses on the overlay. */
+.style-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.style-opt {
+  -webkit-app-region: no-drag;
+  display: flex; flex-direction: column; align-items: stretch; gap: 5px;
+  font-family: var(--font);
+  background: rgba(0,0,0,0.24);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  padding: 9px 9px 10px;
+  cursor: pointer; min-width: 0;
+  transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+}
+.style-opt:hover  { border-color: rgba(255,255,255,0.20); background: rgba(255,255,255,0.05); }
+.style-opt:active { transform: scale(0.97); }
+.style-opt.active { border-color: rgba(0,240,255,0.55); background: rgba(0,240,255,0.07); }
+.style-opt b  { font-size: 11.5px; font-weight: 700; color: var(--text); }
+.style-opt em { font-size: 9.5px; font-style: normal; color: var(--text-mute); line-height: 1.3; }
+
+/* The miniature card. `i` is the accent bar; the two text lines are pseudos. */
+.sp {
+  position: relative;
+  display: block; height: 34px; border-radius: 7px;
+  background: rgba(255,255,255,0.05);
+  overflow: hidden;
+}
+.sp i { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--cyan); }
+.sp::before, .sp::after {
+  content: ''; position: absolute; left: 9px; height: 3px; border-radius: 2px;
+  background: rgba(255,255,255,0.55);
+}
+.sp::before { top: 10px; width: 62%; }
+.sp::after  { top: 19px; width: 40%; background: rgba(255,255,255,0.30); }
+
+.sp-glass   { background: rgba(14,21,29,0.72); backdrop-filter: blur(4px); border: 1px solid var(--glass-border); }
+.sp-solid   { background: rgba(11,17,24,0.98); border: 1px solid var(--glass-border); }
+.sp-minimal { background: transparent; }
+.sp-minimal::before, .sp-minimal::after { left: 8px; }
+.sp-neon    { background: rgba(8,13,19,0.95); border: 1px solid var(--cyan); box-shadow: inset 0 0 12px -4px var(--cyan); }

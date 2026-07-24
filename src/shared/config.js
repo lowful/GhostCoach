@@ -107,6 +107,8 @@ const STORE_DEFAULTS = {
   overlayPosition: 'top-right',  // tip card anchor
   tipPosition:     'top-right',  // top-left | top-right | bottom-left | bottom-right
   tipScale:        1,            // tip card size ratio; 1 = normal (0.8 to 1.3)
+  tipStyle:        'glass',      // glass | solid | minimal | neon, the tip card look
+  tipOpacity:      0.9,          // tip card background opacity, 0.25 to 1
   showTips:        true,         // false = tips hidden on the overlay but still recorded
   // (The pro playbook runs permanently in hybrid mode; frame memory is always
   // on and session-scoped. Neither is a setting anymore.)
@@ -117,6 +119,7 @@ const STORE_DEFAULTS = {
   panelBounds:     null,         // { x, y } remembered position of the control panel
   panelMinimized:  false,
   onboardingCompleted: false,
+  coachStartCount: 0,            // how many sessions started; the minimize hint rides on this
   // Weekly report: the baseline the current stats are compared against, and
   // which week the popup was last shown for (so it opens once a week, not on
   // every launch).

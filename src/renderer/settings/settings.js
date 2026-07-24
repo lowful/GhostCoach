@@ -18,6 +18,15 @@ function wireSeg(seg, key) {
 }
 
 wireSeg(tipposSeg, 'tipPosition');
+wireSeg(document.getElementById('tipstyle'), 'tipStyle');
+
+// Tip background opacity. Stored 0..1, shown as a percentage.
+const opacityEl    = document.getElementById('tipopacity');
+const opacityLabel = document.getElementById('tipopacity-label');
+opacityEl.addEventListener('input', () => { opacityLabel.textContent = opacityEl.value + '%'; });
+opacityEl.addEventListener('change', () => {
+  window.ghost.setConfig({ tipOpacity: Number(opacityEl.value) / 100 }).catch(() => {});
+});
 
 // Tip frequency slider: far left = Minimal, far right = Max.
 const FREQ_ORDER  = ['battery', 'balanced', 'performance', 'ultra', 'rapid', 'turbo'];
@@ -156,6 +165,10 @@ async function load() {
       freqEl.value = String(fi >= 0 ? fi : 1);
       freqLabel.textContent = FREQ_LABELS[fi >= 0 ? fi : 1];
       markSeg(tipposSeg, cfg.tipPosition);
+      markSeg(document.getElementById('tipstyle'), cfg.tipStyle || 'glass');
+      const op = Math.round((cfg.tipOpacity != null ? cfg.tipOpacity : 0.9) * 100);
+      opacityEl.value = String(op);
+      opacityLabel.textContent = op + '%';
       markSeg(showTipsSeg, cfg.showTips === false ? 'off' : 'on');
       markSeg(beginnerSeg, cfg.beginnerTips === false ? 'off' : 'on');
       markSeg(voiceSeg, cfg.voiceCoach === true ? 'on' : 'off');
