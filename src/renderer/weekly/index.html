@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';" />
+  <title>Your Week</title>
+  <link rel="stylesheet" href="../shared/theme.css" />
+  <link rel="stylesheet" href="../shared/ui.css" />
+  <link rel="stylesheet" href="weekly.css" />
+</head>
+<body>
+  <div class="sheet glass">
+    <header class="drag">
+      <div class="h-brand">
+        <img src="../../../assets/logo-ghost.svg" alt="" width="16" height="19" />
+        <div>
+          <h2>Your Week</h2>
+          <span id="subtitle" class="sub"></span>
+        </div>
+      </div>
+      <button id="close" class="icon-btn no-drag" title="Close" aria-label="Close">✕</button>
+    </header>
+
+    <div class="body" id="body">
+      <p class="loading" id="loading">Putting your week together...</p>
+
+      <!-- Nothing worth reporting yet -->
+      <section id="empty" hidden>
+        <div class="empty-wrap">
+          <h3 id="empty-title">Not enough to report yet</h3>
+          <p id="empty-msg" class="empty-msg"></p>
+        </div>
+      </section>
+
+      <div id="content" hidden>
+        <!-- Headline: rank + sessions coached -->
+        <section class="topline" id="topline"></section>
+
+        <!-- Stat movement -->
+        <section>
+          <h3>What moved</h3>
+          <p id="first-week" class="note" hidden>This is your first week being tracked, so there is nothing to compare against yet. Next week these will show which way each stat is heading.</p>
+          <div class="deltas" id="deltas"></div>
+        </section>
+
+        <!-- Category ratings -->
+        <section id="cat-section">
+          <h3>Your game, rated</h3>
+          <div class="cats" id="cats"></div>
+        </section>
+
+        <!-- Doing well -->
+        <section id="well-section" hidden>
+          <h3>What you are doing well</h3>
+          <ul class="notes good" id="well"></ul>
+        </section>
+
+        <!-- To improve -->
+        <section id="fix-section" hidden>
+          <h3>What to work on</h3>
+          <ul class="notes bad" id="fix"></ul>
+        </section>
+
+        <div class="actions">
+          <button id="stats" class="btn btn-primary">See full stats</button>
+          <button id="ask" class="btn">Ask the coach</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="weekly.js"></script>
+</body>
+</html>

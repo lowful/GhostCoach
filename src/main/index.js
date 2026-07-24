@@ -10,7 +10,11 @@ const fs   = require('fs');
 // the original GhostCoach install's data. Same machine = same deviceId, so the
 // license just needs activating once in this build.
 app.setName('GhostCoach 2.0');
-app.setPath('userData', path.join(app.getPath('appData'), 'GhostCoach 2.0'));
+// GHOST_DEV_USERDATA is a dev-only escape hatch: it runs this build against a
+// throwaway profile, so a smoke test can boot alongside an installed copy
+// without touching its config, license, or session history.
+app.setPath('userData', process.env.GHOST_DEV_USERDATA
+  || path.join(app.getPath('appData'), 'GhostCoach 2.0'));
 
 const logger   = require('./logger');
 const store    = require('./services/store');
@@ -21,6 +25,7 @@ const overlayWindow    = require('./windows/overlay-window');
 const panelWindow      = require('./windows/panel-window');
 const settingsWindow   = require('./windows/settings-window');
 const historyWindow    = require('./windows/history-window');
+const weeklyWindow     = require('./windows/weekly-window');
 const statsWindow      = require('./windows/stats-window');
 const audioWindow      = require('./windows/audio-window');
 const dockWindow       = require('./windows/dock-window');
@@ -33,6 +38,7 @@ const hotkeys  = require('./hotkeys');
 const registerIpc = require('./ipc/register-ipc');
 const licenseService = require('./services/license-service');
 const agentData = require('./services/agent-data');
+const { assembleReport, weekKey, rankIndex, trendDirection } = require('./services/weekly-report');
 const updater  = require('./updater');
 const C = require('../shared/channels');
 
@@ -301,6 +307,18 @@ const controller = {
   },
   openSettings()  { settingsWindow.open(); },
   openHistory()   { historyWindow.open(); },
+  openWeekly()    { weeklyWindow.open(); },
+
+  /** The weekly report the popup renders. Reading it marks the week as seen
+   *  and rolls the comparison baseline, so next week measures from here. */
+  getWeeklyReport() {
+    const report = buildWeeklyReport();
+    if (report.hasData) {
+      store.set('weeklyReportWeek', report.weekOf);
+      rollWeeklyBaseline();
+    }
+    return report;
+  },
   openChat()      { chatWindow.open(); },
   openStats()     { statsWindow.open(); },
 
@@ -678,6 +696,48 @@ function trackerCategoryScores(st) {
   return out;
 }
 
+// ── Weekly report ────────────────────────────────────────────────────────────
+// A once-a-week look back the player gets when they open the app: which stats
+// moved and in which direction, what they have been doing well, and the one
+// thing to work on. Everything is assembled from data the app already has, the
+// tracker profile plus the graded coaching sessions, so it costs no extra calls.
+
+/**
+ * Gather this week's inputs and hand them to the report assembler. Only a
+ * snapshot from the SAME account can serve as the baseline, otherwise a
+ * switched Riot ID would show as a dramatic week of "improvement".
+ */
+function buildWeeklyReport() {
+  const riotId   = (store.get('riotId') || '').trim();
+  const snapshot = store.get('weeklySnapshot');
+  const perf     = loadPerf();                       // last 7 days of coached sessions
+  const tp       = guardedTrackerPair();
+  const base = snapshot && snapshot.stats && (!snapshot.riotId || snapshot.riotId === riotId)
+    ? snapshot.stats : null;
+
+  return assembleReport({
+    riotId,
+    stats: tp.stats,
+    base,
+    snapshotAt: snapshot ? snapshot.at : null,
+    perf,
+    categories: computeCategoryTrends(perf, tp.stats, tp.prevStats),
+  });
+}
+
+/** Roll the comparison baseline forward once a week's report has been seen. */
+function rollWeeklyBaseline() {
+  const riotId = (store.get('riotId') || '').trim();
+  const tp = guardedTrackerPair();
+  if (!tp.stats) return;
+  const snap = store.get('weeklySnapshot');
+  const weekMs = 7 * 24 * 60 * 60 * 1000;
+  if (!snap || !snap.at || Date.now() - snap.at >= weekMs || snap.riotId !== riotId) {
+    store.set('weeklySnapshot', { at: Date.now(), riotId, stats: tp.stats });
+    console.log('[weekly] baseline rolled forward');
+  }
+}
+
 /** Riot-ID-guarded tracker snapshots (current profile + last-match snapshot). */
 function guardedTrackerPair() {
   const riotId  = (store.get('riotId') || '').trim();
@@ -744,20 +804,9 @@ async function logSessionPerformance(tips, mctx, durationMin, notes) {
   } catch (e) { console.error('[perf] scoring failed:', e.message); }
 }
 
-// Rank ladder for trend arrows: "Gold 2" -> comparable number. Unknown -> null.
-const RANK_LADDER = ['iron', 'bronze', 'silver', 'gold', 'platinum', 'diamond', 'ascendant', 'immortal', 'radiant'];
-function rankIndex(r) {
-  const l = String(r || '').toLowerCase();
-  const i = RANK_LADDER.findIndex((t) => l.startsWith(t));
-  if (i < 0) return null;
-  const div = parseInt(l.replace(/[^\d]/g, ''), 10);
-  return i * 3 + (isNaN(div) ? 2 : div);
-}
-function trendDirection(cur, prev, deadband = 2) {
-  if (cur == null || prev == null) return 'flat';
-  const d = cur - prev;
-  return d > deadband ? 'up' : d < -deadband ? 'down' : 'flat';
-}
+// Rank ladder + trend arrows live with the weekly report, which is their main
+// consumer; the stats dashboard shares the same helpers so both agree on what
+// counts as a move up or down.
 
 /** The Pro Playbook is no longer a setting: hybrid (classic brief plus
  *  situation-retrieved habits) proved the strongest mode and is now standard. */
@@ -912,7 +961,7 @@ function teardownSession() {
   try { hotkeys.unregister(); } catch (e) {}
   try { tray.destroy(); } catch (e) {}
   try { capture.disposeWorker(); } catch (e) {}
-  for (const name of ['dock', 'history', 'settings', 'overlay', 'panel', 'stats', 'audio']) {
+  for (const name of ['dock', 'history', 'settings', 'overlay', 'panel', 'stats', 'audio', 'weekly']) {
     const w = registry.get(name);
     if (w && !w.isDestroyed()) w.destroy();
   }
@@ -977,6 +1026,7 @@ const trayActions = {
   isMinimized:    () => panelWindow.isMinimized(),
   openSettings:   () => controller.openSettings(),
   openHistory:    () => controller.openHistory(),
+  openWeekly:     () => controller.openWeekly(),
   quit:           () => controller.quit(),
 };
 
@@ -1018,8 +1068,35 @@ function launchMainApp() {
 
   // First launch after activation: show the one-time welcome card (hotkey tour).
   if (!store.get('onboardingCompleted')) onboardingWindow.create();
+  else maybeShowWeeklyReport();   // never both at once on a first run
 
   console.log('[main] Main app launched');
+}
+
+/**
+ * The weekly report popup, on the first app open of each calendar week.
+ * Skipped when there is nothing honest to show (a brand new player with no
+ * sessions and no connected account) so it never opens empty.
+ *
+ * Tracker stats arrive asynchronously, so this waits briefly for the refresh
+ * kicked off at launch; without that the first report of the week would compare
+ * against nothing and show every arrow flat.
+ */
+function maybeShowWeeklyReport() {
+  if (store.get('weeklyReportWeek') === weekKey()) return;   // already seen this week
+  setTimeout(() => {
+    try {
+      const preview = buildWeeklyReport();
+      if (!preview.hasData) {
+        console.log('[weekly] skipped, nothing to report yet:', preview.reason);
+        return;
+      }
+      weeklyWindow.open();
+      console.log('[weekly] report shown for', preview.weekOf);
+    } catch (e) {
+      console.error('[weekly] report failed:', e.message);
+    }
+  }, 4000);
 }
 
 function cleanupAndQuit() {
@@ -1077,6 +1154,10 @@ if (!app.requestSingleInstanceLock()) {
           engine.emitTip('Default first, take map control, then commit as five.', 'library');
         }
         if (process.env.GHOST_DEV_OPEN_HISTORY === '1') historyWindow.open();
+        if (process.env.GHOST_DEV_OPEN_WEEKLY === '1') {
+          console.log('[dev] weekly report:', JSON.stringify(buildWeeklyReport()).slice(0, 600));
+          weeklyWindow.open();
+        }
         if (process.env.GHOST_DEV_MINIMIZE === '1') setTimeout(() => controller.toggleMinimizePanel(), 1200);
         const panel = panelWindow.get();
         if (panel) {

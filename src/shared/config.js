@@ -117,6 +117,11 @@ const STORE_DEFAULTS = {
   panelBounds:     null,         // { x, y } remembered position of the control panel
   panelMinimized:  false,
   onboardingCompleted: false,
+  // Weekly report: the baseline the current stats are compared against, and
+  // which week the popup was last shown for (so it opens once a week, not on
+  // every launch).
+  weeklySnapshot:   null,        // { at, riotId, stats } captured at the start of the week
+  weeklyReportWeek: '',          // "2026-W30", the last week whose report was shown
 };
 
 module.exports = {

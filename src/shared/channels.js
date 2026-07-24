@@ -31,6 +31,7 @@ const CHANNELS = {
   STATS_MATCHES:    'stats:matches',       // (mode) → { matches, fetchedAt, mode } cached fetch for mode switching
   CHAT_SEED:        'chat:seed',         // () → pending session context for Ask Coach, cleared on read
   STATS_RANK_HISTORY: 'stats:rankHistory', // () → { points: [{date, elo, change, tier}], current }
+  WEEKLY_GET:       'weekly:get',        // () → the week's report (stat movement, strengths, what to fix)
 
   // ── renderer → main commands (ipcRenderer.send ⇄ ipcMain.on) ──────────────
   COACH_START:     'coach:start',
@@ -45,6 +46,7 @@ const CHANNELS = {
   OPEN_HISTORY:    'window:openHistory',
   OPEN_CHAT:       'window:openChat',    // the Ask Coach chat window
   OPEN_STATS:      'window:openStats',   // the extended stats dashboard window
+  OPEN_WEEKLY:     'window:openWeekly',  // the weekly report popup
   OPEN_CHAT_SEEDED:'window:openChatSeeded', // (sessionSeed) open Ask Coach preloaded with a session's context
   TIP_RATE:        'tip:rate',           // ({ text, source, rating: good|bad })
   OPEN_PURCHASE:   'window:openPurchase',

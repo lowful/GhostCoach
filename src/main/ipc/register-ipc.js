@@ -54,6 +54,7 @@ function registerIpc(deps) {
   safeHandle(C.STATS_MATCHES, async (_e, mode) => controller.getMatches(false, mode));
   safeHandle(C.STATS_RANK_HISTORY, async (_e, force) => controller.getRankHistory(force));
   safeHandle(C.CHAT_SEED, async () => controller.takeChatSeed());
+  safeHandle(C.WEEKLY_GET, async () => controller.getWeeklyReport());
 
   // ── fire-and-forget commands ──────────────────────────────────────────────
   ipcMain.on(C.COACH_START,    () => guard('start',    () => controller.start()));
@@ -68,6 +69,7 @@ function registerIpc(deps) {
   ipcMain.on(C.OPEN_HISTORY,   () => guard('history',  () => controller.openHistory()));
   ipcMain.on(C.OPEN_CHAT,      () => guard('chat',     () => controller.openChat()));
   ipcMain.on(C.OPEN_STATS,     () => guard('stats',    () => controller.openStats()));
+  ipcMain.on(C.OPEN_WEEKLY,    () => guard('weekly',   () => controller.openWeekly()));
   ipcMain.on(C.OPEN_CHAT_SEEDED, (_e, seed) => guard('chatSeeded', () => controller.openChatSeeded(seed)));
   ipcMain.on(C.TIP_RATE,       (_e, payload) => guard('rateTip', () => controller.rateTip(payload)));
   ipcMain.on(C.OPEN_PURCHASE,  () => guard('purchase', () => shell.openExternal(PURCHASE_URL)));

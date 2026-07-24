@@ -11,7 +11,8 @@
     "dist:mac": "electron-builder --mac",
     "dist": "electron-builder --win --mac",
     "release": "electron-builder --win --publish always",
-    "sync:valorant": "node scripts/sync-valorant-data.js"
+    "sync:valorant": "node scripts/sync-valorant-data.js",
+    "sync:patch": "node scripts/sync-patch-notes.js"
   },
   "build": {
     "appId": "com.ghostcoach.app2",

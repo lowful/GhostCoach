@@ -35,6 +35,7 @@ function update(isCoaching, actions) {
       click: () => (isCoaching ? actions.stop() : actions.start()) },
     { label: panelHidden ? 'Show Panel' : 'Hide Panel', click: () => actions.toggleMinimize() },
     { label: 'Show / Hide Overlay', click: () => actions.toggleOverlay() },
+    { label: 'Weekly Report…',      click: () => actions.openWeekly() },
     { label: 'Tip History…',        click: () => actions.openHistory() },
     { label: 'Settings…',           click: () => actions.openSettings() },
     { type: 'separator' },

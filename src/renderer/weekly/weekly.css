@@ -1,0 +1,182 @@
+/* Weekly report popup. Sits inside a transparent window, so the sheet carries
+   its own rounding, border and shadow. */
+
+body {
+  background: transparent;
+  overflow: hidden;
+  padding: 8px;
+  height: 100vh;
+}
+
+.sheet {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--glass-border);
+  background: linear-gradient(160deg, var(--glass-fill) 0%, var(--bg-2) 100%);
+  box-shadow: var(--shadow-win);
+  overflow: hidden;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--glass-border);
+  flex: 0 0 auto;
+}
+.h-brand { display: flex; align-items: center; gap: 10px; }
+.h-brand h2 { font-size: 15px; font-weight: 700; letter-spacing: 0.2px; line-height: 1.1; }
+.sub { font-size: 11px; color: var(--text-mute); }
+
+/* ── Body ───────────────────────────────────────────────────────────────── */
+.body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 14px 14px;
+}
+.body::-webkit-scrollbar { width: 8px; }
+.body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 4px; }
+.body::-webkit-scrollbar-track { background: transparent; }
+
+section { margin-top: 16px; }
+h3 {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.9px;
+  color: var(--text-mute);
+  margin-bottom: 9px;
+}
+.loading { color: var(--text-dim); font-size: 13px; padding: 28px 0; text-align: center; }
+.note {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin-bottom: 9px;
+}
+
+/* ── Topline ────────────────────────────────────────────────────────────── */
+.topline {
+  display: flex;
+  gap: 9px;
+  margin-top: 14px;
+}
+.top-card {
+  flex: 1;
+  background: var(--glass-fill-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  padding: 11px 12px;
+  min-width: 0;
+}
+.top-card .k {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  color: var(--text-mute);
+  margin-bottom: 4px;
+}
+.top-card .v {
+  font-size: 17px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Stat deltas ────────────────────────────────────────────────────────── */
+.deltas { display: flex; flex-direction: column; gap: 6px; }
+.delta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--glass-fill-2);
+  border: 1px solid var(--glass-border);
+  border-left: 2px solid transparent;
+  border-radius: var(--r-sm);
+  padding: 9px 11px;
+}
+.delta.up   { border-left-color: var(--cyan); }
+.delta.down { border-left-color: var(--red); }
+.delta .label { flex: 1; font-size: 12.5px; color: var(--text-dim); }
+.delta .value { font-size: 13.5px; font-weight: 700; }
+.delta .chg {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.delta.up   .chg { color: var(--cyan); background: rgba(0,240,255,0.10); }
+.delta.down .chg { color: var(--red);  background: rgba(255,70,85,0.10); }
+.delta.flat .chg { color: var(--text-mute); background: rgba(255,255,255,0.05); }
+
+/* ── Category bars ──────────────────────────────────────────────────────── */
+.cats { display: flex; flex-direction: column; gap: 9px; }
+.cat .cat-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 5px;
+}
+.cat .name { font-size: 12.5px; color: var(--text-dim); }
+.cat .score { font-size: 12.5px; font-weight: 700; }
+.cat .score .arrow { font-size: 10px; margin-left: 4px; }
+.arrow.up   { color: var(--cyan); }
+.arrow.down { color: var(--red); }
+.arrow.flat { color: var(--text-mute); }
+.bar {
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.07);
+  overflow: hidden;
+}
+.bar > i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--red) 0%, var(--cyan) 100%);
+  transition: width var(--t-med) var(--ease);
+}
+.cat.best  .name::after { content: ' · strongest'; color: var(--cyan); font-size: 10px; }
+.cat.worst .name::after { content: ' · weakest';   color: var(--red);  font-size: 10px; }
+
+/* ── Coach notes ────────────────────────────────────────────────────────── */
+.notes { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.notes li {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--glass-fill-2);
+  border: 1px solid var(--glass-border);
+  border-left: 2px solid transparent;
+  border-radius: var(--r-sm);
+  padding: 9px 11px;
+}
+.notes.good li { border-left-color: var(--cyan); }
+.notes.bad  li { border-left-color: var(--red); }
+
+/* ── Empty state ────────────────────────────────────────────────────────── */
+.empty-wrap { text-align: center; padding: 34px 16px; }
+.empty-wrap h3 {
+  font-size: 14px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.empty-msg { font-size: 12.5px; color: var(--text-dim); line-height: 1.6; }
+
+/* ── Actions ────────────────────────────────────────────────────────────── */
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+}
+.actions .btn { flex: 1; font-size: 12.5px; padding: 9px 12px; }

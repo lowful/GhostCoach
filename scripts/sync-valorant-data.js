@@ -50,6 +50,20 @@ const COMMUNITY_CALLOUTS = { hookah: ['bind'], showers: ['bind'] };
 // Only a callout on this few standard maps is distinctive enough to gate on.
 const MAX_MAPS_FOR_DISTINCTIVE = 3;
 
+// Super-regions that are spawn areas, not places a tip should ever send the
+// player. Kept in the geometry (so the locator can still NAME them when the
+// player is standing there) but never offered as a destination.
+const SPAWN_SUPERS = new Set(['attacker side', 'defender side']);
+
+// Places the game files name one thing and every player calls another. Stored
+// as an alias ON the real callout (never a second entry at the same point, that
+// would make the location read ambiguous and lose the precision), so the coach
+// can say the word the player actually uses.
+// Keyed by map, then by the game's own callout name.
+const COMMUNITY_ALIASES = {
+  bind: { 'B Window': 'Hookah', 'A Bath': 'Showers' },
+};
+
 async function fetchJson(url) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`${url} -> HTTP ${res.status}`);
@@ -107,6 +121,81 @@ function buildCallouts(standardRows) {
   return Object.fromEntries(Object.keys(out).sort().map((k) => [k, out[k]]));
 }
 
+/**
+ * Convert a callout's world location to a position on the minimap as the player
+ * sees it: 0..1 across (left to right) and 0..1 down (top to bottom).
+ *
+ * This is the game's own transform, shipped in the map data. Note the axis
+ * swap, it is not a typo: the world Y drives the minimap X and the world X
+ * drives the minimap Y.
+ */
+function worldToMinimap(loc, m) {
+  return {
+    x: loc.y * m.xMultiplier + m.xScalarToAdd,
+    y: loc.x * m.yMultiplier + m.yScalarToAdd,
+  };
+}
+
+const r3 = (n) => Math.round(n * 1000) / 1000;
+
+/** "top left", "center", "bottom right", ... from a normalized minimap point. */
+function describeSpot(x, y) {
+  const col = x < 0.34 ? 'left' : x > 0.66 ? 'right' : 'center';
+  const row = y < 0.34 ? 'top'  : y > 0.66 ? 'bottom' : 'middle';
+  if (row === 'middle' && col === 'center') return 'dead center';
+  if (col === 'center') return row + ' center';
+  if (row === 'middle') return 'middle ' + col;
+  return row + ' ' + col;
+}
+
+/**
+ * Per-map minimap geometry: every real callout placed on the minimap, plus the
+ * centroid of each super-region (A, B, C, Mid). This is what lets the coach
+ * turn "the yellow arrow is 40% across, 70% down" into a callout that is
+ * guaranteed to exist on THIS map, instead of guessing a name from memory.
+ */
+function buildGeometry(standardRows) {
+  const out = {};
+  for (const m of standardRows) {
+    if (typeof m.xMultiplier !== 'number' || typeof m.yMultiplier !== 'number') continue;
+
+    const aliases = COMMUNITY_ALIASES[m.displayName.toLowerCase()] || {};
+    const callouts = [];
+    const superPts = {};
+    for (const c of m.callouts) {
+      if (!c.location || !c.regionName || !c.superRegionName) continue;
+      const p = worldToMinimap(c.location, m);
+      if (!isFinite(p.x) || !isFinite(p.y)) continue;
+      const sup    = String(c.superRegionName).trim();
+      const region = String(c.regionName).trim();
+      // "A" + "Main" -> "A Main"; avoid "Mid Mid" style doubles.
+      const name = region.toLowerCase() === sup.toLowerCase() ? region : `${sup} ${region}`;
+      const entry = { n: name, s: sup, x: r3(p.x), y: r3(p.y) };
+      if (aliases[name]) entry.a = aliases[name];   // what players actually call it
+      callouts.push(entry);
+      (superPts[sup] = superPts[sup] || []).push(p);
+    }
+    if (!callouts.length) continue;
+
+    // Where each site sits on the minimap, straight from the callout centroids.
+    const sites = {};
+    for (const [sup, pts] of Object.entries(superPts)) {
+      if (SPAWN_SUPERS.has(sup.toLowerCase())) continue;
+      const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
+      const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+      sites[sup] = { x: r3(cx), y: r3(cy), where: describeSpot(cx, cy) };
+    }
+
+    callouts.sort((a, b) => a.n.localeCompare(b.n));
+    out[m.displayName.toLowerCase()] = {
+      hasMid: Object.keys(sites).some((s) => /^mid$/i.test(s)),
+      sites,
+      callouts,
+    };
+  }
+  return out;
+}
+
 function diff(label, prev, next) {
   const lines = [];
   const pk = new Set(Object.keys(prev || {}));
@@ -128,11 +217,12 @@ async function main() {
   const agents = buildAgents(agentRows);
   const { maps, threeSiteMaps, standardRows } = buildMaps(mapRows);
   const mapCallouts = buildCallouts(standardRows);
+  const mapGeometry = buildGeometry(standardRows);
 
   const data = {
     generatedAt: new Date().toISOString(),
     source: 'valorant-api.com',
-    agents, maps, threeSiteMaps, mapCallouts,
+    agents, maps, threeSiteMaps, mapCallouts, mapGeometry,
   };
 
   // Diff against the current client copy so per-patch changes are visible.
@@ -150,7 +240,9 @@ async function main() {
   fs.writeFileSync(clientPath, json);
   fs.writeFileSync(serverPath, json);
 
+  const geoTotal = Object.values(mapGeometry).reduce((s, g) => s + g.callouts.length, 0);
   console.log(`\nAgents: ${Object.keys(agents).length} | Maps: ${maps.length} (3-site: ${threeSiteMaps.join(', ')}) | Callouts: ${Object.keys(mapCallouts).length}`);
+  console.log(`Minimap geometry: ${Object.keys(mapGeometry).length} maps, ${geoTotal} placed callouts`);
   console.log(changes.length ? '\nChanges since last sync:\n' + changes.join('\n') : '\nNo changes since last sync.');
   console.log(`\nWrote:\n  ${clientPath}\n  ${serverPath}`);
 }

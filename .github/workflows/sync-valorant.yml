@@ -28,7 +28,17 @@ jobs:
         id: sync
         run: |
           node scripts/sync-valorant-data.js | tee sync-output.txt
-          if git diff --quiet -- src/shared/valorant-data.generated.json server/valorant-data.generated.json; then
+          # Patch notes refresh alongside the game data; a failure here (Riot
+          # moved the page) must not fail the run, the game data still matters.
+          node scripts/sync-patch-notes.js | tee -a sync-output.txt || echo "patch notes sync skipped"
+          # Only the CLIENT-bundled data forces a release; the server picks up
+          # patch notes on its next deploy without one.
+          if git diff --quiet -- src/shared/valorant-data.generated.json; then
+            echo "needs_release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_release=true" >> "$GITHUB_OUTPUT"
+          fi
+          if git diff --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -39,12 +49,12 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add src/shared/valorant-data.generated.json server/valorant-data.generated.json
-          git commit -m "data: sync Valorant game data from valorant-api.com (automated)"
+          git add src/shared/valorant-data.generated.json server/valorant-data.generated.json server/patch-notes.generated.json
+          git commit -m "data: sync Valorant game data and patch notes (automated)"
           git push
 
       - name: Open a release reminder
-        if: steps.sync.outputs.changed == 'true'
+        if: steps.sync.outputs.needs_release == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

@@ -843,15 +843,30 @@ class CoachingEngine extends EventEmitter {
       delete updates.gameMode;   // never merged raw; only the lock above sets it
     }
 
-    // A single alive:false read can be a flashbang, a smoke, or a misread
-    // killcam; the player only counts as dead after TWO consecutive dead
-    // reads (or an explicit dead phase). One noisy frame cannot fake a death.
+    // Death detection. Frames arrive about 12 seconds apart, so demanding two
+    // consecutive dead reads (the old rule) meant a death was only believed
+    // 12 to 24 seconds after it happened, usually after the round had already
+    // moved on, and any single flickered "alive" read reset the wait entirely.
+    // That is why deaths went unnoticed.
+    //
+    // Now the model reports the EVIDENCE for its read. A named dead tell (a
+    // spectate label, a killcam, a teammate's name where the player's own
+    // loadout belongs) is direct proof, so one frame is enough. Only a bare
+    // alive:false with no tell, which is what a flashbang or a dark frame
+    // produces, still has to be confirmed by a second frame.
     if (updates.playerAlive === false && updates.phase !== 'dead') {
+      const tell   = String(updates.aliveTell || '');
+      const proven = DEAD_TELL.test(tell) && !UNSURE_TELL.test(tell);
       this.aliveFalseStreak = (this.aliveFalseStreak || 0) + 1;
-      if (this.aliveFalseStreak < 2 && prevAlive !== false) delete updates.playerAlive;
+      if (proven) {
+        if (this.aliveFalseStreak === 1) console.log(`[engine] death seen on one frame: "${tell}"`);
+      } else if (this.aliveFalseStreak < 2 && prevAlive !== false) {
+        delete updates.playerAlive;   // unproven, wait for a second read
+      }
     } else if (updates.playerAlive === true || updates.phase === 'active') {
       this.aliveFalseStreak = 0;
     }
+    if (updates.aliveTell) this.lastAliveTell = String(updates.aliveTell).slice(0, 60);
 
     for (const key of Object.keys(updates)) {
       const v = updates[key];
@@ -877,7 +892,8 @@ class CoachingEngine extends EventEmitter {
         continue;
       }
       // handled separately (mode needs its 2-read lock), never merged raw
-      if (key === 'recentTopics' || key === 'playerNote' || key === 'gameMode') continue;
+      if (key === 'recentTopics' || key === 'playerNote' || key === 'gameMode'
+          || key === 'aliveTell') continue;
       this.matchContext[key] = v;
     }
 
@@ -894,13 +910,22 @@ class CoachingEngine extends EventEmitter {
       if (updates.phase === 'buy') {
         this.matchContext.teamRead = null;
         this.matchContext.playerSpot = null;
+        this.matchContext.playerSpotVerified = false;
       }
       // The round going live locks the plan into match memory for continuity.
       if (updates.phase === 'active' && prevPhase === 'buy' && this.matchContext.teamRead) {
         this.remember(`Round plan: ${this.matchContext.teamRead}`);
       }
     }
-    if (updates.phase === 'dead' && prevPhase !== 'dead') {
+    // A death registers from EITHER signal: the phase going to 'dead', or the
+    // alive flag flipping false. The phase read misses plenty of deaths, and
+    // previously that path only opened the review window without counting the
+    // death or recording it, so streaks and match memory quietly lost deaths.
+    // Both paths now do the full bookkeeping. Edge-triggered, plus a cooldown
+    // so a flapping read cannot log the same death twice.
+    const diedByPhase = updates.phase === 'dead' && prevPhase !== 'dead';
+    const diedByAlive = updates.playerAlive === false && prevAlive !== false;
+    if ((diedByPhase || diedByAlive) && Date.now() - this.lastDeathAt > 20000) {
       this.matchContext.consecutiveDeaths++;
       this.matchContext.consecutiveWins = 0;
       this.lastDeathAt = Date.now();   // opens the death-review window
@@ -909,17 +934,18 @@ class CoachingEngine extends EventEmitter {
       if (this.matchContext.consecutiveDeaths >= 2) {
         this.remember(`Player has died ${this.matchContext.consecutiveDeaths} rounds in a row`);
       }
+      console.log(`[engine] death registered via ${diedByPhase ? 'phase' : 'alive flag'}`
+        + (this.lastAliveTell ? ` ("${this.lastAliveTell}")` : ''));
     }
-    if (updates.phase === 'active' && prevPhase === 'dead') {
+    // Back alive: a new round started for this player.
+    if ((updates.phase === 'active' && prevPhase === 'dead')
+        || (updates.playerAlive === true && prevAlive === false)) {
       this.matchContext.consecutiveDeaths = 0;
     }
-    // The alive flag flipping false is a death even when the phase read missed
-    // it; open the review window so the death gets explained, not skipped.
-    if (updates.playerAlive === false && prevAlive !== false
-        && Date.now() - this.lastDeathAt > 20000) {
-      this.lastDeathAt = Date.now();
-      this.matchContext.lastDeathAt = this.lastDeathAt;
-    }
+    // A dead player is never in some other phase. Keeping these consistent is
+    // what makes the verifier that blocks action advice for dead players fire,
+    // since it keys off phase 'dead'.
+    if (this.matchContext.playerAlive === false) this.matchContext.phase = 'dead';
 
     // Match memory: record round outcomes from score changes so future tips
     // know the flow of the match, not just the current frame.
@@ -1027,6 +1053,7 @@ function freshContext() {
     teammatesAlive: null, enemiesAlive: null,   // reported by the AI from the HUD bar
     teamRead: null,   // pre-round minimap read of the team's plan ("4 A, player alone mid")
     playerSpot: null, // the player's own minimap location ("B main", "mid"), cleared each buy phase
+    playerSpotVerified: false, // true when the spot came from minimap coordinates, not the model's wording
     consecutiveDeaths: 0, consecutiveWins: 0, roundsPlayed: 0,
   };
 }
@@ -1223,6 +1250,13 @@ const PROMPT_LEAK = /"(?:side|phase|round|team|enemy|credits|alive|weapon|map|en
 const UPDRAFT_BAN = /\bupdraft\b/i;
 const KNIFE_TIP   = /\bknife\b/i;
 const DEATH_WINDOW_MS = 15000;
+
+// Evidence that the player is genuinely dead and spectating, as reported in the
+// model's aliveTell. Any one of these is direct proof, so the death registers
+// from a single frame instead of waiting ~12s for a second one to agree.
+const DEAD_TELL = /spectat|kill ?cam|death ?recap|observer|you died|respawn|teammate'?s? (?:name|loadout)|no hp|grey(?:ed)?[- ]?out/i;
+// A read the model itself was not sure about never counts as proof.
+const UNSURE_TELL = /unreadable|kept previous|unclear|not sure|cannot tell|can.?t tell|assum/i;
 
 // Advice that requires living teammates: impossible in a solo clutch
 // (teammatesAlive reported as 0 by the AI from the HUD portraits).
