@@ -58,8 +58,13 @@ const AI = {
   // the phase boundary and the lock would never settle or would settle wrong.
   // The thinking model also spends its budget reasoning and can return a
   // truncated STATE. All-thinking was already too slow (it timed out on live
-  // tips), so the fast instruct model, used consistently, is the right call.
-  visionModel: process.env.AI_VISION_MODEL || 'qwen/qwen3-vl-235b-a22b-instruct',
+  // tips), so one fast model used consistently is the right call. Default
+  // upgraded 2026-07-24 to Gemini 3 Flash: it benchmarks ahead of Qwen3-VL on
+  // vision (HUD and minimap reading is exactly where the misreads were) and is
+  // comparably fast and priced. Qwen instruct stays a known-good fallback via
+  // the env var. NOTE: a value set in Railway (AI_VISION_MODEL) OVERRIDES this
+  // default, so switching the live model also requires updating that env var.
+  visionModel: process.env.AI_VISION_MODEL || 'google/gemini-3-flash-preview',
   // Text tasks (grading, chat, reviews) are not latency bound and have no
   // frame-to-frame consistency requirement, so the reasoning model still fits
   // there, with the self-healing fallback in textInfer covering its quirks.
@@ -431,6 +436,16 @@ DO NOT GUESS WHERE THE PLAYER IS. A callout existing on this map does not mean t
 - NEVER pick a site or callout just to make a tip sound specific. "Hold C Waterfall for time" when you cannot see that the player is on C is the exact mistake that breaks trust. A general but correct tip beats a specific but guessed one every time.
 - Wrong side plus wrong site equals pure anti-coaching. When in doubt about position, stay location-agnostic or SKIP.`;
 
+  // The same failure, for abilities: telling the player to use a dash, flash or
+  // smoke they have already spent. Cooldowns are hard to read off a small frame
+  // and your frame is seconds old, so an ability you saw available may be gone.
+  const abilityGuard = `
+
+DO NOT TELL THE PLAYER TO USE AN ABILITY YOU CANNOT CONFIRM THEY HAVE. Abilities go on cooldown, get used, or were never bought, and greyed-out icons are hard to read on this frame, which is already seconds old. A dash or flash you think is available may already be spent, so a tip like "use your dash to reposition" is often just wrong.
+- Coach the ACTION or GOAL, not the ability: "reposition after the kill, do not rehold the same angle" is right whether or not the dash is up. "Use your dash to reposition" gambles on an ability you cannot verify.
+- Only name a specific ability to USE when it is clearly central to the tip AND you can see it is actually available (its icon is lit, not greyed). If you are not sure, coach the goal and let the player pick the tool.
+- This applies to every agent's kit: dashes, flashes, smokes, mollies, walls, recon, ults. When unsure, describe what to achieve, not which button to press.`;
+
   const s = ctx.playerStats;
   const extLine = s && (s.kpr != null || s.adr || s.acs)
     ? `Per round over their last ${s.matches || 'few'} matches: ${s.kpr != null ? s.kpr + ' kills, ' : ''}${s.dpr != null ? s.dpr + ' deaths, ' : ''}${s.apr != null ? s.apr + ' assists, ' : ''}${s.adr ? s.adr + ' damage (ADR), ' : ''}${s.acs ? s.acs + ' combat score (ACS)' : ''}.
@@ -617,6 +632,7 @@ WHEN TO SPEAK, SKIP, or LOBBY
 ACCURACY FIRST, BUT DO NOT BE SHY. Most live gameplay frames contain something coachable, a mistake, an opportunity, a read, a positioning fix, and the player WANTS to hear it, that is why they run a coach. If you can see something true, useful, and possible for THIS frame, say it. Ground every tip in what you can actually SEE plus the match state and memory; a wrong or guessed tip is worse than silence, but silence when there was a real tip to give is also a failure.
 Small mistakes are allowed to WAIT. If you spot something real but not urgent enough to interrupt the round with, note it in STATE note and hold it, then deliver it as the DEATH REVIEW when that mistake gets the player killed, that is the moment they are watching the screen and ready to hear it.
 Reply with exactly SKIP only when you genuinely have nothing accurate and new: nothing coachable in the frame, or the only honest tip would repeat the recent ones below. SKIP is for real uncertainty, not caution.
+BUY PHASE IS DIFFERENT: hold a HIGHER bar. During the buy phase (barriers up, pre-round) only speak when you have a genuinely high-level, SPECIFIC setup call worth making, tied to what you can actually read on the minimap or the buy: a real default or exec plan, a concrete crossfire or off-angle setup, a util line-up for this site, a clear economy read (force, save, half-buy mistake). If the only thing you would say is generic ("group up", "play as a team", "communicate", "get ready", "hold your angles"), SKIP instead. A player does not need a coach to tell them to group up in spawn. Generic buy-phase filler is worse than silence, so when the buy read is not sharp, say nothing and wait for the round to go live.
 If the screen is NOT live gameplay (main menu, lobby, agent select, loading screen, career or collection page, range with no match), reply with exactly LOBBY.
 
 ${deathLine}${roundLostLine}${enemyBlock}${memoryBlock}${transLine}${focusLine}CURRENT MATCH STATE (trust this, do not re-derive it every frame):
@@ -625,7 +641,7 @@ ${deathLine}${roundLostLine}${enemyBlock}${memoryBlock}${transLine}${focusLine}C
 - Round: ${ctx.roundNumber || 'Unknown'} | Score: ${ctx.teamScore || 0}-${ctx.enemyScore || 0} | Phase: ${ctx.phase || 'Unknown'} | Clock: ${ctx.clock || 'read it from the timer'}
 - Player location (read from the minimap a few seconds ago): ${ctx.playerSpot || 'Unknown'}${ctx.playerSpotVerified ? ' (this one was resolved from the minimap coordinates, it is reliable)' : ''}
 - Credits: ${ctx.playerCredits == null ? 'Unknown' : ctx.playerCredits} | Alive: ${ctx.playerAlive === false ? 'No' : 'Yes'} | Deaths in a row: ${ctx.consecutiveDeaths || 0}${ctx.playerAlive === false ? '\n- THE PLAYER IS DEAD RIGHT NOW. They cannot move, peek, rotate, buy, or use util this round. The ONLY valid tips are why they died and what to change, or what to watch and learn while spectating. Any tip telling a dead player to act is automatically wrong.' : ''}
-- Teammates alive: ${ctx.teammatesAlive == null ? 'Unknown' : ctx.teammatesAlive} | Enemies alive: ${ctx.enemiesAlive == null ? 'Unknown' : ctx.enemiesAlive}${ctx.teammatesAlive === 0 && ctx.playerAlive !== false ? ' | THE PLAYER IS SOLO, this is a clutch' : ''}${mapBlock}${patchBlock}${delayBlock}${locationGuard}
+- Teammates alive: ${ctx.teammatesAlive == null ? 'Unknown' : ctx.teammatesAlive} | Enemies alive: ${ctx.enemiesAlive == null ? 'Unknown' : ctx.enemiesAlive}${ctx.teammatesAlive === 0 && ctx.playerAlive !== false ? ' | THE PLAYER IS SOLO, this is a clutch' : ''}${mapBlock}${patchBlock}${delayBlock}${locationGuard}${abilityGuard}
 
 RECENT TIPS (do not repeat these word for word; if the SAME mistake is still happening and the advice matters, give it again in FRESH wording and mark the repetition, "still", "again", "third time now", important advice bears repeating, lazy copies do not):
 ${recent}
@@ -638,6 +654,7 @@ Jett: smokes, updraft, dash. Reyna: blind, heal, dismiss. Phoenix: flash, molly,
 
 OUTPUT
 Line 1 is the tip: one plain sentence, 8 to 22 words, ending with a period. Talk like a chill, sharp teammate in the player's ear, casual and clear, not stiff or formal, plain everyday words a Silver player gets instantly. Still say the PLACE and the ACTION ("hold the Hookah door and let them cross into you", never "play safer"), just say it like a person, not a textbook. No quotes, no "Tip:", no markdown, no preamble, no jargon the player would have to look up. Use commas and periods, never dashes. Always finish the sentence; never end on a preposition, article, conjunction, or possessive. If it is live gameplay with nothing new worth saying, line 1 is exactly SKIP. If it is not live gameplay at all, output ONLY the word LOBBY and nothing else.
+COACH LIKE AN ACTUAL COACH, NOT A HINT BOT. Every tip should teach something a Silver or Gold player would not already know, or catch a real mistake they are making right now. Give the REASON baked in, not just the instruction: "swing wide off Heaven so their close angle cannot trade you" beats "swing wide". Bad tips you must NOT give: vague filler anyone knows ("play smart", "aim better", "be careful", "watch your positioning", "communicate with your team"), and stating the obvious ("shoot the enemy", "you have the spike"). If your tip would make a Radiant nod because it is genuinely sharp, it is good; if it sounds like a loading-screen hint, it is filler, so SKIP instead. One specific, correct, reasoned tip per real moment beats a stream of generic ones.
 When (and ONLY when) the tip explains why the player died or why the round was lost, line 1 starts with exactly "DEATH: " before the sentence. The app renders those as a special review card, so never use the marker on ordinary tips and never skip it on a death or round review.
 
 Then, for any live-gameplay frame (including SKIP), add a second line reporting what the HUD actually shows, null for anything unreadable, never guess:
@@ -1313,9 +1330,24 @@ router.get('/matches', async (req, res) => {
       const arr = (sm.json && Array.isArray(sm.json.data)) ? sm.json.data : [];
       for (const m of arr) if (m && m.stats) { m._queue = q; rows.push(m); }
     }
-    rows.sort((a, b) => (Date.parse(b.meta?.started_at || 0) || 0) - (Date.parse(a.meta?.started_at || 0) || 0));
+    const byDate = (a, b) => (Date.parse(b.meta?.started_at || 0) || 0) - (Date.parse(a.meta?.started_at || 0) || 0);
+    rows.sort(byDate);
+    // The unrated view merges unrated + swiftplay. Taking the plain 10 most
+    // recent means a run of recent unrated games can crowd swiftplay out
+    // entirely, which is the reported bug (unrated tab shows no swiftplay). If
+    // swiftplay games exist but none made the recency cut, reserve up to 3
+    // slots for the most recent swiftplay so both queues stay visible.
+    let chosen = rows.slice(0, 10);
+    if (modeKey === 'unrated') {
+      const allSw = rows.filter((m) => m._queue === 'swiftplay');
+      const shownSw = chosen.filter((m) => m._queue === 'swiftplay').length;
+      if (shownSw === 0 && allSw.length) {
+        const wantSw = allSw.slice(0, Math.min(3, allSw.length));
+        chosen = chosen.slice(0, 10 - wantSw.length).concat(wantSw).sort(byDate);
+      }
+    }
     const matches = [];
-    for (const m of rows.slice(0, 10)) {
+    for (const m of chosen) {
       const st = m.stats;
       const teams   = m.teams || {};
       const rounds  = (teams.red | 0) + (teams.blue | 0);
