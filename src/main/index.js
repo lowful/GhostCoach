@@ -26,6 +26,7 @@ const panelWindow      = require('./windows/panel-window');
 const settingsWindow   = require('./windows/settings-window');
 const historyWindow    = require('./windows/history-window');
 const weeklyWindow     = require('./windows/weekly-window');
+const aiLogWindow      = require('./windows/ailog-window');
 const statsWindow      = require('./windows/stats-window');
 const audioWindow      = require('./windows/audio-window');
 const dockWindow       = require('./windows/dock-window');
@@ -55,6 +56,7 @@ const state = {
 };
 
 let mainLaunched = false;
+let surfacesUp   = false;   // overlay/panel/tray built; gated behind onboarding on first run
 
 // One-time reset of X-rated tips (shipped with the 3-strike system): the old
 // single-strike blocklist punished tips too hard, so everyone starts clean.
@@ -200,6 +202,8 @@ const controller = {
       // Death forensics: the freshest rolling game-audio clip (RAM only),
       // attached by the engine only inside the death-review window.
       audioClip: () => (latestAudio.b64 && Date.now() - latestAudio.at < 12000 ? latestAudio.b64 : null),
+      // AI decision log: per-frame screenshot + parsed STATE + tip, to disk.
+      diagnostics: (rec) => recordAiFrame(rec),
     });
     engine.on('tip',    (tip) => pushTip(tip));
     engine.on('status', (status) => {
@@ -271,6 +275,7 @@ const controller = {
     // Start the hidden game-audio listener (session-scoped, RAM only).
     latestAudio = { b64: null, at: 0 };
     try { audioWindow.create(); } catch (e) { console.log('[audio] listener unavailable:', e.message); }
+    startAiLog();   // fresh AI decision-log folder for this session
     setStatus('coaching');
     console.log('[coach] started');
   },
@@ -352,6 +357,8 @@ const controller = {
   openSettings()  { settingsWindow.open(); },
   openHistory()   { historyWindow.open(); },
   openWeekly()    { weeklyWindow.open(); },
+  openAiLog()     { aiLogWindow.open(); },
+  getAiLog()      { return latestAiLog(); },
 
   /** The weekly report the popup renders. Reading it marks the week as seen
    *  and rolls the comparison baseline, so next week measures from here. */
@@ -426,14 +433,21 @@ const controller = {
   async getStatsDashboard(mode, force) {
     const m = mode === 'unrated' ? 'unrated' : 'competitive';
     const perf = loadPerf();            // oldest -> newest
+    // The tracker profile and the recent-match list are two independent network
+    // round-trips. They used to run one after the other, so a cold dashboard
+    // open waited for the sum of both; running them together roughly halves it.
     // Unrated has no historical snapshot to trend against, so its arrows stay
     // flat; the numbers themselves come from unrated + swiftplay matches.
-    let stats, prevStats = null;
-    if (m === 'unrated') stats = await fetchTrackerStats(!!force, 'unrated');
-    else {
-      if (force) await fetchTrackerStats(true);   // refresh the persisted comp profile first
-      ({ stats, prevStats } = guardedTrackerPair());
-    }
+    let prevStats = null;
+    const statsP = (m === 'unrated')
+      ? fetchTrackerStats(!!force, 'unrated')
+      : (force ? fetchTrackerStats(true) : Promise.resolve()).then(() => {
+          const pair = guardedTrackerPair();
+          prevStats = pair.prevStats;
+          return pair.stats;
+        });
+    const matchesP = this.getMatches(false, m);
+    const [stats, matches] = await Promise.all([statsP, matchesP]);
     const categories = computeCategoryTrends(perf, stats, prevStats);
 
     const rank = {
@@ -450,7 +464,7 @@ const controller = {
       topAgents: (stats && stats.topAgents) || [],
       sessions: perf.slice(-15).reverse(),   // newest first for the list
       sessionCount: perf.length,
-      matches: await this.getMatches(false, m),
+      matches,   // fetched in parallel with the tracker profile above
       riotId: (store.get('riotId') || '').trim(),
       riotConnected: (store.get('riotId') || '').includes('#'),
     };
@@ -581,6 +595,9 @@ const controller = {
   finishOnboarding() {
     store.set('onboardingCompleted', true);
     onboardingWindow.close();
+    // First run: the app surfaces were held back until the tour finished, so
+    // build them now. A no-op if they already exist (tour re-run from Settings).
+    createAppSurfaces();
   },
   onConfigChanged() {
     if (engine) engine.setPerformanceMode(store.get('performanceMode'));
@@ -872,9 +889,12 @@ function saveSessionArchive(extra = {}) {
     const dir = sessionsDir();
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     const endedAt = Date.now();
+    // Duration drives tiered retention (very short sessions are pruned sooner).
+    const durationMs = state.sessionStartedAt ? endedAt - state.sessionStartedAt : null;
     const file = `session-${new Date(endedAt).toISOString().replace(/[:.]/g, '-')}.json`;
     fs.writeFileSync(path.join(dir, file), JSON.stringify({
       endedAt,
+      durationMs,
       agent:    (state.agent && state.agent.agent) || null,
       tipCount: state.tips.length,
       tipMix:   extra.tipMix || null,
@@ -892,16 +912,47 @@ function saveSessionArchive(extra = {}) {
 const SESSION_FILE_RE = /^session-[\dTZ-]+\.json$/;
 
 /** Sessions auto-expire after a week so the archive never clutters up. */
+// Tiered retention: very short sessions are usually accidental (opened, closed,
+// a stray minute), so they expire fast; substantial ones keep the normal
+// archive lifetime. Read each file for its recorded duration; a session too old
+// to have a durationMs (or missing it) falls back to the default cap by mtime.
+const RETENTION = [
+  { maxDurationMs: 1 * 60 * 1000, expireAfterMs: 1 * 60 * 60 * 1000 },      // under 1 min: gone after an hour
+  { maxDurationMs: 4 * 60 * 1000, expireAfterMs: 24 * 60 * 60 * 1000 },     // under 4 min: gone after a day
+];
+const DEFAULT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;                       // the rest: the usual 7-day archive
+
+function retentionMsFor(durationMs) {
+  if (typeof durationMs === 'number') {
+    for (const tier of RETENTION) if (durationMs < tier.maxDurationMs) return tier.expireAfterMs;
+  }
+  return DEFAULT_RETENTION_MS;
+}
+
 function cleanupOldSessions() {
   try {
     const dir = sessionsDir();
     if (!fs.existsSync(dir)) return;
-    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
     for (const f of fs.readdirSync(dir)) {
       if (!SESSION_FILE_RE.test(f)) continue;
       const p = path.join(dir, f);
       try {
-        if (fs.statSync(p).mtimeMs < cutoff) { fs.unlinkSync(p); console.log('[session] pruned (7 days):', f); }
+        // endedAt + duration come from the file; fall back to mtime for the age
+        // and to the default tier when a session predates duration recording.
+        let endedAt = 0, durationMs = null;
+        try {
+          const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+          endedAt = j.endedAt || 0;
+          durationMs = typeof j.durationMs === 'number' ? j.durationMs : null;
+        } catch {}
+        const age = now - (endedAt || fs.statSync(p).mtimeMs);
+        const ttl = retentionMsFor(durationMs);
+        if (age > ttl) {
+          fs.unlinkSync(p);
+          const mins = durationMs != null ? (durationMs / 60000).toFixed(1) + 'min' : 'unknown length';
+          console.log(`[session] pruned (${mins}, ttl ${(ttl / 3600000).toFixed(0)}h):`, f);
+        }
       } catch {}
     }
   } catch {}
@@ -933,6 +984,95 @@ function getSession(file) {
     return JSON.parse(fs.readFileSync(path.join(sessionsDir(), base), 'utf8'));
   } catch {
     return null;
+  }
+}
+
+// ── AI decision log ──────────────────────────────────────────────────────────
+// One folder per coaching session holding the frames the coach read, plus a
+// log.json of what it parsed and said for each. This is the "look back and see
+// what went wrong" record: every entry pairs a screenshot with the STATE the AI
+// derived (its notes) and the tip. Capped per session and pruned to the few
+// most recent sessions so it never grows without bound.
+const AI_LOG_MAX_FRAMES   = 240;   // ~40 min at a 10s loop; older frames roll off
+const AI_LOG_KEEP_SESSIONS = 5;    // only the most recent sessions survive
+let aiLogDir = null;               // current session's folder
+let aiLogRecords = [];             // in-memory index, flushed to log.json
+
+function aiLogRoot() { return path.join(app.getPath('userData'), 'ai-log'); }
+
+/** Start a fresh log folder for a coaching session. */
+function startAiLog() {
+  if (store.get('aiLog') === false) { aiLogDir = null; return; }
+  try {
+    const root = aiLogRoot();
+    if (!fs.existsSync(root)) fs.mkdirSync(root, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    aiLogDir = path.join(root, 'session-' + stamp);
+    fs.mkdirSync(aiLogDir, { recursive: true });
+    aiLogRecords = [];
+    pruneAiLog();
+    console.log('[ai-log] started', path.basename(aiLogDir));
+  } catch (e) { aiLogDir = null; console.error('[ai-log] start failed:', e.message); }
+}
+
+/** Sink handed to the engine: write the frame, append the record, cap size. */
+function recordAiFrame(d) {
+  if (!aiLogDir || !d || !d.image) return;
+  try {
+    const n = aiLogRecords.length;
+    const frameFile = `frame-${String(n).padStart(4, '0')}.jpg`;
+    fs.writeFileSync(path.join(aiLogDir, frameFile), Buffer.from(d.image, 'base64'));
+    aiLogRecords.push({
+      i: n, at: d.at || Date.now(), frame: frameFile,
+      state: d.state || {}, aiTip: d.aiTip || '', shown: d.shown || null,
+    });
+    // Roll the oldest frames off once past the cap (keep the index tidy too).
+    if (aiLogRecords.length > AI_LOG_MAX_FRAMES) {
+      const drop = aiLogRecords.shift();
+      try { fs.unlinkSync(path.join(aiLogDir, drop.frame)); } catch {}
+    }
+    fs.writeFileSync(path.join(aiLogDir, 'log.json'),
+      JSON.stringify({ startedAt: aiLogRecords[0] ? aiLogRecords[0].at : Date.now(), records: aiLogRecords }));
+  } catch (e) { /* a dropped frame is not worth interrupting coaching */ }
+}
+
+/** Keep only the most recent session folders. */
+function pruneAiLog() {
+  try {
+    const root = aiLogRoot();
+    if (!fs.existsSync(root)) return;
+    const dirs = fs.readdirSync(root)
+      .filter((f) => /^session-/.test(f))
+      .map((f) => ({ f, t: fs.statSync(path.join(root, f)).mtimeMs }))
+      .sort((a, b) => b.t - a.t);
+    for (const d of dirs.slice(AI_LOG_KEEP_SESSIONS)) {
+      fs.rmSync(path.join(root, d.f), { recursive: true, force: true });
+    }
+  } catch {}
+}
+
+/** The most recent AI-log session, for the viewer. */
+function latestAiLog() {
+  try {
+    const root = aiLogRoot();
+    if (!fs.existsSync(root)) return { records: [] };
+    const dirs = fs.readdirSync(root)
+      .filter((f) => /^session-/.test(f))
+      .map((f) => ({ f, t: fs.statSync(path.join(root, f)).mtimeMs }))
+      .sort((a, b) => b.t - a.t);
+    if (!dirs.length) return { records: [] };
+    const dir = path.join(root, dirs[0].f);
+    const log = JSON.parse(fs.readFileSync(path.join(dir, 'log.json'), 'utf8'));
+    // Inline each frame as a data URI so the viewer needs no file access.
+    for (const r of log.records) {
+      try {
+        const b64 = fs.readFileSync(path.join(dir, r.frame)).toString('base64');
+        r.frameData = 'data:image/jpeg;base64,' + b64;
+      } catch { r.frameData = null; }
+    }
+    return { session: dirs[0].f, records: log.records };
+  } catch (e) {
+    return { records: [], error: e.message };
   }
 }
 
@@ -1006,7 +1146,7 @@ function teardownSession() {
   try { hotkeys.unregister(); } catch (e) {}
   try { tray.destroy(); } catch (e) {}
   try { capture.disposeWorker(); } catch (e) {}
-  for (const name of ['dock', 'history', 'settings', 'overlay', 'panel', 'stats', 'audio', 'weekly']) {
+  for (const name of ['dock', 'history', 'settings', 'overlay', 'panel', 'stats', 'audio', 'weekly', 'ailog']) {
     const w = registry.get(name);
     if (w && !w.isDestroyed()) w.destroy();
   }
@@ -1015,6 +1155,7 @@ function teardownSession() {
   state.status     = 'idle';
   state.tips       = [];
   state.agent      = { agent: null, confirmed: false, role: null };
+  surfacesUp       = false;   // a fresh login rebuilds the surfaces
 }
 
 // Log the user out: clear the cached license, tear the session down, and show the
@@ -1072,6 +1213,7 @@ const trayActions = {
   openSettings:   () => controller.openSettings(),
   openHistory:    () => controller.openHistory(),
   openWeekly:     () => controller.openWeekly(),
+  openAiLog:      () => controller.openAiLog(),
   quit:           () => controller.quit(),
 };
 
@@ -1085,9 +1227,25 @@ const hotkeyActions = {
 };
 
 // ── Launch ───────────────────────────────────────────────────────────────────
+// First run gates the app behind the onboarding tour: until it is completed we
+// show ONLY the tour, and the overlay/panel/tray are not created, so the app
+// never appears behind an unfinished tour. finishOnboarding() then builds the
+// surfaces. A returning user (onboarding already done) goes straight in.
 function launchMainApp() {
   if (mainLaunched) return;
   mainLaunched = true;
+
+  if (!store.get('onboardingCompleted')) {
+    onboardingWindow.create();
+    console.log('[main] first run, waiting on onboarding before opening the app');
+    return;
+  }
+  createAppSurfaces();
+}
+
+function createAppSurfaces() {
+  if (surfacesUp) return;
+  surfacesUp = true;
 
   overlayWindow.create();
   panelWindow.create();
@@ -1103,7 +1261,7 @@ function launchMainApp() {
     });
   }
   startLicenseWatch(); // detect expiry / revocation mid-session and keep Settings fresh
-  cleanupOldSessions(); // prune week-old session archives on every launch
+  cleanupOldSessions(); // prune old session archives on every launch
 
   // Stay connected to the tracker across restarts: refresh the saved profile in
   // the background so live tips + chat have current stats without reconnecting.
@@ -1111,11 +1269,8 @@ function launchMainApp() {
     fetchTrackerStats(true).then((s) => { if (s && engine) engine.setPlayerStats(s); }).catch(() => {});
   }
 
-  // First launch after activation: show the one-time welcome card (hotkey tour).
-  if (!store.get('onboardingCompleted')) onboardingWindow.create();
-  else maybeShowWeeklyReport();   // never both at once on a first run
-
-  console.log('[main] Main app launched');
+  maybeShowWeeklyReport();
+  console.log('[main] app surfaces created');
 }
 
 /**
@@ -1203,6 +1358,7 @@ if (!app.requestSingleInstanceLock()) {
           console.log('[dev] weekly report:', JSON.stringify(buildWeeklyReport()).slice(0, 600));
           weeklyWindow.open();
         }
+        if (process.env.GHOST_DEV_OPEN_AILOG === '1') aiLogWindow.open();
         if (process.env.GHOST_DEV_MINIMIZE === '1') setTimeout(() => controller.toggleMinimizePanel(), 1200);
         const panel = panelWindow.get();
         if (panel) {

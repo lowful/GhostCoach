@@ -125,6 +125,7 @@ const STORE_DEFAULTS = {
   // every launch).
   weeklySnapshot:   null,        // { at, riotId, stats } captured at the start of the week
   weeklyReportWeek: '',          // "2026-W30", the last week whose report was shown
+  aiLog:            true,         // save each analyzed frame + STATE + tip for the AI decision-log viewer
 };
 
 module.exports = {

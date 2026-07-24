@@ -73,16 +73,26 @@ kbd { font-family: 'Consolas', monospace; font-size: 10.5px; background: rgba(0,
 .full { width: 100%; height: 44px; font-size: 14px; margin-top: auto; }
 
 /* ── Paged tour ────────────────────────────────────────────────────────────
-   The card holds four pages; only one is in the DOM flow at a time. A minimum
-   height keeps the window from jumping as pages of different lengths swap. */
-/* Pages share one height so the card does not resize as you step through, but
-   it is the height of the tallest page rather than an arbitrary large number.
-   flex:1 lets it absorb the leftover space instead of forcing the card taller. */
+   Each page fills the space between the hero and the footer, and CENTERS its
+   content vertically. Pages differ in length (page 1 is two steps, page 3 is a
+   four-card grid), so centering balances the leftover whitespace above and
+   below instead of dumping short content at the top with a large gap before the
+   nav, which is the deadspace the screenshots showed. */
 .page {
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
   animation: pageIn 280ms var(--ease-expo) both;
 }
+/* The hero sits at the top of each page, its own spacing handled by the page
+   gap, so drop the large fixed margin that widened the text-to-content gap. */
+.page .hero { margin-bottom: 12px; }
+.page .steps { margin-bottom: 0; }
+.page .keys  { margin-bottom: 0; }
+.page .tip-note { margin-bottom: 0; }
 @keyframes pageIn { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
 
 .lead {

@@ -849,9 +849,23 @@ async function refreshDashboardForMode(mode, force) {
   } catch {}
 }
 
+// A skeleton for the overview cards so a cold open (which waits on a live
+// tracker fetch) reads as loading rather than frozen. Cleared by renderCards.
+function showCardSkeleton() {
+  cardsEl.innerHTML = '';
+  for (let i = 0; i < 6; i++) {
+    const s = document.createElement('div');
+    s.className = 'card skeleton';
+    cardsEl.append(s);
+  }
+}
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 let dashRiotId = '';
 async function load() {
+  showCardSkeleton();
+  matchEmptyEl.hidden = false;
+  matchEmptyEl.textContent = 'Loading matches...';
   try {
     const d = await window.ghost.getDashboard(matchMode);
     if (!d) return;
@@ -866,6 +880,7 @@ async function load() {
 }
 
 document.getElementById('weekly').addEventListener('click', () => window.ghost.openWeekly());
+document.getElementById('ailog').addEventListener('click', () => window.ghost.openAiLog());
 document.getElementById('askcoach').addEventListener('click', () => window.ghost.openChat());
 document.getElementById('close').addEventListener('click', () => window.close());
 

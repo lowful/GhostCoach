@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';" />
+  <title>AI Log</title>
+  <link rel="stylesheet" href="../shared/theme.css" />
+  <link rel="stylesheet" href="../shared/ui.css" />
+  <link rel="stylesheet" href="ailog.css" />
+</head>
+<body>
+  <header class="drag">
+    <div class="h-brand">
+      <img src="../../../assets/logo-ghost.svg" alt="" width="15" height="18" />
+      <div>
+        <h2>AI Decision Log</h2>
+        <span id="subtitle" class="sub">what the coach saw and said</span>
+      </div>
+    </div>
+    <button id="close" class="icon-btn no-drag" title="Close" aria-label="Close">✕</button>
+  </header>
+
+  <div id="empty" class="empty" hidden></div>
+
+  <main id="main" class="main" hidden>
+    <!-- Left: the frame the coach read -->
+    <section class="frame-pane">
+      <div class="frame-wrap">
+        <img id="frame" alt="frame the coach analyzed" />
+      </div>
+      <div class="scrub no-drag">
+        <button id="prev" class="nav-btn" title="Previous frame (Left arrow)">‹</button>
+        <input id="slider" type="range" min="0" max="0" value="0" />
+        <button id="next" class="nav-btn" title="Next frame (Right arrow)">›</button>
+      </div>
+      <div class="frame-meta">
+        <span id="pos">0 / 0</span>
+        <span id="time" class="muted"></span>
+      </div>
+    </section>
+
+    <!-- Right: what it parsed + said -->
+    <section class="read-pane">
+      <div class="block">
+        <div class="lbl">Tip shown</div>
+        <p id="shown" class="shown"></p>
+      </div>
+      <div class="block" id="raw-block" hidden>
+        <div class="lbl">AI said (before filters)</div>
+        <p id="raw" class="raw"></p>
+      </div>
+      <div class="block">
+        <div class="lbl">What the AI read (its notes)</div>
+        <div id="state" class="state"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="ailog.js"></script>
+</body>
+</html>

@@ -35,6 +35,9 @@ class CoachingEngine extends EventEmitter {
     this.audioClip = typeof opts.audioClip === 'function' ? opts.audioClip : () => null;
     // Player-written feedback on past tips ({ text, reason }), for the prompt.
     this.getFeedback = typeof opts.getFeedback === 'function' ? opts.getFeedback : () => [];
+    // AI decision log: gets { at, image, state, tip, shown } per analyzed frame,
+    // for the "what did the coach see and say" viewer. No-op when not provided.
+    this.diagnostics = typeof opts.diagnostics === 'function' ? opts.diagnostics : null;
 
     this.matchContext = freshContext();
 
@@ -222,8 +225,23 @@ class CoachingEngine extends EventEmitter {
       this.warnedFailure = false;   // server is healthy again
       this.failStreak = 0;
       this.analyzedFrames++;
+      this._cycleShown = null;                   // reset before this cycle decides
       this.processAIResponse(data);
       if (!this.inLobby) this.pushFrame(shot);   // confirmed gameplay: keep for chat
+      // AI decision log: record the frame the coach read, the STATE it parsed
+      // from it (its "notes"), the tip it produced, and what was actually shown
+      // after the gates. Only for real gameplay, so lobby frames are not logged.
+      if (this.diagnostics && !this.inLobby) {
+        try {
+          this.diagnostics({
+            at:    Date.now(),
+            image: shot,
+            state: data.context || {},
+            aiTip: data.tip || '',
+            shown: this._cycleShown ? { text: this._cycleShown.text, source: this._cycleShown.source } : null,
+          });
+        } catch (e) { console.log('[engine] diagnostics sink error:', e.message); }
+      }
     } catch (e) {
       console.error('[engine] analyze error:', e.message);
     } finally {
@@ -749,6 +767,7 @@ class CoachingEngine extends EventEmitter {
       else if (source === 'library') this.libraryTipCount++;
     }
     this.lastTipTime = Date.now();
+    this._cycleShown = tip;   // what got shown this analyze cycle (for the AI log)
     console.log(`[engine] TIP (${source}): ${verified}  [ai=${this.aiTipCount} lib=${this.libraryTipCount}]`);
     this.emit('tip', tip);
     return true;
@@ -1247,6 +1266,17 @@ const MOBILITY_MISUSE = new RegExp(
   '\\b(updraft|tailwind|dash(?:es)?|satchel|blast pack|high gear|sprint|blink|gatecrash)\\b[^.]{0,44}\\b(clear|check|watch|scan|spot)\\b'
   + '|\\b(clear|check|watch|scan)(?:ing)?\\b[^.]{0,44}\\b(updraft|tailwind|satchel|high gear|sprint)\\b', 'i');
 
+// Defense in depth for the ability guard (the prompt is the primary fix): a tip
+// that COMMANDS using a specific mobility ability the player may have already
+// spent ("use your dash to reposition", "satchel out and rotate"). We cannot
+// verify cooldown state, and the frame is seconds old, so these gamble on an
+// ability that may be gone. The GOAL is fine ("reposition after the kill"); it
+// is the "use your <ability>" command we drop, since the coach should teach the
+// action, not a button that might be on cooldown.
+const ABILITY_COMMAND = new RegExp(
+  '\\b(?:use|pop|hit|blow|throw|activate)\\s+(?:your\\s+)?'
+  + '(dash(?:es)?|updraft|tailwind|satchel|blast pack|high gear|sprint|blink|gatecrash)\\b', 'i');
+
 // Prompt-echo leaks: fragments of the STATE schema or frame-memory wording
 // must never surface as a tip.
 const PROMPT_LEAK = /"(?:side|phase|round|team|enemy|credits|alive|weapon|map|enemySpot)"|\bSTATE\b|\benemy ?spot\b|\b(?:previous|current|second) frame\b|\bplaybook\b/i;
@@ -1313,6 +1343,11 @@ function scenarioFits(text, source, ctx) {
   // anything; and prompt internals never surface as coaching.
   if (source === 'ai' && ECON_TIP.test(l)) return false;
   if (MOBILITY_MISUSE.test(l)) return false;
+  // Don't command a mobility ability we can't confirm is off cooldown.
+  if (source !== 'system' && ABILITY_COMMAND.test(l)) {
+    console.log('[engine] reject: commands an unverifiable ability');
+    return false;
+  }
   if (source !== 'system' && PROMPT_LEAK.test(text)) return false;
   // Solo clutch: nobody is alive to trade or crossfire with, so team-play
   // advice is impossible and gets dropped no matter how good it sounds.

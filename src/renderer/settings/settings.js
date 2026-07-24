@@ -78,6 +78,7 @@ function wireBoolSeg(id, key) {
 }
 const showTipsSeg = wireBoolSeg('showtips', 'showTips');
 const beginnerSeg = wireBoolSeg('beginner', 'beginnerTips');
+const aiLogSeg    = wireBoolSeg('ailog', 'aiLog');
 
 // Voice coach + Coach Cam: sub-controls grey out while the feature is off.
 const voiceSeg = wireBoolSeg('voicecoach', 'voiceCoach');
@@ -199,6 +200,7 @@ async function load() {
       opacityLabel.textContent = op + '%';
       markSeg(showTipsSeg, cfg.showTips === false ? 'off' : 'on');
       markSeg(beginnerSeg, cfg.beginnerTips === false ? 'off' : 'on');
+      markSeg(aiLogSeg, cfg.aiLog === false ? 'off' : 'on');
       markSeg(voiceSeg, cfg.voiceCoach === true ? 'on' : 'off');
       markSeg(styleSeg, cfg.voiceStyle || 'normal');
       voiceSub.classList.toggle('disabled', cfg.voiceCoach !== true);
