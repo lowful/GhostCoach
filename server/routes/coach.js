@@ -50,14 +50,24 @@ const AI = {
   provider:    (process.env.AI_PROVIDER || (process.env.AI_API_KEY ? 'openai' : 'gemini')).toLowerCase(),
   baseUrl:     (process.env.AI_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/+$/, ''),
   apiKey:      process.env.AI_API_KEY || '',
-  // HYBRID vision: the fast instruct model runs live action (reliable, timely),
-  // and the deep reasoning model runs buy-phase reads (the pre-round minimap
-  // plan, where a 30-40s barrier gives it time to reason). The analyze route
-  // picks between them by phase. Text tasks (grading, chat, reviews) are not
-  // latency bound, so they use the reasoning model too.
-  visionModel: process.env.AI_VISION_MODEL      || 'qwen/qwen3-vl-235b-a22b-instruct',  // live action
-  visionDeep:  process.env.AI_VISION_MODEL_DEEP || 'qwen/qwen3-vl-235b-a22b-thinking',  // buy-phase reads
-  textModel:   process.env.AI_TEXT_MODEL        || 'qwen/qwen3-vl-235b-a22b-thinking',
+  // ONE vision model for every frame. We tried a hybrid (thinking model on buy
+  // phase, instruct on live action) and it made map, side and spectating reads
+  // WORSE, not better. The STATE machine locks the map and side only after two
+  // agreeing reads, but the two models are different networks that read the HUD
+  // differently, so a buy-phase read and an active read would disagree across
+  // the phase boundary and the lock would never settle or would settle wrong.
+  // The thinking model also spends its budget reasoning and can return a
+  // truncated STATE. All-thinking was already too slow (it timed out on live
+  // tips), so the fast instruct model, used consistently, is the right call.
+  visionModel: process.env.AI_VISION_MODEL || 'qwen/qwen3-vl-235b-a22b-instruct',
+  // Text tasks (grading, chat, reviews) are not latency bound and have no
+  // frame-to-frame consistency requirement, so the reasoning model still fits
+  // there, with the self-healing fallback in textInfer covering its quirks.
+  textModel:   process.env.AI_TEXT_MODEL || 'qwen/qwen3-vl-235b-a22b-thinking',
+  // Kept for anything that explicitly opts into deep reasoning on an image; the
+  // live analyze loop no longer uses it. Defaults to the instruct model so an
+  // unset env var cannot silently reintroduce the hybrid.
+  visionDeep:  process.env.AI_VISION_MODEL_DEEP || process.env.AI_VISION_MODEL || 'qwen/qwen3-vl-235b-a22b-instruct',
 };
 
 // One OpenAI-style chat call. `imageB64` present => multimodal (vision) request.
@@ -409,6 +419,18 @@ THE PLAYER HAS ALREADY MOVED. This frame reached you seconds ago, so by the time
 - Ongoing habits and positioning always beat frame-perfect reactions, because habits are still true ten seconds later.
 - If the only honest tip would need the player frozen where you saw them, SKIP.`;
 
+  // The single worst failure: naming a SITE or callout the player is not
+  // actually at. It reads as authoritative and it is simply wrong, so the
+  // player learns to distrust every tip. A tip once told a player holding A to
+  // go hold C, purely because C was a plausible thing to say on that map.
+  const knownSpot = ctx.playerSpot && ctx.playerSpotVerified;
+  const locationGuard = `
+
+DO NOT GUESS WHERE THE PLAYER IS. A callout existing on this map does not mean the player is near it. Only tie a tip to a specific site or callout when you ACTUALLY KNOW the player is there. You know that from ONE of: their yellow arrow's position on the minimap this frame, the verified location given below, or a landmark you can plainly see in the first-person view (a named area, the spike planted on a site). ${knownSpot ? 'The verified location below was resolved from the minimap coordinates, so you may build the tip around it.' : 'No verified minimap location came through this frame, so unless you can directly SEE which site the player is on, you do not know it, and must not name one.'}
+- If you do not know the player's site, coach something that is true anywhere: crosshair placement, trading, using util before peeking, checking the minimap, resetting after a kill, economy. These never depend on a location.
+- NEVER pick a site or callout just to make a tip sound specific. "Hold C Waterfall for time" when you cannot see that the player is on C is the exact mistake that breaks trust. A general but correct tip beats a specific but guessed one every time.
+- Wrong side plus wrong site equals pure anti-coaching. When in doubt about position, stay location-agnostic or SKIP.`;
+
   const s = ctx.playerStats;
   const extLine = s && (s.kpr != null || s.adr || s.acs)
     ? `Per round over their last ${s.matches || 'few'} matches: ${s.kpr != null ? s.kpr + ' kills, ' : ''}${s.dpr != null ? s.dpr + ' deaths, ' : ''}${s.apr != null ? s.apr + ' assists, ' : ''}${s.adr ? s.adr + ' damage (ADR), ' : ''}${s.acs ? s.acs + ' combat score (ACS)' : ''}.
@@ -603,7 +625,7 @@ ${deathLine}${roundLostLine}${enemyBlock}${memoryBlock}${transLine}${focusLine}C
 - Round: ${ctx.roundNumber || 'Unknown'} | Score: ${ctx.teamScore || 0}-${ctx.enemyScore || 0} | Phase: ${ctx.phase || 'Unknown'} | Clock: ${ctx.clock || 'read it from the timer'}
 - Player location (read from the minimap a few seconds ago): ${ctx.playerSpot || 'Unknown'}${ctx.playerSpotVerified ? ' (this one was resolved from the minimap coordinates, it is reliable)' : ''}
 - Credits: ${ctx.playerCredits == null ? 'Unknown' : ctx.playerCredits} | Alive: ${ctx.playerAlive === false ? 'No' : 'Yes'} | Deaths in a row: ${ctx.consecutiveDeaths || 0}${ctx.playerAlive === false ? '\n- THE PLAYER IS DEAD RIGHT NOW. They cannot move, peek, rotate, buy, or use util this round. The ONLY valid tips are why they died and what to change, or what to watch and learn while spectating. Any tip telling a dead player to act is automatically wrong.' : ''}
-- Teammates alive: ${ctx.teammatesAlive == null ? 'Unknown' : ctx.teammatesAlive} | Enemies alive: ${ctx.enemiesAlive == null ? 'Unknown' : ctx.enemiesAlive}${ctx.teammatesAlive === 0 && ctx.playerAlive !== false ? ' | THE PLAYER IS SOLO, this is a clutch' : ''}${mapBlock}${patchBlock}${delayBlock}
+- Teammates alive: ${ctx.teammatesAlive == null ? 'Unknown' : ctx.teammatesAlive} | Enemies alive: ${ctx.enemiesAlive == null ? 'Unknown' : ctx.enemiesAlive}${ctx.teammatesAlive === 0 && ctx.playerAlive !== false ? ' | THE PLAYER IS SOLO, this is a clutch' : ''}${mapBlock}${patchBlock}${delayBlock}${locationGuard}
 
 RECENT TIPS (do not repeat these word for word; if the SAME mistake is still happening and the advice matters, give it again in FRESH wording and mark the repetition, "still", "again", "third time now", important advice bears repeating, lazy copies do not):
 ${recent}
@@ -789,16 +811,15 @@ router.post('/analyze', async (req, res) => {
 
   const t0 = Date.now();
   try {
-    // When audio already spent up to 3.5s, trim the vision budget so the
-    // whole request stays inside the client's timeout.
-    // Hybrid model pick: buy phase gets the deep reasoning model (barriers are
-    // up, so a slow, thorough minimap/plan read is affordable and gets a
-    // generous timeout under the client's 30s); every other phase gets the fast
-    // instruct model so live action tips stay timely and reliable.
-    const deepRead     = String(context.phase || '').toLowerCase() === 'buy';
-    const visionModel  = deepRead ? AI.visionDeep : AI.visionModel;
-    const answerBudget = deepRead ? 320 : 220;
-    const visionTimeout = (deepRead ? (prevImage ? 26000 : 24000) : (prevImage ? 13000 : 11000)) - (audioBlock ? 2500 : 0);
+    // One model for every frame (see AI.visionModel). The buy phase still gets a
+    // little more answer budget and time, because it reports the pre-round team
+    // read on top of the tip, but it is the SAME model as active play, so the
+    // map and side reads stay consistent across the phase boundary and the locks
+    // actually settle. Audio already spent up to 3.5s, so trim for that.
+    const buyPhase     = String(context.phase || '').toLowerCase() === 'buy';
+    const visionModel  = AI.visionModel;
+    const answerBudget = buyPhase ? 300 : 220;
+    const visionTimeout = (buyPhase ? (prevImage ? 17000 : 15000) : (prevImage ? 13000 : 11000)) - (audioBlock ? 2500 : 0);
     const raw = await Promise.race([
       visionInfer(prevImage ? [prevImage, image] : image, prompt, answerBudget, false, visionModel),
       new Promise((_, rej) => setTimeout(() => rej(new Error('Gemini timeout')), visionTimeout)),
