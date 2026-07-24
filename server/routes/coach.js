@@ -81,7 +81,13 @@ async function chatCall({ prompt, imageB64, maxTokens, temperature, model: pinne
   // top of the caller's budget, bounded so total generation lands inside the
   // timeouts. A no-op for instruct models (headroom 0), safe either way.
   const isThinking = /thinking/i.test(model);
-  const budget = (maxTokens || 100) + (isThinking ? 700 : 0);
+  // Reasoning happens BEFORE the answer and comes out of the same budget, so a
+  // thinking model that reasons past the cap returns a truncated <think> block
+  // and nothing else, which reads as an empty reply. Text work (grading, chat,
+  // reviews) is not latency bound, so it gets real room; vision stays tighter
+  // because a live tip has to land inside the frame timeout.
+  const headroom = isThinking ? (images.length ? 700 : 2200) : 0;
+  const budget = (maxTokens || 100) + headroom;
 
   const resp = await fetch(`${AI.baseUrl}/chat/completions`, {
     method: 'POST',
@@ -127,9 +133,67 @@ async function visionInfer(imageB64, prompt, maxTokens, jsonMode, model) {
   const text = await chatCall({ imageB64, prompt, maxTokens, temperature: 0.7, model });
   return jsonMode ? text : sanitize(text);
 }
-async function textInfer(prompt, maxTokens) {
+/**
+ * Text work with a self-healing model choice.
+ *
+ * A thinking model can spend its whole budget reasoning and return nothing
+ * usable. That silently broke session grading (which fell back to canned filler)
+ * and Ask Coach (which showed "Chat failed"), because an empty string is not an
+ * error, it just parses into nothing. So: an empty reply is retried once on the
+ * instruct model, and after a couple of strikes this process stops paying the
+ * thinking cost for text at all. Self-healing, so it does not depend on anyone
+ * changing an environment variable to recover.
+ *
+ * jsonMode skips the tip sanitiser, which is meant for prose, not JSON.
+ */
+let thinkingTextStrikes = 0;
+const THINKING_TEXT_LIMIT = 1;   // one failure is enough, do not keep paying for it
+function instructFallbackModel() {
+  return process.env.AI_TEXT_MODEL_FALLBACK
+    || (/thinking/i.test(AI.visionModel) ? 'qwen/qwen3-vl-235b-a22b-instruct' : AI.visionModel);
+}
+function textModelNow() {
+  const configured = AI.textModel;
+  if (/thinking/i.test(configured) && thinkingTextStrikes >= THINKING_TEXT_LIMIT) {
+    return instructFallbackModel();
+  }
+  return configured;
+}
+
+async function textInfer(prompt, maxTokens, opts) {
   if (AI.provider === 'gemini') return geminiTextCall(prompt, maxTokens);
-  return sanitize(await chatCall({ prompt, maxTokens, temperature: 0.5 }));
+  const { json = false, timeoutMs = 0 } = opts || {};
+  const finish = (t) => (json ? String(t || '') : sanitize(t));
+  const run = (model) => {
+    const call = chatCall({ prompt, maxTokens, temperature: 0.5, model });
+    if (!timeoutMs) return call;
+    return Promise.race([
+      call,
+      new Promise((_, rej) => setTimeout(() => rej(new Error('text timeout')), timeoutMs)),
+    ]);
+  };
+
+  const model = textModelNow();
+  const thinking = /thinking/i.test(model);
+  let out = '';
+  let failure = null;
+  try {
+    out = await run(model);
+  } catch (e) {
+    if (!thinking) throw e;       // instruct already failed, that is a real error
+    failure = e.message;
+  }
+  if (out && out.trim()) return finish(out);
+
+  // Either nothing came back or it timed out, both meaning the reasoning ate
+  // the budget. Record the strike so later calls skip straight to instruct.
+  if (thinking) {
+    thinkingTextStrikes++;
+    console.warn(`[coach] thinking model unusable for text (${failure || 'empty reply'}), `
+      + `strike ${thinkingTextStrikes}/${THINKING_TEXT_LIMIT}, retrying on instruct`);
+    return finish(await run(instructFallbackModel()));
+  }
+  return finish(out);
 }
 
 // Strict schema for /analyze responses, Gemini requires UPPERCASE type names
@@ -1297,18 +1361,25 @@ router.post('/score-session', async (req, res) => {
       ? '\nOBSERVED FACTS (what the player was actually SEEN doing on screen, weigh these ABOVE the tips):\n' + notes.map((n) => '- ' + n).join('\n') + '\n'
       : '';
 
-    const prompt = `A Valorant player finished a coached session${ctx.map ? ' on ' + String(ctx.map).slice(0, 20) : ''}${ctx.agent ? ' playing ' + String(ctx.agent).slice(0, 16) : ''}${ctx.durationMin ? ', about ' + Math.round(ctx.durationMin) + ' minutes long' : ''}. These coaching tips were shown during it:\n${tips.join('\n')}\n${notesBlock}\nReturn ONLY valid JSON, no markdown:\n{"impact":70,"positioning":70,"utility":70,"aim":70,"summary":"...","strengths":"...","weaknesses":"..."}\nScore each category 0-100. impact means round influence: opening picks, entries that created space, clutch attempts, multikills, and being part of the plays that decided rounds; a quiet passenger scores low even with a clean K/D. When OBSERVED FACTS are provided they are the primary evidence, they describe what the player actually did; the tips only show what the coaching focused on and do NOT prove the player did or failed anything. Many corrections in a category still suggests a lower score there, but never state the player did something unless an observed fact shows it. No signal for a category means a neutral 70-75.
-summary: 3-4 sentences spoken directly TO the player like a real coach after the game, honest and encouraging: how the session went overall, the clearest thing they did well, what hurt them most, and the one habit to bring into the next game. Ground it strictly in the tips, invent nothing.
-strengths: 1-2 sentences on what the coaching did NOT have to correct or praised. weaknesses: 1-2 sentences on the most repeated corrections. Ground everything strictly in the tips, invent nothing. Use commas and periods, never dashes.`;
+    const prompt = `A Valorant player finished a coached session${ctx.map ? ' on ' + String(ctx.map).slice(0, 20) : ''}${ctx.agent ? ' playing ' + String(ctx.agent).slice(0, 16) : ''}${ctx.durationMin ? ', about ' + Math.round(ctx.durationMin) + ' minutes long' : ''}. These coaching tips were shown during it:\n${tips.join('\n')}\n${notesBlock}\nReturn ONLY valid JSON, no markdown:\n{"impact":70,"positioning":70,"utility":70,"aim":70,"summary":"...","strengths":"...","weaknesses":"...","practice":"..."}\nScore each category 0-100. impact means round influence: opening picks, entries that created space, clutch attempts, multikills, and being part of the plays that decided rounds; a quiet passenger scores low even with a clean K/D. When OBSERVED FACTS are provided they are the primary evidence, they describe what the player actually did; the tips only show what the coaching focused on and do NOT prove the player did or failed anything. Many corrections in a category still suggests a lower score there, but never state the player did something unless an observed fact shows it. No signal for a category means a neutral 70-75.
+THIS IS THE POST GAME TALK. The player is reading it after the match is over, away from the game. They cannot picture a specific round or a specific spot on the map anymore, so replaying moments back at them is useless. NAME THE HABIT INSTEAD.
+- WRONG (never write anything like this): "You repeatedly dry peeked Mid Top, B Site, and B Main without a trade partner." "You died at A Main three times." "You repeeked Hookah after your kill."
+- RIGHT: "You're dry peeking a lot, taking duels without a flash or a teammate ready to trade." "Over-peeking is your biggest leak, you keep re-challenging the same angle after you win a fight." "You're over-extending on defense and dying before your team can help."
+NEVER name a map location, a callout, a site, a round number, or a specific moment ANYWHERE in summary, strengths, weaknesses, or practice. Describe the PATTERN, using the words a real coach uses: dry peeking, over-peeking, re-peeking the same angle, no trade partner, over-extending, over-rotating, wide swinging, tunnel vision, crosshair placement, counter-strafing, spray control, util dumping, saving util too long, passive play, over-aggression, poor spacing, playing too far forward, not clearing angles, forcing on a bad economy.
+summary: 3-4 sentences spoken straight TO the player like a coach right after the game, honest and encouraging. How the session went, the clearest strength, the single biggest leak in plain habit terms, and what changes next game.
+strengths: 1-2 sentences naming what they genuinely did well, as a habit worth keeping.
+weaknesses: 1-2 sentences naming the ONE or TWO habits costing them the most. Be direct and specific about the habit, never about the location.
+practice: 2-3 sentences of concrete homework for getting better at that habit: what to actually DO before or during the next games. Give a real routine, for example a range or deathmatch warmup with a specific focus, a rule to hold themselves to for a whole game ("never take a duel unless a teammate can trade you"), or a habit to consciously repeat. Make it something they can start today, not vague advice like "practice more".
+Ground everything strictly in the tips and observed facts, invent nothing. Use commas and periods, never dashes.`;
 
     let out = null;
     try {
-      const raw = await Promise.race([
-        textInfer(prompt, 420),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 26000)),
-      ]);
+      // json mode: the tip sanitiser is for prose and has no business touching
+      // a JSON payload. The timeout lives inside textInfer so a slow reasoning
+      // model counts as a strike and falls back instead of failing the grade.
+      const raw = await textInfer(prompt, 420, { json: true, timeoutMs: 24000 });
       trackCall(licenseKey);
-      const parsed = JSON.parse(String(raw).replace(/```json|```/g, '').trim());
+      const parsed = JSON.parse(String(raw).replace(/```json|```/g, '').replace(/^[^{]*/, '').replace(/[^}]*$/, '').trim());
       const n = (v) => Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
       out = {
         impact: n(parsed.impact != null ? parsed.impact : parsed.economy), positioning: n(parsed.positioning),
@@ -1316,23 +1387,56 @@ strengths: 1-2 sentences on what the coaching did NOT have to correct or praised
         summary:    sanitize(String(parsed.summary    || '')).slice(0, 700),
         strengths:  sanitize(String(parsed.strengths  || '')).slice(0, 400),
         weaknesses: sanitize(String(parsed.weaknesses || '')).slice(0, 400),
+        practice:   sanitize(String(parsed.practice   || '')).slice(0, 500),
       };
     } catch (e) {
       console.warn('[coach] score-session AI failed, using heuristic:', e.message);
     }
 
-    // Heuristic fallback: more corrective tips in a category = lower score.
+    // Heuristic fallback when the AI grade is unavailable. It still has to be
+    // real coaching: the old version told the player to go read their own tips,
+    // which is not advice. Work out which area drew the most corrections and
+    // speak to that habit, with homework attached.
     if (!out || !out.strengths) {
       const count = (re) => tips.filter((t) => re.test(t)).length;
       const score = (c) => Math.max(45, 80 - c * 6);
+      const counts = {
+        impact:      count(/entry|trade|clutch|first blood|opening|multi|alone with no/i),
+        positioning: count(/position|angle|peek|reposition|spot|corner|off angle/i),
+        utility:     count(/util|smoke|flash|molly|recon|wall|drone|ability/i),
+        aim:         count(/aim|crosshair|spray|headshot|strafe|whiff/i),
+      };
+      const COACHING = {
+        positioning: {
+          weak: 'Positioning is costing you the most. You are taking duels from spots where nobody can trade you, and re-challenging angles you already won.',
+          fix:  'Give yourself one rule for a whole game: never take a duel unless a teammate can trade you. After every kill, move somewhere new before you peek again.',
+        },
+        aim: {
+          weak: 'Your aim is the leak here, mostly crosshair placement and spraying when you should be tapping.',
+          fix:  'Ten minutes of deathmatch before you queue, head level only, focusing on holding your crosshair at head height as you move rather than on kills.',
+        },
+        utility: {
+          weak: 'Utility is the gap. You are either holding abilities until they expire or dumping them with no plan behind them.',
+          fix:  'Pick one ability each round and decide out loud what it is for before you use it. Aim to finish every round with nothing left unused.',
+        },
+        impact: {
+          weak: 'You are playing too passively to affect rounds, ending games as a passenger rather than someone who made things happen.',
+          fix:  'Commit to being the one who makes first contact twice a game, with a flash or a teammate behind you. Taking space with support beats waiting for a fight to come to you.',
+        },
+      };
+      const weakest = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+      const strongest = Object.keys(counts).sort((a, b) => counts[a] - counts[b])[0];
+      const LABEL = { impact: 'round impact', positioning: 'positioning', utility: 'utility use', aim: 'aim' };
+      const c = COACHING[weakest];
       out = out || {
-        impact:      score(count(/entry|trade|clutch|first blood|opening|multi|alone with no/i)),
-        positioning: score(count(/position|angle|peek|reposition|spot|corner|off angle/i)),
-        utility:     score(count(/util|smoke|flash|molly|recon|wall|drone|ability/i)),
-        aim:         score(count(/aim|crosshair|spray|headshot|strafe|whiff/i)),
-        summary:    'Solid session. The tips above show where the coaching focused, and the repeated ones are your fastest wins for next game.',
-        strengths:  'You kept sessions going and took the coaching on board.',
-        weaknesses: 'See the tips from this session for the most repeated corrections.',
+        impact:      score(counts.impact),
+        positioning: score(counts.positioning),
+        utility:     score(counts.utility),
+        aim:         score(counts.aim),
+        summary:    `${c.weak} Your ${LABEL[strongest]} held up well by comparison, so that is the part to keep. Fix the one habit above and the rest of your game follows it up.`,
+        strengths:  `Your ${LABEL[strongest]} needed the least correcting this session, keep playing that part of your game the way you are.`,
+        weaknesses: c.weak,
+        practice:   c.fix,
       };
     }
     out.economy = out.impact;   // alias: clients not yet on the Impact update still parse this
@@ -1650,10 +1754,9 @@ Reply as Coach to the player's last message. Rules:
 - Use commas and periods, never dashes.
 - If you genuinely lack the information to answer, say what you'd need to see.`;
 
-    const ask = (p) => Promise.race([
-      textInfer(p, 350),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 25000)),
-    ]);
+    // The timeout lives inside textInfer so a stalled reasoning model falls back
+    // to instruct and still answers, instead of surfacing as "Chat failed".
+    const ask = (p) => textInfer(p, 350, { timeoutMs: 18000 });
 
     let reply = cleanChatReply(await ask(prompt));
     trackCall(licenseKey);
