@@ -911,6 +911,14 @@ class CoachingEngine extends EventEmitter {
         this.matchContext.teamRead = null;
         this.matchContext.playerSpot = null;
         this.matchContext.playerSpotVerified = false;
+        // Buy phase means a fresh round: everyone just respawned, so the player
+        // is alive by definition. This clears a "dead" state that would
+        // otherwise get stuck if the model later reports alive as null (unsure)
+        // rather than an explicit true, which used to leave a live player being
+        // coached as if they were still spectating. (consecutiveDeaths has its
+        // own reset on respawn below, so it is deliberately left alone here.)
+        this.matchContext.playerAlive = true;
+        this.aliveFalseStreak = 0;
       }
       // The round going live locks the plan into match memory for continuity.
       if (updates.phase === 'active' && prevPhase === 'buy' && this.matchContext.teamRead) {
