@@ -14,8 +14,10 @@ function create(reason) {
   if (existing) { existing.focus(); return existing; }
 
   const win = new BrowserWindow({
-    width:  460,
-    height: 560,
+    // Fitted to the card. The window is transparent, so any spare area around
+    // the card is invisible but still swallows clicks meant for what is behind.
+    width:  424,
+    height: 524,
     frame:       false,
     resizable:   false,
     transparent: true,

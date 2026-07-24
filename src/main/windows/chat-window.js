@@ -1,6 +1,6 @@
 'use strict';
 
-const { BrowserWindow, screen } = require('electron');
+const { BrowserWindow } = require('electron');
 const path = require('path');
 const registry = require('./registry');
 
@@ -16,12 +16,13 @@ function open() {
   const existing = registry.get('chat');
   if (existing) { existing.show(); existing.focus(); return existing; }
 
-  const { workArea } = screen.getPrimaryDisplay();
   const win = new BrowserWindow({
     width:  WIDTH,
     height: HEIGHT,
-    x: workArea.x + workArea.width - WIDTH - 24,
-    y: workArea.y + Math.round((workArea.height - HEIGHT) / 2),
+    // Centered, matching Stats, History and the weekly report. It used to be
+    // pinned to the right edge, which made it the only window that opened
+    // somewhere different from the rest.
+    center:      true,
     frame:       false,
     resizable:   false,
     transparent: true,

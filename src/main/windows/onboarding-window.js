@@ -17,7 +17,10 @@ function create() {
 
   const win = new BrowserWindow({
     width:  480,
-    height: 940,   // fits the 4-step tour + the fundamental-tips question
+    // Sized to the TALLEST of the four tour pages, not the sum of them. This
+    // was 940 back when the tour was one long scroll of five numbered steps;
+    // after it was split into pages that left most of the card empty.
+    height: 580,
     frame:       false,
     resizable:   false,
     transparent: true,
