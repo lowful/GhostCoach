@@ -18,11 +18,38 @@ function wireSeg(seg, key) {
 }
 
 wireSeg(tipposSeg, 'tipPosition');
-wireSeg(document.getElementById('tipstyle'), 'tipStyle');
 
 // Tip background opacity. Stored 0..1, shown as a percentage.
+const styleSegEl   = document.getElementById('tipstyle');
 const opacityEl    = document.getElementById('tipopacity');
 const opacityLabel = document.getElementById('tipopacity-label');
+const opacitySection = opacityEl.closest('section');
+
+// Minimal draws no panel at all, so there is no background to make more or
+// less see-through. Rather than leave a slider that silently does nothing,
+// disable it and say why.
+function syncOpacityAvailability(style) {
+  const off = style === 'minimal';
+  opacityEl.disabled = off;
+  if (opacitySection) {
+    opacitySection.classList.toggle('disabled', off);
+    const hint = opacitySection.querySelector('.hint');
+    if (hint) {
+      hint.textContent = off
+        ? 'Minimal has no card behind the text, so there is nothing to fade. Pick another style to use this.'
+        : 'How see-through the cards are. Lower shows more of the game behind them, higher is easier to read.';
+    }
+  }
+}
+
+styleSegEl.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  markSeg(styleSegEl, btn.dataset.val);
+  syncOpacityAvailability(btn.dataset.val);
+  await window.ghost.setConfig({ tipStyle: btn.dataset.val });
+});
+
 opacityEl.addEventListener('input', () => { opacityLabel.textContent = opacityEl.value + '%'; });
 opacityEl.addEventListener('change', () => {
   window.ghost.setConfig({ tipOpacity: Number(opacityEl.value) / 100 }).catch(() => {});
@@ -165,7 +192,8 @@ async function load() {
       freqEl.value = String(fi >= 0 ? fi : 1);
       freqLabel.textContent = FREQ_LABELS[fi >= 0 ? fi : 1];
       markSeg(tipposSeg, cfg.tipPosition);
-      markSeg(document.getElementById('tipstyle'), cfg.tipStyle || 'glass');
+      markSeg(styleSegEl, cfg.tipStyle || 'glass');
+      syncOpacityAvailability(cfg.tipStyle || 'glass');
       const op = Math.round((cfg.tipOpacity != null ? cfg.tipOpacity : 0.9) * 100);
       opacityEl.value = String(op);
       opacityLabel.textContent = op + '%';

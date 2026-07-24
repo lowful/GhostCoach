@@ -30,8 +30,11 @@ html, body { width: 100%; height: 100%; background: transparent !important; over
    works the same way whichever style is picked.
      glass   translucent + blur, the default
      solid   opaque, no blur, the most readable over a busy frame
-     minimal text and accent bar only, the least intrusive
-     neon    dark card with a glowing accent edge
+     minimal no panel at all, outlined text, the least intrusive
+     neon    dark card ringed by a glowing accent edge
+   Backgrounds are FLAT, no gradient wash, and no card carries a coloured bar
+   down its left edge. The tip's source is already colour coded by the label
+   and dot in the meta row, so the bar was saying the same thing twice.
    --tip-alpha is set inline by the renderer from the saved setting. */
 .tips { --tip-alpha: 0.9; }
 .tip-card {
@@ -41,39 +44,24 @@ html, body { width: 100%; height: 100%; background: transparent !important; over
   backdrop-filter: blur(var(--glass-blur)) saturate(150%);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
   border: 1px solid var(--glass-border);
-  border-left: 3px solid var(--cyan);
   border-radius: 13px;
   /* tighter than --shadow: a deep soft shadow gets covered by the next stacked
      card and reads as "cut off". This stays contained within the gap. */
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.42), var(--edge-top);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.42);
   padding: 13px 16px 15px;
   overflow: hidden;
   /* Expo settle, deliberately restrained: this appears mid-fight, so it should
      register in peripheral vision and then stop moving. */
   animation: cardIn 380ms var(--ease-expo) both;
 }
-/* A soft bloom bleeding off the accent edge, tinted per tip source. Sits
-   behind the content and is only 7% opaque, so the tip text is untouched.
-   The accent is an explicit variable, not currentColor, which on the card
-   itself would resolve to the body text colour and wash out grey. */
+/* Source colour, used by the meta row, the progress bar and the neon edge. An
+   explicit variable rather than currentColor, which on the card itself would
+   resolve to the body text colour and come out grey. */
 .tip-card { --tip-accent: var(--cyan); }
 .tip-card.ai      { --tip-accent: var(--cyan); }
 .tip-card.library { --tip-accent: var(--red); }
 .tip-card.system  { --tip-accent: var(--red); }
 .tip-card.death   { --tip-accent: #ffffff; }
-.tip-card::after {
-  content: '';
-  position: absolute;
-  left: 0; top: 0; bottom: 0;
-  width: 42%;
-  background: linear-gradient(90deg, var(--tip-accent), transparent);
-  opacity: 0.07;
-  pointer-events: none;
-  z-index: 0;
-}
-/* Content above the wash. The progress bar keeps its own absolute positioning
-   because `.tip-card .progress` outranks this selector. */
-.tip-card > * { position: relative; z-index: 1; }
 
 /* Solid: no blur at all. Cheapest to composite and the easiest to read against
    a bright or busy game frame. */
@@ -83,37 +71,46 @@ html, body { width: 100%; height: 100%; background: transparent !important; over
   background: rgba(11, 17, 24, var(--tip-alpha));
 }
 
-/* Minimal: text and accent only. No panel, so a heavy text shadow does the
-   legibility work the background normally would. */
+/* Minimal: no panel behind the text at all, so legibility has to come from the
+   glyphs themselves. A dark outline traced around every character plus a soft
+   drop shadow keeps it readable over both a bright skybox and a dark corner,
+   which a plain text-shadow alone does not manage. */
 .tips[data-style="minimal"] .tip-card {
   background: transparent;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   border: none;
-  border-left: 3px solid var(--tip-accent);
   border-radius: 0;
   box-shadow: none;
-  padding: 4px 0 6px 12px;
-  text-shadow: 0 1px 4px rgba(0,0,0,0.95), 0 0 14px rgba(0,0,0,0.85);
+  padding: 4px 2px 6px;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.95), 0 0 16px rgba(0, 0, 0, 0.8);
 }
-.tips[data-style="minimal"] .tip-card::after { opacity: 0; }
-.tips[data-style="minimal"] .tip-card .progress { opacity: 0.35; }
+/* Stroke weight is per element: the same width that outlines 14px body text
+   would close up the counters on the 10px uppercase meta label. paint-order
+   keeps the stroke behind the glyph so it thickens the outside edge only. */
+.tips[data-style="minimal"] .tip-card .text {
+  paint-order: stroke fill;
+  -webkit-text-stroke: 2.6px rgba(0, 0, 0, 0.88);
+}
+.tips[data-style="minimal"] .tip-card .meta {
+  paint-order: stroke fill;
+  -webkit-text-stroke: 1.6px rgba(0, 0, 0, 0.88);
+}
+.tips[data-style="minimal"] .tip-card .progress { opacity: 0.5; }
 
-/* Neon: dark card, lit edge. The glow is on the accent so it still colour
-   codes the tip source. */
+/* Neon: dark card ringed by a lit edge. The glow runs the whole border rather
+   than one side, which is what makes it read as neon instead of as an accent
+   bar, and it still colour codes the source. */
 .tips[data-style="neon"] .tip-card {
   background: rgba(8, 13, 19, var(--tip-alpha));
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   border: 1px solid var(--tip-accent);
-  border-left: 3px solid var(--tip-accent);
-  box-shadow: 0 0 18px -4px var(--tip-accent), 0 8px 22px rgba(0,0,0,0.5);
+  box-shadow: 0 0 18px -4px var(--tip-accent),
+              inset 0 0 14px -8px var(--tip-accent),
+              0 8px 22px rgba(0, 0, 0, 0.5);
 }
-.tips[data-style="neon"] .tip-card::after { opacity: 0.12; }
 .tip-card.out { animation: cardOut 240ms var(--ease) both; }
-.tip-card.ai      { border-left-color: var(--cyan); }
-.tip-card.library { border-left-color: var(--red); }
-.tip-card.system  { border-left-color: var(--red); }
 
 .tip-card .meta { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; font-size: 10px; text-transform: uppercase; letter-spacing: 1.4px; color: var(--text-dim); font-weight: 700; }
 .tip-card .src-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 7px currentColor; flex: none; }
@@ -130,7 +127,6 @@ html, body { width: 100%; height: 100%; background: transparent !important; over
 .tip-card.system .progress { color: var(--red); }
 
 /* Death review: white skull card explaining the mistake behind a death */
-.tip-card.death           { border-left-color: #ffffff; }
 .tip-card.death .meta     { color: #ffffff; }
 .tip-card.death .progress { color: #ffffff; }
 .tip-card .src-skull { font-size: 12px; line-height: 1; flex: none; filter: drop-shadow(0 0 6px rgba(255,255,255,0.55)); }

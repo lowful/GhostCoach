@@ -20,6 +20,11 @@ contextBridge.exposeInMainWorld('ghost', {
   onState:      (cb) => subscribe(C.PUSH_STATE, cb),
   onMatchReview:(cb) => subscribe(C.PUSH_MATCH_REVIEW, cb),
   onVisibility: (cb) => subscribe(C.PUSH_OVERLAY_VIS, cb),
+  // Pull the current state once on load. Without this the overlay only ever
+  // learns its look from a PUSH_STATE, and the single launch-time broadcast is
+  // fired from the PANEL's load event, so a slower overlay misses it and sits
+  // on the HTML defaults until something else happens to push.
+  getState: () => ipcRenderer.invoke(C.STATE_GET),
   // The overlay is click-through; while the cursor hovers the review card this
   // asks main to accept mouse input so its ✕ can actually be clicked.
   setInteractive: (on) => ipcRenderer.send(C.OVERLAY_INTERACT, !!on),

@@ -222,14 +222,17 @@ function speakTip(tip) {
 // ── Subscriptions ────────────────────────────────────────────────────────────
 window.ghost.onTip((tip) => { addTip(tip); speakTip(tip); });
 window.ghost.onStatus(({ status }) => setStatus(status));
-window.ghost.onState((s) => {
-  if (s) {
-    setStatus(s.status); setTipPosition(s.tipPosition); setTipScale(s.tipScale); setShowTips(s.showTips);
-    setTipStyle(s.tipStyle); setTipOpacity(s.tipOpacity);
-    voiceCfg = { enabled: s.voiceCoach === true, style: s.voiceStyle || 'normal',
-                 volume: s.voiceVolume != null ? s.voiceVolume : 0.9 };
-  }
-});
+function applyState(s) {
+  if (!s) return;
+  setStatus(s.status); setTipPosition(s.tipPosition); setTipScale(s.tipScale); setShowTips(s.showTips);
+  setTipStyle(s.tipStyle); setTipOpacity(s.tipOpacity);
+  voiceCfg = { enabled: s.voiceCoach === true, style: s.voiceStyle || 'normal',
+               volume: s.voiceVolume != null ? s.voiceVolume : 0.9 };
+}
+window.ghost.onState(applyState);
+// Hydrate immediately rather than waiting for the first push, so the saved
+// position, size and card style are already correct on the very first tip.
+window.ghost.getState().then(applyState).catch(() => {});
 window.ghost.onMatchReview(showReview);
 window.ghost.onVisibility(({ visible }) => {
   document.body.classList.toggle('hidden-overlay', !visible);

@@ -125,8 +125,8 @@
 /* ── Tip style picker ──────────────────────────────────────────────────────
    Lives in shared so Settings and the onboarding tour show the SAME previews
    from one definition; a second copy would drift the moment either changed.
-   Each preview is a miniature of the real card: accent bar plus two text bars,
-   with the same background treatment the style uses on the overlay. */
+   Each preview is a miniature of the real card: two text bars with the same
+   background treatment that style uses on the overlay. */
 .style-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -149,14 +149,15 @@
 .style-opt b  { font-size: 11.5px; font-weight: 700; color: var(--text); }
 .style-opt em { font-size: 9.5px; font-style: normal; color: var(--text-mute); line-height: 1.3; }
 
-/* The miniature card. `i` is the accent bar; the two text lines are pseudos. */
+/* The miniature card: two text lines, matching the real cards. No accent bar,
+   because the real cards no longer have one. */
 .sp {
   position: relative;
   display: block; height: 34px; border-radius: 7px;
   background: rgba(255,255,255,0.05);
   overflow: hidden;
 }
-.sp i { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--cyan); }
+.sp i { display: none; }   /* the old accent bar, kept in markup, no longer drawn */
 .sp::before, .sp::after {
   content: ''; position: absolute; left: 9px; height: 3px; border-radius: 2px;
   background: rgba(255,255,255,0.55);
@@ -166,6 +167,23 @@
 
 .sp-glass   { background: rgba(14,21,29,0.72); backdrop-filter: blur(4px); border: 1px solid var(--glass-border); }
 .sp-solid   { background: rgba(11,17,24,0.98); border: 1px solid var(--glass-border); }
+/* Minimal has no panel, so the preview shows the outlined-text treatment: the
+   bars get their own dark ring instead of sitting on a fill. */
 .sp-minimal { background: transparent; }
-.sp-minimal::before, .sp-minimal::after { left: 8px; }
-.sp-neon    { background: rgba(8,13,19,0.95); border: 1px solid var(--cyan); box-shadow: inset 0 0 12px -4px var(--cyan); }
+.sp-minimal::before, .sp-minimal::after {
+  box-shadow: 0 0 0 1.5px rgba(0,0,0,0.85), 0 1px 4px rgba(0,0,0,0.9);
+}
+.sp-neon {
+  background: rgba(8,13,19,0.95);
+  border: 1px solid var(--cyan);
+  box-shadow: 0 0 10px -2px var(--cyan), inset 0 0 12px -6px var(--cyan);
+}
+
+/* A control group that is inapplicable right now (for example the tip
+   transparency slider while the Minimal style is selected, which draws no
+   card to fade). Dimmed and inert, but its explanatory text stays readable so
+   the user can see WHY it is off. */
+.disabled { opacity: 0.45; }
+.disabled input,
+.disabled button,
+.disabled select { pointer-events: none; }

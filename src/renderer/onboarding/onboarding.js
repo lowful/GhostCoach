@@ -63,10 +63,22 @@ function wireSeg(seg, onPick) {
 }
 
 wireSeg(document.getElementById('fundamentals'), (v) => window.ghost.setFundamentals(v === 'on'));
-wireSeg(document.getElementById('tipstyle'),     (v) => window.ghost.setConfig({ tipStyle: v }).catch(() => {}));
+wireSeg(document.getElementById('tipstyle'), (v) => {
+  window.ghost.setConfig({ tipStyle: v }).catch(() => {});
+  syncOpacityAvailability(v);
+});
 
 const opacityEl    = document.getElementById('tipopacity');
 const opacityLabel = document.getElementById('tipopacity-label');
+
+// Minimal has no card behind the text, so there is nothing to fade. Disable
+// the slider rather than leave one that does nothing.
+function syncOpacityAvailability(style) {
+  const off = style === 'minimal';
+  opacityEl.disabled = off;
+  const row = opacityEl.closest('.op-row');
+  if (row) row.classList.toggle('disabled', off);
+}
 opacityEl.addEventListener('input', () => { opacityLabel.textContent = opacityEl.value + '%'; });
 opacityEl.addEventListener('change', () => {
   window.ghost.setConfig({ tipOpacity: Number(opacityEl.value) / 100 }).catch(() => {});
@@ -80,6 +92,7 @@ window.ghost.getConfig().then((cfg) => {
   for (const b of document.getElementById('tipstyle').querySelectorAll('button')) {
     b.classList.toggle('active', b.dataset.val === style);
   }
+  syncOpacityAvailability(style);
   const op = Math.round((cfg.tipOpacity != null ? cfg.tipOpacity : 0.9) * 100);
   opacityEl.value = String(op);
   opacityLabel.textContent = op + '%';
