@@ -799,6 +799,7 @@ async function logSessionPerformance(tips, mctx, durationMin, notes) {
       summary:    data.summary    || '',   // the coach's spoken-style recap
       strengths:  data.strengths  || '',
       weaknesses: data.weaknesses || '',
+      practice:   data.practice   || '',   // concrete homework for the weakest habit
     });
     console.log('[perf] session scored and logged');
   } catch (e) { console.error('[perf] scoring failed:', e.message); }

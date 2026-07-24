@@ -504,6 +504,11 @@ function sessionRow(s, i) {
   const sp = document.createElement('p');   sp.textContent = s.strengths || 'No strengths recorded for this session.';
   const wl = document.createElement('div'); wl.className = 'd-label w'; wl.textContent = 'Weaknesses';
   const wp = document.createElement('p');   wp.textContent = s.weaknesses || 'No weaknesses recorded for this session.';
+  // Homework: the actual drill for the habit above. Only shown when the coach
+  // wrote one, so older sessions do not sprout an empty heading.
+  const pl = document.createElement('div'); pl.className = 'd-label p'; pl.textContent = 'How to practice this';
+  const pp = document.createElement('p');   pp.textContent = s.practice || '';
+  const hasPractice = !!(s.practice && s.practice.trim());
   const ask = document.createElement('button');
   ask.className = 'ask-btn no-drag';
   ask.textContent = 'Ask Coach about this';
@@ -514,7 +519,9 @@ function sessionRow(s, i) {
       scores: s.scores, strengths: s.strengths, weaknesses: s.weaknesses,
     });
   });
-  detail.append(scores, rl, rp, sl, sp, wl, wp, ask);
+  detail.append(scores, rl, rp, sl, sp, wl, wp);
+  if (hasPractice) detail.append(pl, pp);
+  detail.append(ask);
   row.append(top, detail);
   row.addEventListener('click', () => row.classList.toggle('open'));
   return row;
@@ -858,6 +865,7 @@ async function load() {
   }
 }
 
+document.getElementById('weekly').addEventListener('click', () => window.ghost.openWeekly());
 document.getElementById('askcoach').addEventListener('click', () => window.ghost.openChat());
 document.getElementById('close').addEventListener('click', () => window.close());
 

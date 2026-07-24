@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('ghost', {
   matchesFor:      (mode) => ipcRenderer.invoke(C.STATS_MATCHES, mode),
   rankHistory:     (force) => ipcRenderer.invoke(C.STATS_RANK_HISTORY, force),
   openChat:        () => ipcRenderer.send(C.OPEN_CHAT),
+  openWeekly:      () => ipcRenderer.send(C.OPEN_WEEKLY),
   askAboutSession: (seed) => ipcRenderer.send(C.OPEN_CHAT_SEEDED, seed),
   // Pushed app state; the stats window watches it to follow a Riot ID switch.
   onState: (cb) => {

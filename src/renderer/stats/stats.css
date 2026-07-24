@@ -161,6 +161,7 @@ section h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; lette
 .detail .d-label.r { color: var(--cyan); }
 .detail .d-label.s { color: #4fd394; }
 .detail .d-label.w { color: #ff9aa3; }
+.detail .d-label.p { color: var(--cyan); }
 .detail p { font-size: 12px; line-height: 1.5; color: var(--text-dim); margin-bottom: 9px; }
 .detail .scores4 { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
 .detail .sc { font-size: 10.5px; color: var(--text-dim); background: rgba(0,0,0,0.26); border: 1px solid var(--glass-border); border-radius: 999px; padding: 3px 9px; }
