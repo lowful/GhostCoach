@@ -27,19 +27,46 @@ html, body { width: 100%; height: 100%; background: transparent !important; over
 .tip-card {
   position: relative;
   width: 100%;
-  background: var(--glass-fill);
+  /* Sheen as a background layer keeps the card lit from above without any
+     extra element that could sit over the text. */
+  background: var(--sheen), var(--glass-fill);
   backdrop-filter: blur(var(--glass-blur)) saturate(150%);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
   border: 1px solid var(--glass-border);
   border-left: 3px solid var(--cyan);
   border-radius: 13px;
   /* tighter than --shadow: a deep soft shadow gets covered by the next stacked
-     card and reads as "cut off". This stays contained within the gap. */
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.42);
+     card and reads as "cut off". This stays contained within the gap.
+     The inset top edge adds definition against a bright game frame. */
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.42), var(--edge-top);
   padding: 13px 16px 15px;
   overflow: hidden;
-  animation: cardIn 320ms var(--ease) both;
+  /* Expo settle, deliberately restrained: this appears mid-fight, so it should
+     register in peripheral vision and then stop moving. */
+  animation: cardIn 380ms var(--ease-expo) both;
 }
+/* A soft bloom bleeding off the accent edge, tinted per tip source. Sits
+   behind the content and is only 7% opaque, so the tip text is untouched.
+   The accent is an explicit variable, not currentColor, which on the card
+   itself would resolve to the body text colour and wash out grey. */
+.tip-card { --tip-accent: var(--cyan); }
+.tip-card.ai      { --tip-accent: var(--cyan); }
+.tip-card.library { --tip-accent: var(--red); }
+.tip-card.system  { --tip-accent: var(--red); }
+.tip-card.death   { --tip-accent: #ffffff; }
+.tip-card::after {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 42%;
+  background: linear-gradient(90deg, var(--tip-accent), transparent);
+  opacity: 0.07;
+  pointer-events: none;
+  z-index: 0;
+}
+/* Content above the wash. The progress bar keeps its own absolute positioning
+   because `.tip-card .progress` outranks this selector. */
+.tip-card > * { position: relative; z-index: 1; }
 .tip-card.out { animation: cardOut 240ms var(--ease) both; }
 .tip-card.ai      { border-left-color: var(--cyan); }
 .tip-card.library { border-left-color: var(--red); }

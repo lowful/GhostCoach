@@ -69,11 +69,12 @@ h3 {
 }
 .top-card {
   flex: 1;
-  background: var(--glass-fill-2);
+  background: var(--sheen), var(--glass-fill-2);
   border: 1px solid var(--glass-border);
   border-radius: var(--r-md);
   padding: 11px 12px;
   min-width: 0;
+  box-shadow: var(--edge-top);
 }
 .top-card .k {
   font-size: 10px;
@@ -83,8 +84,9 @@ h3 {
   margin-bottom: 4px;
 }
 .top-card .v {
-  font-size: 17px;
-  font-weight: 700;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.2px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -101,7 +103,9 @@ h3 {
   border-left: 2px solid transparent;
   border-radius: var(--r-sm);
   padding: 9px 11px;
+  transition: transform var(--t-med) var(--ease-expo), border-color var(--t-med) var(--ease);
 }
+.delta:hover { transform: translateX(2px); border-color: rgba(255,255,255,0.15); }
 .delta.up   { border-left-color: var(--cyan); }
 .delta.down { border-left-color: var(--red); }
 .delta .label { flex: 1; font-size: 12.5px; color: var(--text-dim); }
@@ -132,17 +136,23 @@ h3 {
 .arrow.down { color: var(--red); }
 .arrow.flat { color: var(--text-mute); }
 .bar {
-  height: 5px;
+  height: 6px;
   border-radius: 3px;
   background: rgba(255,255,255,0.07);
   overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.35);
 }
+/* Bars fill from zero on open, staggered with the rows, so the ratings read as
+   something being measured rather than a static list. */
 .bar > i {
   display: block;
   height: 100%;
+  width: 0;
   border-radius: 3px;
-  background: linear-gradient(90deg, var(--red) 0%, var(--cyan) 100%);
-  transition: width var(--t-med) var(--ease);
+  background: linear-gradient(90deg, var(--red) 0%, #ff8a5c 45%, var(--cyan) 100%);
+  box-shadow: 0 0 10px rgba(0,240,255,0.25);
+  transition: width 900ms var(--ease-expo);
+  transition-delay: calc(var(--i, 0) * 70ms);
 }
 .cat.best  .name::after { content: ' · strongest'; color: var(--cyan); font-size: 10px; }
 .cat.worst .name::after { content: ' · weakest';   color: var(--red);  font-size: 10px; }

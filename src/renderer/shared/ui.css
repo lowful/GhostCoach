@@ -20,11 +20,32 @@
 .btn:active { transform: scale(0.97); }
 
 .btn-primary {
+  position: relative;
+  overflow: hidden;
   background: linear-gradient(135deg, var(--red), var(--red-2));
   border-color: transparent;
   color: #fff;
+  box-shadow: var(--edge-top);
 }
-.btn-primary:hover { box-shadow: var(--glow-red); filter: brightness(1.06); }
+.btn-primary:hover { box-shadow: var(--glow-red), var(--edge-top); filter: brightness(1.06); }
+/* A light sweep across the primary action on hover. Transform only, so it
+   stays on the compositor and never triggers layout. */
+.btn-primary::after {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0; left: -60%;
+  width: 45%;
+  background: linear-gradient(100deg, transparent, rgba(255,255,255,0.28), transparent);
+  transform: translateX(0);
+  opacity: 0;
+  pointer-events: none;
+}
+.btn-primary:hover::after { animation: sweep 720ms var(--ease-expo); }
+@keyframes sweep {
+  0%   { transform: translateX(0);    opacity: 0; }
+  18%  { opacity: 1; }
+  100% { transform: translateX(360%); opacity: 0; }
+}
 
 .btn-ghost { background: transparent; border-color: transparent; color: var(--text-dim); }
 .btn-ghost:hover { color: var(--text); background: rgba(255,255,255,0.06); }
@@ -73,4 +94,30 @@
   padding: 5px 10px; border-radius: 999px;
   background: rgba(255,70,85,0.12); color: #ff8a95;
   border: 1px solid rgba(255,70,85,0.25);
+}
+.chip.good { background: rgba(0,240,255,0.10); color: #7fe9f5; border-color: rgba(0,240,255,0.28); }
+
+/* ── Shared motion utilities ──────────────────────────────────────────────
+   Surfaces opt into these instead of redefining the same entrance five times.
+   Staggering is done with an inline --i index on each row. */
+.rise-in {
+  animation: riseIn var(--t-slow) var(--ease-expo) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Cards that respond to the pointer: a small lift reads as depth without
+   moving neighbours, since transform does not affect layout. */
+.hover-lift { transition: transform var(--t-med) var(--ease-expo), box-shadow var(--t-med) var(--ease-expo), border-color var(--t-med) var(--ease); }
+.hover-lift:hover { transform: translateY(-2px); box-shadow: var(--lift); border-color: rgba(255,255,255,0.16); }
+
+/* Numbers that should feel earned rather than printed. */
+.grad-num {
+  background: linear-gradient(135deg, #fff 10%, var(--cyan) 120%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }

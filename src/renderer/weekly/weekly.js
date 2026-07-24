@@ -18,34 +18,47 @@ function el(tag, cls, text) {
   return n;
 }
 
-function card(key, value) {
-  const c = el('div', 'top-card');
+// Motion is opt-in per element via a stagger index, and skipped entirely when
+// the OS asks for reduced motion.
+const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function stagger(node, i) {
+  node.style.setProperty('--i', i);
+  if (!REDUCED) node.classList.add('rise-in');
+  return node;
+}
+
+function card(key, value, numeric) {
+  const c = el('div', 'top-card hover-lift');
   c.appendChild(el('div', 'k', key));
-  c.appendChild(el('div', 'v', value));
+  // The headline figures get the gradient treatment; text like a rank name
+  // stays plain so it never turns into an unreadable wash.
+  c.appendChild(el('div', 'v' + (numeric ? ' grad-num' : ''), value));
   return c;
 }
 
 function renderTopline(r) {
   const box = $('topline');
   box.textContent = '';
-  if (r.rank) box.appendChild(card('Rank', r.rank));
-  box.appendChild(card('Sessions coached', r.sessions));
-  if (r.avgOverall != null) box.appendChild(card('Average score', r.avgOverall));
-  else if (r.matchesTracked) box.appendChild(card('Matches tracked', r.matchesTracked));
+  const cards = [];
+  if (r.rank) cards.push(card('Rank', r.rank, false));
+  cards.push(card('Sessions coached', r.sessions, true));
+  if (r.avgOverall != null) cards.push(card('Average score', r.avgOverall, true));
+  else if (r.matchesTracked) cards.push(card('Matches tracked', r.matchesTracked, true));
+  cards.forEach((c, i) => box.appendChild(stagger(c, i)));
 }
 
 function renderDeltas(r) {
   const box = $('deltas');
   box.textContent = '';
-  for (const d of r.deltas || []) {
+  (r.deltas || []).forEach((d, i) => {
     const row = el('div', 'delta ' + d.direction);
     row.appendChild(el('span', 'label', d.label));
     row.appendChild(el('span', 'value', d.value));
     // Only show a chip when something actually moved, so a flat week reads as
     // steady rather than as a wall of zeroes.
     if (d.change) row.appendChild(el('span', 'chg', ARROW[d.direction] + ' ' + d.change));
-    box.appendChild(row);
-  }
+    box.appendChild(stagger(row, i));
+  });
   if (!box.children.length) {
     box.appendChild(el('p', 'note', 'Connect your Riot ID in Settings to track how your stats move week to week.'));
   }
@@ -71,10 +84,16 @@ function renderCategories(r) {
     wrap.appendChild(top);
     const bar = el('div', 'bar');
     const fill = el('i');
-    fill.style.width = Math.max(0, Math.min(100, c.avg)) + '%';
+    const pct = Math.max(0, Math.min(100, c.avg)) + '%';
     bar.appendChild(fill);
     wrap.appendChild(bar);
-    box.appendChild(wrap);
+    wrap.style.setProperty('--i', shown - 1);
+    box.appendChild(stagger(wrap, shown - 1));
+    // Width starts at 0 in CSS; set the real value on the next frame so the
+    // transition actually runs instead of the browser collapsing both values
+    // into a single style resolution.
+    if (REDUCED) fill.style.width = pct;
+    else requestAnimationFrame(() => requestAnimationFrame(() => { fill.style.width = pct; }));
   }
   $('cat-section').hidden = shown === 0;
 }
@@ -82,7 +101,7 @@ function renderCategories(r) {
 function renderNotes(listId, sectionId, items) {
   const ul = $(listId);
   ul.textContent = '';
-  for (const t of items || []) ul.appendChild(el('li', null, t));
+  (items || []).forEach((t, i) => ul.appendChild(stagger(el('li', null, t), i)));
   $(sectionId).hidden = !(items && items.length);
 }
 
