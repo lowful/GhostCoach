@@ -53,6 +53,7 @@ class CoachingEngine extends EventEmitter {
     this.lastServerStatus = null; // last HTTP status (0 = network/unreachable)
     this.warnedFailure    = false; // one-time server "why no AI tips" notice
     this.failStreak       = 0;     // consecutive analyze failures (1 is a hiccup, 2+ is real)
+    this.aiCreditsOutAt   = 0;     // when the AI last reported out of credits (402), 0 = fine
     this.warnedCapture    = false; // one-time capture-failure notice
     this.lastAuthSuspect  = 0;     // throttle for 401/403 -> license re-check
 
@@ -192,6 +193,11 @@ class CoachingEngine extends EventEmitter {
   async captureAndAnalyze() {
     if (this.isCapturing || this.paused) return;
     if (Date.now() - this.lastCaptureTime < this.analyzeInterval - 2000) return;
+    // Out of AI credits: capturing and uploading a screenshot every cycle cannot
+    // produce a tip, it just burns the player's CPU and bandwidth. Idle until
+    // the cooldown passes, then try once to see if credits are back. Library
+    // tips keep flowing throughout, so coaching never goes fully silent.
+    if (this.aiCreditsOutAt && Date.now() - this.aiCreditsOutAt < AI_CREDITS_BACKOFF_MS) return;
 
     this.isCapturing = true;
     this.lastCaptureTime = Date.now();
@@ -380,7 +386,18 @@ class CoachingEngine extends EventEmitter {
       // hung request stalls at most one cycle.
       const { ok, status, data } = await api.post(path, body, this.licenseKey, 30000, headers);
       this.lastServerStatus = status;
-      if (!ok) { console.error('[engine] server', path, 'status', status); return null; }
+      if (!ok) {
+        // 402 = the AI account is out of credits. Not transient, so record it
+        // and let the loop idle instead of retrying every few seconds.
+        if (status === 402) {
+          if (!this.aiCreditsOutAt) console.error('[engine] AI out of credits, pausing AI requests');
+          this.aiCreditsOutAt = Date.now();
+        } else {
+          console.error('[engine] server', path, 'status', status);
+        }
+        return null;
+      }
+      this.aiCreditsOutAt = 0;   // a success proves credits are back
       return data;
     } catch (e) {
       this.lastServerStatus = 0; // network/unreachable
@@ -410,6 +427,10 @@ class CoachingEngine extends EventEmitter {
         msg = 'No license picked up, AI coaching’s off. Running library tactics for now.';
       } else if (this.lastServerStatus === 401 || this.lastServerStatus === 403) {
         msg = 'Your license isn’t active, re-activate in Settings. Library tactics for now.';
+      } else if (this.lastServerStatus === 402) {
+        // Out of AI credits. Say so plainly: this is not an app fault and it
+        // will not clear on its own, so "temporarily down" would mislead.
+        msg = 'The coach AI is out of credits, so AI tips are paused. Library tactics until it’s topped up.';
       } else if (this.lastServerStatus >= 500) {
         msg = 'The coach’s AI is temporarily down on the server, running library tactics till it’s back.';
       } else {
@@ -1396,6 +1417,11 @@ const PROMPT_LEAK = /"(?:side|phase|round|team|enemy|credits|alive|weapon|map|en
 const UPDRAFT_BAN = /\bupdraft\b/i;
 const KNIFE_TIP   = /\bknife\b/i;
 const DEATH_WINDOW_MS = 15000;
+
+// How long the engine stops sending frames after the AI reports it is out of
+// credits. Long enough that an outage costs almost nothing, short enough that
+// topping up resumes coaching on its own without a restart.
+const AI_CREDITS_BACKOFF_MS = 3 * 60 * 1000;
 
 // How long a pre-round team plan stays trustworthy once the round is live. A
 // round is 1:40, so a plan from the buy phase describes the opening push; past
