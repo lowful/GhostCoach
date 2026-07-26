@@ -79,10 +79,40 @@ const AI = {
   visionDeep:  process.env.AI_VISION_MODEL_DEEP || process.env.AI_VISION_MODEL || 'google/gemini-3-flash-preview',
 };
 
+// ─── Out-of-credits breaker ──────────────────────────────────────────────────
+// When the AI account runs dry every request 402s. The coaching loop fires
+// every few seconds per player, so without a breaker the server spends the
+// outage hammering the provider and filling the log with identical errors
+// (exactly what a real outage looked like: hundreds of lines a minute).
+// Once tripped we fail fast for a cooldown, then let ONE request through to see
+// if credits are back.
+const CREDITS_COOLDOWN_MS = 5 * 60 * 1000;
+let creditsOutAt = 0;
+
+function noteCreditsExhausted() { creditsOutAt = Date.now(); }
+function creditsLookExhausted() {
+  return creditsOutAt > 0 && Date.now() - creditsOutAt < CREDITS_COOLDOWN_MS;
+}
+function clearCreditsFlag() {
+  if (creditsOutAt) console.log('[coach] AI credits are working again');
+  creditsOutAt = 0;
+}
+/** How long until the breaker lets a probe through, in seconds. */
+function creditsRetryIn() {
+  return Math.max(0, Math.ceil((CREDITS_COOLDOWN_MS - (Date.now() - creditsOutAt)) / 1000));
+}
+
 // One OpenAI-style chat call. `imageB64` present => multimodal (vision) request.
 // Accepts a single base64 string or an ordered array (frame memory sends
 // [previousFrame, currentFrame]; the prompt explains the order).
 async function chatCall({ prompt, imageB64, maxTokens, temperature, model: pinnedModel }) {
+  // Fail fast while the credits breaker is open: the provider would only 402
+  // again, and every attempt costs a round trip and another identical log line.
+  if (creditsLookExhausted()) {
+    const err = new Error('AI 402');
+    err.status = 402;
+    throw err;
+  }
   const images  = Array.isArray(imageB64) ? imageB64 : (imageB64 ? [imageB64] : []);
   const content = images.length
     ? [
@@ -126,9 +156,21 @@ async function chatCall({ prompt, imageB64, maxTokens, temperature, model: pinne
 
   if (!resp.ok) {
     const text = await resp.text();
-    console.error(`[coach] AI error (${resp.status}):`, text.slice(0, 200));
-    throw new Error(`AI ${resp.status}`);
+    // 402 means the AI account is out of credits. That is NOT a transient
+    // outage: retrying cannot fix it, so it must be reported differently from a
+    // hiccup (the player was told "temporarily down" and reasonably assumed a
+    // bug) and it must open the breaker so we stop hammering the provider.
+    if (resp.status === 402) {
+      noteCreditsExhausted();
+      console.error('[coach] AI OUT OF CREDITS (402). Top up at https://openrouter.ai/settings/credits');
+    } else {
+      console.error(`[coach] AI error (${resp.status}):`, text.slice(0, 200));
+    }
+    const err = new Error(`AI ${resp.status}`);
+    err.status = resp.status;
+    throw err;
   }
+  clearCreditsFlag();   // a successful call proves credits are available again
   const data = await resp.json();
   const raw = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
   return stripThinking(raw);
@@ -973,6 +1015,16 @@ router.post('/analyze', async (req, res) => {
       ' -> "' + (tip || '').slice(0, 60) + '" (' + (Date.now() - t0) + 'ms)');
     res.json({ tip: tip || '', death: deathReview, context: outCtx });
   } catch (err) {
+    // Out of credits is a distinct, actionable state, not an outage. Report it
+    // as such so the player is told the truth ("AI credits ran out") instead of
+    // "temporarily down", which reads like a bug in the app.
+    if (err && err.status === 402) {
+      return res.status(402).json({
+        tip: '', context: {}, error: 'ai-credits',
+        message: 'The coach AI is out of credits. Top up the OpenRouter account to resume AI tips.',
+        retryInSec: creditsRetryIn(),
+      });
+    }
     console.error('[coach] analyze error:', err.message, err.stack && err.stack.split('\n')[1]);
     // A thrown analyze (AI provider rejected the request, a timeout, a parse
     // failure) is a real outage, NOT "no tip this frame". Returning a 200 here
