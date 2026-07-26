@@ -71,6 +71,7 @@ class CoachingEngine extends EventEmitter {
     this.focusIndex     = -1;     // rotates analysis emphasis (map/enemies/…)
     this.analyzedFrames = 0;      // frames analyzed this session (warm-up gate)
     this.lastDeathAt    = 0;      // when the player last died (death-review window)
+    this.deathTipsSent  = 0;      // coaching tips shown since that death (capped, then silence)
     this.lastRoundLostAt = 0;     // when the team last lost a round (round-review window)
     this.aliveFalseStreak = 0;    // consecutive alive:false reads (2 confirm a death)
     this.firstHalfSide    = null; // locked first-half side; halftime flip is then arithmetic
@@ -112,6 +113,7 @@ class CoachingEngine extends EventEmitter {
     this.recentFrames = [];
     this.analyzedFrames = 0;
     this.lastDeathAt = 0;
+    this.deathTipsSent = 0;
     this.firstHalfSide = null;
     this.pendingFirstSide = null;
     this.pendingMap = null;
@@ -481,6 +483,9 @@ class CoachingEngine extends EventEmitter {
       // Death review: the player died moments ago, the server prompts for a
       // cause-and-fix explanation ONLY when the evidence clearly supports one.
       justDied:     this.lastDeathAt > 0 && Date.now() - this.lastDeathAt < 12000,
+      // The death review is already done: the coach should stay quiet until the
+      // player respawns rather than spend a call on a tip we would drop.
+      deathReviewDone: this.isSpectating() && this.deathTipsSent >= DEATH_TIPS_MAX,
       justLostRound: this.lastRoundLostAt > 0 && Date.now() - this.lastRoundLostAt < 12000,
       focus:        this.nextFocus(),
       // Experimental: playbook mode ('off' | 'on' | 'hybrid') for the server.
@@ -799,6 +804,19 @@ class CoachingEngine extends EventEmitter {
    * added latency. Returns true if the tip was actually sent.
    */
   emitTip(text, source, extra) {
+    // Dead players get the death review and then SILENCE. Once you are
+    // spectating there is nothing left to act on this round, so a stream of
+    // tips is just noise over someone watching a killcam. Explain the death
+    // (one or two tips), then say nothing until the next buy phase. System
+    // notices (license, credits, capture problems) are never suppressed,
+    // because those are about the app working at all, not about coaching.
+    if (source !== 'system' && this.isSpectating()) {
+      if (this.deathTipsSent >= DEATH_TIPS_MAX) {
+        noteReject('player is dead, already gave the death review, staying quiet until the next round');
+        return false;
+      }
+    }
+
     const verified = verifyTip(text, source, this.matchContext);
     if (!verified) { noteReject(`failed the final verify gate (${source})`); return false; }
 
@@ -811,6 +829,8 @@ class CoachingEngine extends EventEmitter {
       else if (source === 'library') this.libraryTipCount++;
     }
     this.lastTipTime = Date.now();
+    // Count coaching tips shown while dead, so the review is capped.
+    if (source !== 'system' && this.isSpectating()) this.deathTipsSent++;
     this._cycleShown = tip;   // what got shown this analyze cycle (for the AI log)
     console.log(`[engine] TIP (${source}): ${verified}  [ai=${this.aiTipCount} lib=${this.libraryTipCount}]`);
     this.emit('tip', tip);
@@ -941,6 +961,12 @@ class CoachingEngine extends EventEmitter {
    *  map's callouts are legal. Named callouts are blocked until it resolves. */
   mapInDoubt() { return (this.mapDoubt || 0) > 0; }
 
+  /** Dead and watching. Either signal counts: the phase read and the alive flag
+   *  are kept consistent, but one can land a frame before the other. */
+  isSpectating() {
+    return this.matchContext.playerAlive === false || this.matchContext.phase === 'dead';
+  }
+
   updateMatchContext(updates) {
     const prevPhase = this.matchContext.phase;
     const prevRound = this.matchContext.roundNumber;
@@ -1066,6 +1092,7 @@ class CoachingEngine extends EventEmitter {
         // own reset on respawn below, so it is deliberately left alone here.)
         this.matchContext.playerAlive = true;
         this.aliveFalseStreak = 0;
+        this.deathTipsSent = 0;   // new round, the coach speaks again
       }
       // The round going live locks the plan into match memory for continuity.
       if (updates.phase === 'active' && prevPhase === 'buy' && this.matchContext.teamRead) {
@@ -1085,6 +1112,7 @@ class CoachingEngine extends EventEmitter {
       this.matchContext.consecutiveWins = 0;
       this.lastDeathAt = Date.now();   // opens the death-review window
       this.matchContext.lastDeathAt = this.lastDeathAt;   // visible to the tip verifier
+      this.deathTipsSent = 0;          // this death gets its own review budget
       this.remember(`Player died round ${(this.matchContext.teamScore | 0) + (this.matchContext.enemyScore | 0) + 1}`);
       if (this.matchContext.consecutiveDeaths >= 2) {
         this.remember(`Player has died ${this.matchContext.consecutiveDeaths} rounds in a row`);
@@ -1096,6 +1124,7 @@ class CoachingEngine extends EventEmitter {
     if ((updates.phase === 'active' && prevPhase === 'dead')
         || (updates.playerAlive === true && prevAlive === false)) {
       this.matchContext.consecutiveDeaths = 0;
+      this.deathTipsSent = 0;   // coaching resumes now that they can act again
     }
     // A dead player is never in some other phase. Keeping these consistent is
     // what makes the verifier that blocks action advice for dead players fire,
@@ -1417,6 +1446,11 @@ const PROMPT_LEAK = /"(?:side|phase|round|team|enemy|credits|alive|weapon|map|en
 const UPDRAFT_BAN = /\bupdraft\b/i;
 const KNIFE_TIP   = /\bknife\b/i;
 const DEATH_WINDOW_MS = 15000;
+
+// How many coaching tips a player gets after dying. Enough to explain the death
+// and the fix; past that they are spectating and cannot act on anything, so the
+// coach goes quiet until they respawn.
+const DEATH_TIPS_MAX = 2;
 
 // How long the engine stops sending frames after the AI reports it is out of
 // credits. Long enough that an outage costs almost nothing, short enough that
