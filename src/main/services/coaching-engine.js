@@ -973,6 +973,7 @@ class CoachingEngine extends EventEmitter {
     const prevTeam  = this.matchContext.teamScore  | 0;
     const prevEnemy = this.matchContext.enemyScore | 0;
     const prevAlive = this.matchContext.playerAlive;
+    const prevSpike = this.matchContext.spike;
 
     // A NEW MATCH in the same session: the round counter falls back to 1 and
     // the score resets to 0-0. Every per-match side lock must reset with it,
@@ -1020,6 +1021,14 @@ class CoachingEngine extends EventEmitter {
     // loadout belongs) is direct proof, so one frame is enough. Only a bare
     // alive:false with no tell, which is what a flashbang or a dark frame
     // produces, still has to be confirmed by a second frame.
+    // A readable health number beats any "dead" read. This is the ground truth
+    // and it is what stops a hallucinated spectate tell from silencing the
+    // coach for a player who is very much alive.
+    if (updates.playerAlive === false && typeof updates.playerHp === 'number' && updates.playerHp > 0) {
+      console.log(`[engine] ignoring dead read: health is ${updates.playerHp}`);
+      updates.playerAlive = true;
+      delete updates.aliveTell;
+    }
     if (updates.playerAlive === false && updates.phase !== 'dead') {
       const tell   = String(updates.aliveTell || '');
       const proven = DEAD_TELL.test(tell) && !UNSURE_TELL.test(tell);
@@ -1093,6 +1102,11 @@ class CoachingEngine extends EventEmitter {
         this.matchContext.playerAlive = true;
         this.aliveFalseStreak = 0;
         this.deathTipsSent = 0;   // new round, the coach speaks again
+        // Per-round facts: a stale "spike planted" would have the coach
+        // coaching a retake for a round that already ended.
+        this.matchContext.spike = null;
+        this.matchContext.spikeSpot = null;
+        this.matchContext.killFeed = null;
       }
       // The round going live locks the plan into match memory for continuity.
       if (updates.phase === 'active' && prevPhase === 'buy' && this.matchContext.teamRead) {
@@ -1130,6 +1144,13 @@ class CoachingEngine extends EventEmitter {
     // what makes the verifier that blocks action advice for dead players fire,
     // since it keys off phase 'dead'.
     if (this.matchContext.playerAlive === false) this.matchContext.phase = 'dead';
+
+    // The spike going down is the single biggest swing in a round, so it goes
+    // into memory the moment it is first seen.
+    if (updates.spike === 'planted' && prevSpike !== 'planted') {
+      const where = updates.spikeSpot || this.matchContext.spikeSpot;
+      this.remember(`Spike planted${where ? ' at ' + where : ''}`);
+    }
 
     // Match memory: record round outcomes from score changes so future tips
     // know the flow of the match, not just the current frame.
@@ -1235,6 +1256,10 @@ function freshContext() {
     roundNumber: 0, teamScore: 0, enemyScore: 0, clock: null,   // round timer (mm:ss) for stage-aware coaching
     phase: 'unknown', playerCredits: null, playerWeapon: null, playerAlive: true,
     teammatesAlive: null, enemiesAlive: null,   // reported by the AI from the HUD bar
+    playerHp: null,   // own health number: the ground truth for being alive
+    spike: null,      // 'planted' | 'carried' | 'dropped', drives retake / post-plant coaching
+    spikeSpot: null,  // where it is, for the retake call
+    killFeed: null,   // last factual event from the kill feed (top right)
     teamRead: null,   // pre-round minimap read of the team's plan ("4 A, player alone mid")
     teamReadAt: 0,    // when that read landed; the plan expires so a rotate is not coached against
     playerSpot: null, // the player's own minimap location ("B main", "mid"), cleared each buy phase

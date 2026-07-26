@@ -13,10 +13,14 @@ let idx = 0;
 // location + alive reads flagged since those are the usual culprits.
 const FIELDS = [
   ['map', 'map'], ['side', 'side'], ['gameMode', 'mode'], ['roundNumber', 'round'],
-  ['clock', 'clock'], ['phase', 'phase'], ['playerAlive', 'alive', 'alive'],
+  ['clock', 'clock'], ['phase', 'phase'],
+  ['playerHp', 'health', 'key'],            // the ground truth for being alive
+  ['playerAlive', 'alive', 'alive'],
   ['playerSpot', 'location', 'key'], ['teamScore', 'your score'], ['enemyScore', 'their score'],
   ['teammatesAlive', 'mates alive'], ['enemiesAlive', 'foes alive'],
   ['playerWeapon', 'weapon'], ['playerCredits', 'credits'],
+  ['spike', 'spike', 'key'], ['spikeSpot', 'spike at', 'key'],
+  ['killFeed', 'kill feed'],
   ['enemySpot', 'enemy spot'], ['teamRead', 'team read'], ['playerNote', 'note'],
 ];
 
