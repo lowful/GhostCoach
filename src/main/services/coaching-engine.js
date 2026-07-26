@@ -436,6 +436,7 @@ class CoachingEngine extends EventEmitter {
   // tracked enemy positions, and a rotating focus hint so a good share of frames
   // emphasise the minimap / economy / enemy reads.
   buildOutgoingContext() {
+    this.expireStalePlan();   // never send a plan the team has already abandoned
     const recentTopics = this.tipHistory.slice(-3).map((t) => topicOf(t.text));
     const recentTips   = this.tipHistory.slice(-4).map((t) => t.text);
     // Only tell the server the agent once the PLAYER has confirmed it. On a mere
@@ -472,6 +473,21 @@ class CoachingEngine extends EventEmitter {
         onlyAvailableAbilities: true,  // don't suggest greyed-out / unbought abilities
       },
     };
+  }
+
+  /** Drop the team plan once it is too old to trust. A buy-phase read describes
+   *  the opening push; by the time most of a round has run, the team has often
+   *  rotated and coaching "within the plan" actively points the player the wrong
+   *  way. Cleared rather than guessed at, so the coach falls back to what it can
+   *  actually see. */
+  expireStalePlan() {
+    const at = this.matchContext.teamReadAt;
+    if (!at || !this.matchContext.teamRead) return;
+    if (Date.now() - at > TEAM_PLAN_TTL_MS) {
+      console.log('[engine] team plan expired (stale), dropping it');
+      this.matchContext.teamRead = null;
+      this.matchContext.teamReadAt = 0;
+    }
   }
 
   /** "buy->active" while a phase flip is fresh (~10s), else null. */
@@ -827,6 +843,83 @@ class CoachingEngine extends EventEmitter {
     return true;
   }
 
+  /**
+   * The map lock, which every callout depends on.
+   *
+   * This used to be write-once: two agreeing reads locked it, and from then on
+   * `if (!this.matchContext.map)` threw away every later read. So one early
+   * misread (a loading screen, a dark frame, a model bias toward a common map)
+   * locked the WRONG map for the entire match, and it failed in the worst
+   * possible direction: the callout gate trusts the lock, so it then actively
+   * WAVED THROUGH that map's callouts. A player on Breeze got told to hold
+   * "Elbow" and "B Back Site", which are Ascent callouts, and the gate approved
+   * because it believed the map was Ascent.
+   *
+   * Now the lock is revisable. Two agreeing reads still acquire it, and two
+   * agreeing CONTRADICTING reads correct it: if the evidence was good enough to
+   * set the map, the same weight of evidence is good enough to change it. While
+   * a contradiction is pending the map is treated as in doubt, which suppresses
+   * named callouts rather than letting the wrong map's callouts through.
+   */
+  applyMapRead(raw) {
+    const v = String(raw || '').trim();
+    if (!v) return;
+    const same = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase();
+
+    // Not locked yet: two agreeing reads acquire the lock.
+    if (!this.matchContext.map) {
+      if (same(this.pendingMap, v)) {
+        this.matchContext.map = v;
+        this.pendingMap = null;
+        this.mapDoubt = 0;
+        this.matchContext.mapUncertain = false;
+        console.log(`[engine] map locked: ${v}`);
+      } else {
+        this.pendingMap = v;
+      }
+      return;
+    }
+
+    // Locked and this read agrees: clear any pending doubt.
+    if (same(this.matchContext.map, v)) {
+      if (this.mapDoubt) console.log(`[engine] map doubt cleared, still ${this.matchContext.map}`);
+      this.mapDoubt = 0;
+      this.mapChallenger = null;
+      this.matchContext.mapUncertain = false;
+      return;
+    }
+
+    // Locked but this read disagrees. Count consecutive challenges from the
+    // SAME challenger; a one-off misread should not unseat a good lock.
+    if (same(this.mapChallenger, v)) {
+      this.mapDoubt = (this.mapDoubt || 0) + 1;
+    } else {
+      this.mapChallenger = v;
+      this.mapDoubt = 1;
+    }
+
+    if (this.mapDoubt >= 2) {
+      console.log(`[engine] map corrected: ${this.matchContext.map} -> ${v} (2 agreeing contradictions)`);
+      this.matchContext.map = v;
+      this.mapDoubt = 0;
+      this.mapChallenger = null;
+      this.matchContext.mapUncertain = false;
+      // Everything derived from the old map is now meaningless.
+      this.matchContext.playerSpot = null;
+      this.matchContext.playerSpotVerified = false;
+      this.matchContext.teamRead = null;
+      this.matchContext.enemySpot = null;
+      this.remember(`Map corrected to ${v}`);
+    } else {
+      this.matchContext.mapUncertain = true;
+      console.log(`[engine] map in doubt: locked ${this.matchContext.map}, read ${v} (callouts suppressed)`);
+    }
+  }
+
+  /** True while a contradicting map read is pending, so we do not know which
+   *  map's callouts are legal. Named callouts are blocked until it resolves. */
+  mapInDoubt() { return (this.mapDoubt || 0) > 0; }
+
   updateMatchContext(updates) {
     const prevPhase = this.matchContext.phase;
     const prevRound = this.matchContext.roundNumber;
@@ -907,19 +1000,26 @@ class CoachingEngine extends EventEmitter {
       // Until it locks, the map stays unknown and every named callout is
       // rejected, so unlocked frames only ever get general directions.
       if (key === 'map') {
-        if (!this.matchContext.map && v) {
-          if (this.pendingMap && this.pendingMap.toLowerCase() === String(v).toLowerCase()) {
-            this.matchContext.map = v;
-            console.log(`[engine] map locked: ${v}`);
-          } else {
-            this.pendingMap = v;
-          }
-        }
+        this.applyMapRead(v);
         continue;
       }
       // handled separately (mode needs its 2-read lock), never merged raw
       if (key === 'recentTopics' || key === 'playerNote' || key === 'gameMode'
           || key === 'aliveTell') continue;
+      // The team's plan can CHANGE mid-round (a rotate). A read from the buy
+      // phase kept driving tips all round, so the coach would still say "hit B"
+      // after the team had rotated to A. Stamp each read, and when the plan
+      // actually changes, record it so the coach follows the NEW plan.
+      if (key === 'teamRead') {
+        const prevRead = this.matchContext.teamRead;
+        this.matchContext.teamRead = v;
+        this.matchContext.teamReadAt = Date.now();
+        if (prevRead && String(prevRead).toLowerCase() !== String(v).toLowerCase()) {
+          this.remember(`Team plan changed: ${v}`);
+          console.log(`[engine] team plan changed: "${prevRead}" -> "${v}"`);
+        }
+        continue;
+      }
       this.matchContext[key] = v;
     }
 
@@ -1086,6 +1186,7 @@ function freshContext() {
     phase: 'unknown', playerCredits: null, playerWeapon: null, playerAlive: true,
     teammatesAlive: null, enemiesAlive: null,   // reported by the AI from the HUD bar
     teamRead: null,   // pre-round minimap read of the team's plan ("4 A, player alone mid")
+    teamReadAt: 0,    // when that read landed; the plan expires so a rotate is not coached against
     playerSpot: null, // the player's own minimap location ("B main", "mid"), cleared each buy phase
     playerSpotVerified: false, // true when the spot came from minimap coordinates, not the model's wording
     consecutiveDeaths: 0, consecutiveWins: 0, roundsPlayed: 0,
@@ -1296,6 +1397,11 @@ const UPDRAFT_BAN = /\bupdraft\b/i;
 const KNIFE_TIP   = /\bknife\b/i;
 const DEATH_WINDOW_MS = 15000;
 
+// How long a pre-round team plan stays trustworthy once the round is live. A
+// round is 1:40, so a plan from the buy phase describes the opening push; past
+// this the team has usually rotated and the plan misleads more than it helps.
+const TEAM_PLAN_TTL_MS = 45000;
+
 // Evidence that the player is genuinely dead and spectating, as reported in the
 // model's aliveTell. Any one of these is direct proof, so the death registers
 // from a single frame instead of waiting ~12s for a second one to agree.
@@ -1379,6 +1485,17 @@ function scenarioFits(text, source, ctx) {
   // Map discipline: a callout from another map, or any distinctive callout
   // while the map is unknown, makes the tip wrong by definition.
   if (source !== 'system') {
+    // A contradicting map read is pending, so we do not know which map's
+    // callouts are legal. Block them all rather than trust a lock that may be
+    // about to be corrected: this is the exact failure that put Ascent
+    // callouts ("Elbow", "B Back Site") in front of a player on Breeze.
+    if (ctx.mapUncertain) {
+      const anyCallout = String(text || '').toLowerCase().match(CALLOUT_RE);
+      if (anyCallout) {
+        noteReject(`named "${anyCallout[0]}" while the map read is in doubt`);
+        return false;
+      }
+    }
     const bad = wrongMapCallout(l, ctx.map);
     if (bad) { noteReject(`used the callout "${bad}" which does not belong to ${ctx.map || 'the unknown map'}`); return false; }
   }
