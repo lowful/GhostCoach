@@ -492,7 +492,26 @@ BEFORE YOU NAME ANY CALLOUT, CHECK THE MAP TWICE. Ask yourself: which map am I a
 DO NOT TELL THE PLAYER TO USE AN ABILITY YOU CANNOT CONFIRM THEY HAVE. Abilities go on cooldown, get used, or were never bought, and greyed-out icons are hard to read on this frame, which is already seconds old. A dash or flash you think is available may already be spent, so a tip like "use your dash to reposition" is often just wrong.
 - Coach the ACTION or GOAL, not the ability: "reposition after the kill, do not rehold the same angle" is right whether or not the dash is up. "Use your dash to reposition" gambles on an ability you cannot verify.
 - Only name a specific ability to USE when it is clearly central to the tip AND you can see it is actually available (its icon is lit, not greyed). If you are not sure, coach the goal and let the player pick the tool.
-- This applies to every agent's kit: dashes, flashes, smokes, mollies, walls, recon, ults. When unsure, describe what to achieve, not which button to press.`;
+- This applies to every agent's kit: dashes, flashes, smokes, mollies, walls, recon, ults. When unsure, describe what to achieve, not which button to press.
+
+COACH WHAT YOU SEE, NEVER WHAT YOU ASSUME. This is the difference between a coach and a guesser. Everything you say has to trace back to something actually on this screen: the HP number, the kill feed, the minimap icons, the spike, the round timer, the score. Do not narrate a story about what probably happened.
+- Do not assume a fight happened, a teammate died, an enemy is somewhere, or the player took damage. Check the kill feed and the minimap, they tell you the truth for free.
+- Do not assume the player died. If their health number is on screen they are alive, no matter what else the frame looks like.
+- Do not assume where enemies are from "what usually happens on this map at this time". Only a red icon, a question mark ping, or an enemy you can actually see counts.
+- If you find yourself using words like "probably", "likely", "they must have", or "it looks like they", stop: that is a guess, and a guessed observation makes the whole tip untrustworthy even when the advice is sound.
+- When the frame does not tell you enough for a specific tip, give a correct general one or SKIP. Being quiet costs nothing. Being confidently wrong costs the player's trust in every future tip.`;
+
+  // The spike decides rounds, so once it is down it outranks almost every other
+  // read. This was missing entirely: the coach would talk about angles and
+  // positioning while the round was being lost on the timer.
+  const spikeState = String(ctx.spike || '').toLowerCase();
+  const defending  = String(ctx.side || '').toLowerCase().includes('def');
+  const spikeBlock = spikeState === 'planted' ? `
+
+THE SPIKE IS DOWN${ctx.spikeSpot ? ' at ' + ctx.spikeSpot : ''}. THIS IS NOW THE ROUND. The spike is the win condition, it does not care about kills, and the clock is running.
+${defending
+  ? 'The player is DEFENDING, so they must RETAKE. Nothing else wins this round: no amount of holding an angle somewhere else matters once the spike is planted. Get them moving toward the spike with a plan, not just "go there": how to enter (util first, not a dry run in), where to clear, whether to wait a beat for a teammate so the entry gets traded, and that they need TIME to defuse, so late is the same as never. If they are far from the site, the tip is to rotate to it now. A defuse needs 7 seconds, or 3.5 with a half defuse, so remind them to start it with enough clock and to use cover or a smoke for it if they can.'
+  : 'The player is ATTACKING and the spike is planted, so the job is to KEEP it, not to hunt kills. Coach the post plant: hold angles that watch the spike, play for time rather than for picks, use util to deny the defuse, and do not push out into a retake and give the site back. Dying away from the spike is how a won round gets lost.'}` : '';
 
   const s = ctx.playerStats;
   const extLine = s && (s.kpr != null || s.adr || s.acs)
@@ -655,6 +674,8 @@ ${ctx.teamRead ? 'TEAM PLAN AS LAST READ: ' + ctx.teamRead + '. Coach within thi
 
 ${predictBlock}READ THE HUD
 - Round and score: top-center, plus the round timer (read it, it sets the stage, see ROUND TIMELINE) and whether it is buy phase.
+- KILL FEED, top-right: the factual record of who killed whom, in order. This is the single most reliable thing on screen for what ACTUALLY happened, so use it instead of guessing: it tells you the man advantage, whether a teammate got traded, whether the player got the opening pick, and what killed them. Read it every frame.
+- MINIMAP markers: red icons are enemies seen RIGHT NOW, question marks are last-known-position pings (an enemy was there, may have moved), and the spike icon shows where the spike is. These are given to you for free, so use them rather than assuming enemy positions.
 - Credits: shown in buy phase; use them for economy advice.
 - Bottom-center: the player's 4 abilities. Bright means ready, dim or greyed means used or not bought, so never tell them to use a greyed ability.
 - Bottom-LEFT: alive, it shows the player's own weapons and ability list. Dead and spectating, it shows a teammate's name and loadout with a "Spectating" label, that is your proof the player died and is watching someone else, so read alive as false.
@@ -687,9 +708,11 @@ ${deathLine}${roundLostLine}${enemyBlock}${memoryBlock}${transLine}${focusLine}C
 - Agent: ${ctx.agent || 'Unknown'} | Map: ${ctx.map || 'Unknown'} | Side: ${ctx.side || 'Unknown'}
 - Mode: ${modeLine}
 - Round: ${ctx.roundNumber || 'Unknown'} | Score: ${ctx.teamScore || 0}-${ctx.enemyScore || 0} | Phase: ${ctx.phase || 'Unknown'} | Clock: ${ctx.clock || 'read it from the timer'}
+- Spike: ${ctx.spike ? ctx.spike + (ctx.spikeSpot ? ' at ' + ctx.spikeSpot : '') : 'not planted / unknown'}
+- Last kill feed read: ${ctx.killFeed || 'nothing noted'}
 - Player location (read from the minimap a few seconds ago): ${ctx.playerSpot || 'Unknown'}${ctx.playerSpotVerified ? ' (this one was resolved from the minimap coordinates, it is reliable)' : ''}
 - Credits: ${ctx.playerCredits == null ? 'Unknown' : ctx.playerCredits} | Alive: ${ctx.playerAlive === false ? 'No' : 'Yes'} | Deaths in a row: ${ctx.consecutiveDeaths || 0}${ctx.playerAlive === false ? '\n- THE PLAYER IS DEAD RIGHT NOW. They cannot move, peek, rotate, buy, or use util this round. The ONLY valid tips are why they died and what to change, or what to watch and learn while spectating. Any tip telling a dead player to act is automatically wrong.' : ''}
-- Teammates alive: ${ctx.teammatesAlive == null ? 'Unknown' : ctx.teammatesAlive} | Enemies alive: ${ctx.enemiesAlive == null ? 'Unknown' : ctx.enemiesAlive}${ctx.teammatesAlive === 0 && ctx.playerAlive !== false ? ' | THE PLAYER IS SOLO, this is a clutch' : ''}${mapBlock}${patchBlock}${delayBlock}${locationGuard}${abilityGuard}
+- Teammates alive: ${ctx.teammatesAlive == null ? 'Unknown' : ctx.teammatesAlive} | Enemies alive: ${ctx.enemiesAlive == null ? 'Unknown' : ctx.enemiesAlive}${ctx.teammatesAlive === 0 && ctx.playerAlive !== false ? ' | THE PLAYER IS SOLO, this is a clutch' : ''}${spikeBlock}${mapBlock}${patchBlock}${delayBlock}${locationGuard}${abilityGuard}
 
 RECENT TIPS (do not repeat these word for word; if the SAME mistake is still happening and the advice matters, give it again in FRESH wording and mark the repetition, "still", "again", "third time now", important advice bears repeating, lazy copies do not):
 ${recent}
@@ -706,7 +729,7 @@ COACH LIKE AN ACTUAL COACH, NOT A HINT BOT. Every tip should teach something a S
 When (and ONLY when) the tip explains why the player died or why the round was lost, line 1 starts with exactly "DEATH: " before the sentence. The app renders those as a special review card, so never use the marker on ordinary tips and never skip it on a death or round review.
 
 Then, for any live-gameplay frame (including SKIP), add a second line reporting what the HUD actually shows, null for anything unreadable, never guess:
-STATE: {"side":"attack","phase":"active","round":5,"clock":"1:12","team":3,"enemy":1,"credits":4200,"alive":true,"aliveTell":"own rifle and HP 100 bottom center","mates":3,"foes":2,"weapon":"Vandal","map":"Ascent","mode":null,"mmPos":[0.48,0.2],"playerSpot":null,"enemySpot":null,"teamRead":null,"note":null}
+STATE: {"side":"attack","phase":"active","round":5,"clock":"1:12","team":3,"enemy":1,"credits":4200,"hp":87,"alive":true,"aliveTell":"own rifle and HP 87 bottom center","mates":3,"foes":2,"weapon":"Vandal","map":"Ascent","mode":null,"mmPos":[0.48,0.2],"playerSpot":null,"enemySpot":null,"spike":null,"spikeSpot":null,"killFeed":null,"teamRead":null,"note":null}
 - side: during the buy phase the banner at the TOP of the screen says ATTACKING or DEFENDING, read it there first, it is authoritative. Otherwise "attack" if your team carries or bought the spike, "defense" if you see a defuser or you are holding sites, else null. Getting the side wrong is the single worst mistake you can make, every tip built on it turns into anti-coaching, so report null over a guess. THE HALVES DEPEND ON THE MODE: in Unrated and Competitive the starting side holds through round 12, flips for rounds 13 to 24, and only overtime (round 25+) alternates. In SWIFTPLAY halves are 4 rounds: the starting side holds rounds 1 to 4, flips for rounds 5 to 8, and a 4-4 sudden death round 9 must be read from the banner. If the round number puts the match past halftime for the mode and you knew the first-half side, report the flipped side even when the frame alone is ambiguous.
 - mode: the queue, ONLY when it is actually printed on screen ("SWIFTPLAY", "COMPETITIVE", "UNRATED" on the agent select header, the loading screen, the scoreboard header, or the end of round banner). Report exactly what you read, else null, never infer it. The mode decides when sides swap, so a wrong mode flips every later side call.
 - mmPos: THE MOST IMPORTANT FIELD FOR LOCATION. Where the player's own YELLOW/GOLD minimap arrow (the one with the vision cone, NOT the blue teammate icons) sits ON THE MINIMAP, as two decimals [across, down]. Treat the minimap box's top-left corner as [0,0] and its bottom-right corner as [1,1]: so [0.5,0.5] is the middle of the minimap, [0.5,0.1] is near the top edge, [0.9,0.5] is near the right edge. Just measure where the yellow arrow is in that box, you do NOT need to know the callout's name. The app converts these numbers into the correct callout using the real map data, which is far more reliable than naming the spot yourself. Report null ONLY if the minimap or the yellow arrow is genuinely not visible.
@@ -714,9 +737,11 @@ STATE: {"side":"attack","phase":"active","round":5,"clock":"1:12","team":3,"enem
 - playerSpot: a backup, plain-words location for when you cannot give mmPos ("A site", "B main", "mid", "attacker spawn"). Use ONLY callouts that exist on this map. Report null when you cannot tell, a guessed spot becomes a wrong callout later.
 - phase: "buy" (barriers up), "active" (round live), "postplant" (spike down), "dead" (player dead or spectating), else null.
 - clock: the round timer at TOP-CENTER exactly as shown ("1:12", "0:38"), the round counts down from 1:40, and after the plant it is the 45-second spike timer. Read it every active frame, it decides the stage and what advice fits, null only when it is truly unreadable.
+- hp: the player's OWN health number at the BOTTOM-CENTER of the screen, as a number. This is the ground truth for whether they are alive, so read it before you decide anything else. If you can see it, report it (100, 87, 12). If it is genuinely not on screen, report null. Do not estimate it and do not carry over the last value you remember.
 - alive AND aliveTell: DO THIS CHECK FIRST, BEFORE ANYTHING ELSE IN THE FRAME. Answer one question: can I see the player's OWN health number at the bottom-center of the screen, with their OWN weapon and ability icons at the bottom-left?
   YES, own HP and own loadout visible  -> alive: true,  aliveTell: what you saw ("own HP 87 and Vandal bottom left").
   NO  -> the player is DEAD and spectating a teammate -> alive: false, aliveTell: the dead tell you saw.
+  THE HP NUMBER DECIDES IT. If you reported an hp number above, the player is ALIVE, full stop, so alive must be true. Never report alive:false in the same breath as a readable health number, that combination is self contradictory and it is how a living player gets coached as a corpse. Only report alive:false when there is NO own-health number on screen AND you can name a real dead tell.
   The dead tells, any ONE of these is enough, you do not need two: a teammate's NAME shown at the bottom-left instead of your own loadout, the word "Spectating" anywhere, a death recap or killcam, the greyed-out observer HUD, a "You died" or respawn banner, or simply no HP number at the bottom-center at all.
   aliveTell must be a SHORT phrase naming the actual evidence, never a guess and never empty. Writing the evidence down is what makes this read accurate, so always fill it in.
   NOT death, do not be fooled: a flashbang whiteout, a smoke, a dark corner, a scoped-in view, or a blurry frame. In those the HP number is usually still there. If the frame is truly unreadable, repeat the previous frame's value and say so in aliveTell ("unreadable, kept previous").
@@ -726,7 +751,10 @@ STATE: {"side":"attack","phase":"active","round":5,"clock":"1:12","team":3,"enem
 - mates: how many OTHER teammates are alive right now (0 to 4); foes: how many enemies are alive (0 to 5). Read the agent portraits along the top HUD bar, dead players show darkened or crossed out. These numbers decide what advice is even possible, read them carefully.
 - weapon: whatever is in the player's hands right now, "Knife" counts and matters.
 - map: CHECK THIS EVERY FRAME AND BE HONEST, it is the field the most other things depend on. Read the minimap SHAPE and the site labels, not what you expected: Breeze is wide and open with a big round A and a long snake-shaped B, Ascent is compact with a central mid and A/B either end, Bind has two teleporters and no mid, Haven and Lotus have three sites, Icebox is tall and cluttered, Fracture is an H with attacker spawns on two sides, Split has a tight rope-heavy mid, Sunset and Pearl and Abyss and Corrode each have their own layout. If the map you are about to report does not MATCH the minimap in front of you, report what the minimap shows, not what you assumed earlier, and never carry a map over from a previous match. Report the map name ONLY when you are sure, read it from the minimap site layout (three sites A/B/C means Haven or Lotus, the only two 3-site maps; two sites plus teleporters and no mid means Bind). Report null when unsure, a wrong map locks in and breaks every later callout.
-- enemySpot: a SHORT callout for where an enemy is visible right now (screen or minimap), like "A main", else null.
+- enemySpot: where an enemy ACTUALLY IS according to the screen or the minimap, as a short callout like "A main", else null. Read the minimap properly, it hands you free information: a RED enemy icon is an enemy your team can see RIGHT NOW, and a QUESTION MARK is a last-known-position ping, an enemy was there recently but may have moved since. Say which kind it is in the note when it matters ("red icon B main", "question mark near mid"). Report null when nothing is marked, and never invent a position.
+- spike: the spike's state, from what is actually on screen. "planted" when the spike is down and its countdown is showing, "carried" when the player or a teammate is holding it, "dropped" when it is on the ground unheld, else null when you cannot tell.
+- spikeSpot: WHERE the spike is when planted or dropped, as a short callout read from the spike icon on the minimap or from the screen, else null. This drives retake and defuse advice, so a guess here is worse than a null.
+- killFeed: what the KILL FEED at the TOP-RIGHT just showed, in a few words: "we lost two in that trade", "player got the opening pick", "teammate traded them back", "enemy Jett killed two of ours". The kill feed is FACT, not inference, and it is the most reliable record of what actually happened, so read it every frame and use it for man advantage and for death reviews. Report null when nothing new is in the feed.
 - teamRead: the team's CURRENT plan from the MINIMAP. Report it during the buy phase and the first seconds of a round, AND report it again the moment the plan visibly CHANGES: if the blue icons rotate to a different site, collapse back to retake, or abandon the hit, send the NEW read immediately ("rotated to A", "falling back to retake B"). A plan that is no longer true is worse than no plan, because the coach will keep pushing the player toward a site their team already left. Describe the plan relative to the player. The YELLOW icon is the player, the BLUE icons are the up-to-four teammates, so the read is always where the BLUE icons are versus where the YELLOW one is ("4 blue going A, player alone mid", "split A and mid", "spread default", "5 stacking B"). DIRECTION comes from the map labels: teammates near or moving TOWARD the A label are going A, toward B are going B, and "mid" is ONLY when icons sit between the two sites heading toward neither label (and only on a map that has a mid). Judge movement across frames, not one glance. If you cannot tell where they are heading, report null, a wrong read poisons the whole round's coaching. Null once the round is underway or when unreadable.
 - note: ONE short factual observation, either something the PLAYER actually DID this frame ("repeeked the same angle after a kill", "planted the spike in the open", "pushed alone with no trade") or WHERE they are and the situation when it matters ("anchoring B alone", "lurking mid while 4 hit A", "holding Hookah with one teammate", "last alive in a 1v2 post-plant"). Only facts you can SEE on screen, never guesses, null when nothing notable happened. These notes become the memory your own later coaching and the death reviews look back on, so a good position note now is what makes the death explanation right later.
 
@@ -775,7 +803,18 @@ function mapState(s) {
   if (num(s.team)    != null && s.team    >= 0 && s.team    <= 30)    out.teamScore     = Math.round(s.team);
   if (num(s.enemy)   != null && s.enemy   >= 0 && s.enemy   <= 30)    out.enemyScore    = Math.round(s.enemy);
   if (num(s.credits) != null && s.credits >= 0 && s.credits <= 30000) out.playerCredits = Math.round(s.credits);
+  // Health is the ground truth for being alive. A readable own-health number
+  // and alive:false cannot both be true, and that contradiction is exactly how
+  // a living player got coached as dead (and, with the death-silence rule, got
+  // the coach to shut up mid-round). Health wins, in code, not just in prose.
+  const hp = num(s.hp);
+  if (hp != null && hp >= 0 && hp <= 100) out.playerHp = Math.round(hp);
   if (typeof s.alive === 'boolean') out.playerAlive = s.alive;
+  if (out.playerAlive === false && out.playerHp > 0) {
+    console.log(`[coach] contradiction: alive:false with hp ${out.playerHp}, trusting the health number`);
+    out.playerAlive = true;
+    out.aliveContradiction = true;
+  }
   // The evidence behind the alive read. A named dead tell (a spectate label, a
   // teammate's name bottom-left, a killcam) is strong enough for the client to
   // register the death from ONE frame instead of waiting for a second one.
@@ -785,6 +824,13 @@ function mapState(s) {
   if (str(s.weapon))    out.playerWeapon = str(s.weapon);
   if (str(s.map))       out.map          = str(s.map);
   if (str(s.enemySpot)) out.enemySpot    = str(s.enemySpot);
+  // Spike state drives retake / post-plant coaching, which outranks almost
+  // everything else once it is down.
+  const spike = str(s.spike);
+  if (spike && /^(planted|carried|dropped)$/i.test(spike)) out.spike = spike.toLowerCase();
+  if (str(s.spikeSpot)) out.spikeSpot = str(s.spikeSpot);
+  // The kill feed is the factual record of what actually happened this round.
+  if (str(s.killFeed)) out.killFeed = String(s.killFeed).trim().slice(0, 90);
   if (str(s.teamRead))  out.teamRead     = String(s.teamRead).trim().slice(0, 60);
   if (str(s.note))      out.playerNote   = String(s.note).trim().slice(0, 90);
   // The game mode decides the halftime math on the client (swiftplay halves
