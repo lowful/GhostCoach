@@ -33,6 +33,8 @@ const CHANNELS = {
   STATS_RANK_HISTORY: 'stats:rankHistory', // () → { points: [{date, elo, change, tier}], current }
   WEEKLY_GET:       'weekly:get',        // () → the week's report (stat movement, strengths, what to fix)
   AILOG_GET:        'ailog:get',         // () → the latest AI decision-log session { records: [{frameData, state, aiTip, shown}] }
+  APP_VERSION:      'app:version',       // () → { current, state, version } running version + update status
+  APP_UPDATE_CHECK: 'app:updateCheck',   // () → same shape, after forcing a fresh feed check
 
   // ── renderer → main commands (ipcRenderer.send ⇄ ipcMain.on) ──────────────
   COACH_START:     'coach:start',

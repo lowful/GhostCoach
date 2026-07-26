@@ -18,6 +18,8 @@ contextBridge.exposeInMainWorld('ghost', {
   getLicense:   () => ipcRenderer.invoke(C.LICENSE_GET),
   getState:     () => ipcRenderer.invoke(C.STATE_GET),
   testTracker:  () => ipcRenderer.invoke(C.STATS_TEST),
+  getVersion:   () => ipcRenderer.invoke(C.APP_VERSION),
+  checkUpdate:  () => ipcRenderer.invoke(C.APP_UPDATE_CHECK),
   openPurchase: () => ipcRenderer.send(C.OPEN_PURCHASE),
   logout:       () => ipcRenderer.send(C.LICENSE_LOGOUT),
   quit:         () => ipcRenderer.send(C.APP_QUIT),

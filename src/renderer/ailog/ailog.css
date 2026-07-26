@@ -50,3 +50,6 @@ header {
 /* Highlight the location + alive reads, since those are the usual culprits. */
 .srow.key .v { color: var(--cyan); font-weight: 600; }
 .srow.dead .v { color: var(--red); font-weight: 600; }
+
+/* Why a tip the model produced never reached the player. */
+.why { margin-top: 6px; font-size: 11px; color: #ff9aa3; line-height: 1.45; }

@@ -4,6 +4,7 @@ const { ipcMain, shell } = require('electron');
 const C = require('../../shared/channels');
 const { PURCHASE_URL } = require('../../shared/config');
 const store = require('../services/store');
+const updater = require('../updater');
 
 /**
  * Registers every ipcMain handler in one place. All channel names come from the
@@ -56,6 +57,8 @@ function registerIpc(deps) {
   safeHandle(C.CHAT_SEED, async () => controller.takeChatSeed());
   safeHandle(C.WEEKLY_GET, async () => controller.getWeeklyReport());
   safeHandle(C.AILOG_GET, async () => controller.getAiLog());
+  safeHandle(C.APP_VERSION, async () => updater.getStatus());
+  safeHandle(C.APP_UPDATE_CHECK, async () => updater.checkNow());
 
   // ── fire-and-forget commands ──────────────────────────────────────────────
   ipcMain.on(C.COACH_START,    () => guard('start',    () => controller.start()));

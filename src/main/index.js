@@ -1024,7 +1024,7 @@ function recordAiFrame(d) {
     fs.writeFileSync(path.join(aiLogDir, frameFile), Buffer.from(d.image, 'base64'));
     aiLogRecords.push({
       i: n, at: d.at || Date.now(), frame: frameFile,
-      state: d.state || {}, aiTip: d.aiTip || '', shown: d.shown || null,
+      state: d.state || {}, aiTip: d.aiTip || '', shown: d.shown || null, reject: d.reject || null,
     });
     // Roll the oldest frames off once past the cap (keep the index tidy too).
     if (aiLogRecords.length > AI_LOG_MAX_FRAMES) {

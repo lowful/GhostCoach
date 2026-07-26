@@ -48,10 +48,18 @@ function render() {
   const shownEl = $('shown');
   shownEl.textContent = shown || 'No tip shown this frame (SKIP or filtered).';
   shownEl.classList.toggle('none', !shown);
+  // Show the model's own tip whenever it differs from what you saw, plus WHY it
+  // was dropped. A rejected AI tip usually gets backfilled by a library tip, so
+  // "something was shown" does not mean the AI's tip made it through.
   const raw = String(r.aiTip || '').trim();
-  const showRaw = raw && raw.toUpperCase() !== 'SKIP' && raw !== shown;
+  const showRaw = (raw && raw.toUpperCase() !== 'SKIP' && raw !== shown) || !!r.reject;
   $('raw-block').hidden = !showRaw;
-  if (showRaw) $('raw').textContent = raw;
+  if (showRaw) {
+    $('raw').textContent = raw || '(nothing usable)';
+    const why = $('raw-why');
+    why.textContent = r.reject ? 'Dropped: ' + r.reject : '';
+    why.hidden = !r.reject;
+  }
 
   // STATE table.
   const box = $('state');

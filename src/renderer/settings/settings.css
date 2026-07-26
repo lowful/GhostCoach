@@ -100,3 +100,12 @@ footer .full { width: 100%; height: 40px; }
 .footer-actions .btn { flex: 1; height: 40px; }
 .btn-danger { color: #ff9aa3; background: rgba(255,70,85,0.10); border-color: rgba(255,70,85,0.35); }
 .btn-danger:hover { color: #ffb3ba; background: rgba(255,70,85,0.18); border-color: rgba(255,70,85,0.5); }
+
+/* Running version + update state. Clickable to force a fresh update check, so
+   after a release you can confirm on the spot rather than guessing. */
+.wip-line.ver { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--glass-border); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+#version { cursor: pointer; font-weight: 700; color: var(--text-dim); }
+#version:hover { color: var(--text); }
+.upd { font-size: 10.5px; color: var(--text-mute); }
+.upd.ok  { color: #4fd394; }
+.upd.new { color: var(--cyan); }

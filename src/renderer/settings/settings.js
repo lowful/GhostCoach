@@ -80,6 +80,38 @@ const showTipsSeg = wireBoolSeg('showtips', 'showTips');
 const beginnerSeg = wireBoolSeg('beginner', 'beginnerTips');
 const aiLogSeg    = wireBoolSeg('ailog', 'aiLog');
 
+// ── Version + update state ──────────────────────────────────────────────────
+// So it is obvious which build is running and whether an update already landed,
+// instead of having to guess after a release.
+const UPDATE_TEXT = {
+  checking:    'checking for updates...',
+  current:     'up to date',
+  downloading: (v) => `downloading ${v}...`,
+  ready:       (v) => `${v} ready, restart to apply`,
+  offline:     'could not reach the update server',
+  dev:         'dev build',
+  idle:        '',
+};
+function paintVersion(info) {
+  if (!info) return;
+  const vEl = document.getElementById('version');
+  const sEl = document.getElementById('update-state');
+  vEl.textContent = 'Version ' + (info.current || '?');
+  const t = UPDATE_TEXT[info.state];
+  sEl.textContent = typeof t === 'function' ? t(info.version || '') : (t || '');
+  sEl.classList.toggle('ok', info.state === 'current');
+  sEl.classList.toggle('new', info.state === 'ready' || info.state === 'downloading');
+}
+window.ghost.getVersion().then(paintVersion).catch(() => {});
+// Clicking the line forces a fresh check, so the player can confirm on demand.
+document.getElementById('version').addEventListener('click', () => {
+  paintVersion({ current: null, state: 'checking' });
+  window.ghost.getVersion().then((cur) => {
+    paintVersion({ ...cur, state: 'checking' });
+    return window.ghost.checkUpdate();
+  }).then(paintVersion).catch(() => {});
+});
+
 // Voice coach + Coach Cam: sub-controls grey out while the feature is off.
 const voiceSeg = wireBoolSeg('voicecoach', 'voiceCoach');
 const styleSeg = document.getElementById('voicestyle');

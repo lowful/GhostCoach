@@ -239,6 +239,13 @@ class CoachingEngine extends EventEmitter {
             state: data.context || {},
             aiTip: data.tip || '',
             shown: this._cycleShown ? { text: this._cycleShown.text, source: this._cycleShown.source } : null,
+            // Why the model's tip never reached the player. Always read (which
+            // also clears it, so a stale reason cannot leak into a later frame).
+            // NOT conditional on nothing being shown: a rejected AI tip usually
+            // triggers a library tip to fill the gap, so `shown` is set even
+            // though the AI's tip was dropped, and that is exactly the case
+            // worth explaining.
+            reject: takeRejectReason(),
           });
         } catch (e) { console.log('[engine] diagnostics sink error:', e.message); }
       }
@@ -525,12 +532,12 @@ class CoachingEngine extends EventEmitter {
     let tip = String(raw).trim();
 
     if (tip.startsWith('{') || tip.includes('"tip"')) {            // raw JSON
-      console.log('[engine] reject: JSON-looking tip');
+      noteReject('the model returned raw JSON, not a sentence');
       this.fillQuietSpell();
       return;
     }
     if (PREAMBLE.some((re) => re.test(tip))) {                     // AI preamble
-      console.log('[engine] reject: preamble');
+      noteReject('the tip started with AI preamble');
       this.fillQuietSpell();
       return;
     }
@@ -560,22 +567,22 @@ class CoachingEngine extends EventEmitter {
       }
       return;
     }
-    if (TRUNCATION.some((re) => re.test(tip))) { console.log('[engine] reject: truncated'); this.fillQuietSpell(); return; }
-    if (!/[.!?"]$/.test(tip))                  { console.log('[engine] reject: incomplete'); this.fillQuietSpell(); return; }
+    if (TRUNCATION.some((re) => re.test(tip))) { noteReject('the tip was cut off mid sentence'); this.fillQuietSpell(); return; }
+    if (!/[.!?"]$/.test(tip))                  { noteReject('the tip did not end as a complete sentence'); this.fillQuietSpell(); return; }
     // A fresh phase flip (round start, spike planted) opens a short window where
     // a timely tip beats the normal pacing, so the cooldown relaxes.
     const cooldown = this.recentPhaseTransition() ? Math.min(6000, this.pacing.cooldown) : this.pacing.cooldown;
-    if (Date.now() - this.lastTipTime < cooldown) { console.log('[engine] reject: cooldown'); return; }
+    if (Date.now() - this.lastTipTime < cooldown) { noteReject('too soon after the last tip (cooldown)'); return; }
 
     const cleaned = agentData.genericizeAbilities(cleanTip(tip));
-    if (this.isSimilarToRecent(cleaned)) { console.log('[engine] reject: similar'); this.fillQuietSpell(); return; }
+    if (this.isSimilarToRecent(cleaned)) { noteReject('too similar to a recent tip'); this.fillQuietSpell(); return; }
 
     const topic = topicOf(cleaned);
     const recent = this.tipHistory.slice(-3).map((t) => topicOf(t.text));
-    if (recent.length >= 3 && recent.every((t) => t === topic)) { console.log('[engine] reject: topic cooldown'); this.fillQuietSpell(); return; }
+    if (recent.length >= 3 && recent.every((t) => t === topic)) { noteReject('same topic as the last three tips'); this.fillQuietSpell(); return; }
 
     if (!this.validateTipForAgent(cleaned)) {
-      console.log('[engine] reject: wrong-agent ability');
+      noteReject('named an ability the player\'s agent does not have');
       this.emitLibraryTip();   // swap in a solid general tip instead of silence
       return;
     }
@@ -584,7 +591,7 @@ class CoachingEngine extends EventEmitter {
     // tips. Forces variety even if the model repeats itself.
     const abilityWord = abilityWordIn(cleaned);
     if (abilityWord && this.recentAbilities.slice(-2).includes(abilityWord)) {
-      console.log('[engine] reject: ability fixation (' + abilityWord + ')');
+      noteReject('repeated the same ability (' + abilityWord + ') back to back');
       this.emitLibraryTip();
       return;
     }
@@ -756,7 +763,7 @@ class CoachingEngine extends EventEmitter {
    */
   emitTip(text, source, extra) {
     const verified = verifyTip(text, source, this.matchContext);
-    if (!verified) { console.log(`[engine] reject(verify/${source}): ${text}`); return false; }
+    if (!verified) { noteReject(`failed the final verify gate (${source})`); return false; }
 
     const tip = { text: verified, source, time: Date.now() };
     if (extra && extra.death) tip.death = true;   // death review: white skull card
@@ -1331,6 +1338,20 @@ function wrongMapCallout(text, map) {
   return null;
 }
 
+// The reason the most recent tip was dropped. The console line alone is not
+// enough: the AI decision log needs to SHOW why a tip the model produced never
+// reached the player, otherwise a filtered tip looks identical to no tip.
+let lastRejectReason = null;
+function noteReject(reason) {
+  lastRejectReason = reason;
+  console.log('[engine] reject: ' + reason);
+}
+function takeRejectReason() {
+  const r = lastRejectReason;
+  lastRejectReason = null;
+  return r;
+}
+
 // High-confidence situational guards only, never reject on a guess.
 function scenarioFits(text, source, ctx) {
   if (!ctx) return true;
@@ -1345,7 +1366,7 @@ function scenarioFits(text, source, ctx) {
   if (MOBILITY_MISUSE.test(l)) return false;
   // Don't command a mobility ability we can't confirm is off cooldown.
   if (source !== 'system' && ABILITY_COMMAND.test(l)) {
-    console.log('[engine] reject: commands an unverifiable ability');
+    noteReject('told the player to use an ability we cannot confirm is off cooldown');
     return false;
   }
   if (source !== 'system' && PROMPT_LEAK.test(text)) return false;
@@ -1359,7 +1380,7 @@ function scenarioFits(text, source, ctx) {
   // while the map is unknown, makes the tip wrong by definition.
   if (source !== 'system') {
     const bad = wrongMapCallout(l, ctx.map);
-    if (bad) { console.log(`[engine] reject: callout "${bad}" vs map ${ctx.map || 'unknown'}`); return false; }
+    if (bad) { noteReject(`used the callout "${bad}" which does not belong to ${ctx.map || 'the unknown map'}`); return false; }
   }
 
   // Updraft advice: never. Knife advice: only right after a death it may have caused.
