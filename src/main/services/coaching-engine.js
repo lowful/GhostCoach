@@ -117,6 +117,7 @@ class CoachingEngine extends EventEmitter {
     this.firstHalfSide = null;
     this.pendingFirstSide = null;
     this.pendingMap = null;
+    this.scoreboardChallenge = null;   // pending implausible round/score read
     this.pendingMode = null;
     this.standardEvidence = 0;
     this.swapEvidence = 0;
@@ -974,6 +975,7 @@ class CoachingEngine extends EventEmitter {
     const prevEnemy = this.matchContext.enemyScore | 0;
     const prevAlive = this.matchContext.playerAlive;
     const prevSpike = this.matchContext.spike;
+    let newMatch = false;   // set by the new-match reset, so the continuity guard stands down
 
     // A NEW MATCH in the same session: the round counter falls back to 1 and
     // the score resets to 0-0. Every per-match side lock must reset with it,
@@ -993,6 +995,65 @@ class CoachingEngine extends EventEmitter {
       this.matchContext.side = null;   // stale side from the last match: re-read it fresh
       this.matchContext.map = null;    // a new match may be a new map: re-read and re-lock
       this.pendingMap = null;
+      this.scoreboardChallenge = null;
+      newMatch = true;
+    }
+
+    // ── Scoreboard continuity ───────────────────────────────────────────────
+    // The round number and score decide the HALFTIME SIDE, so a single misread
+    // digit does not just look wrong, it flips the player's side and every tip
+    // after it becomes anti-coaching. Observed in a real session: the round read
+    // jumped 4 -> 12 -> 4 -> 13, the round-13 read tripped the halftime swap,
+    // and an attacking player was coached to set up defensive crossfires for
+    // minutes.
+    //
+    // Those bad reads were internally CONSISTENT (round 13 with a 3-9 score
+    // really does add up), so self-consistency alone cannot catch them. What
+    // gives them away is continuity: a round can only hold or tick up by one,
+    // and scores never fall. An implausible read is held as a challenge and only
+    // accepted if the next read agrees, which is the same evidence bar the map
+    // lock uses and still lets the app pick up a match it joined late.
+    if (!newMatch && typeof updates.roundNumber === 'number' && prevRound > 0) {
+      const jump = updates.roundNumber - prevRound;
+      const scoresFell =
+        (typeof updates.teamScore === 'number' && updates.teamScore < prevTeam) ||
+        (typeof updates.enemyScore === 'number' && updates.enemyScore < prevEnemy);
+      // Valorant's own invariant: round = your score + their score + 1.
+      const inconsistent =
+        typeof updates.teamScore === 'number' && typeof updates.enemyScore === 'number' &&
+        updates.teamScore + updates.enemyScore + 1 !== updates.roundNumber;
+
+      // A round NEVER goes backwards inside a match; only a new match resets it,
+      // and that is detected separately above. So a backwards read can never be
+      // confirmed, however many times it repeats. Without this, a repeated
+      // misread gets accepted and then the true (lower) round walks it back, and
+      // the round flaps, which is what drives the halftime side math back and
+      // forth mid match.
+      const backwards = jump < 0 || scoresFell;
+      if (backwards) {
+        console.log(`[engine] ignoring backwards scoreboard read: round ${prevRound} -> ${updates.roundNumber}`);
+        delete updates.roundNumber;
+        delete updates.teamScore;
+        delete updates.enemyScore;
+      } else if (jump > 1 || inconsistent) {
+        const sig = `${updates.roundNumber}|${updates.teamScore}|${updates.enemyScore}`;
+        if (this.scoreboardChallenge === sig) {
+          // Twice in a row: believe it. Covers a genuinely missed stretch of
+          // frames (alt-tab, a long death) rather than a one-off misread.
+          console.log(`[engine] scoreboard jump confirmed, accepting round ${updates.roundNumber}`);
+          this.scoreboardChallenge = null;
+        } else {
+          this.scoreboardChallenge = sig;
+          console.log(`[engine] implausible scoreboard read ignored: round ${prevRound} -> ${updates.roundNumber}`
+            + `, score ${prevTeam}-${prevEnemy} -> ${updates.teamScore}-${updates.enemyScore}`
+            + (inconsistent ? ' (does not add up)' : ''));
+          delete updates.roundNumber;
+          delete updates.teamScore;
+          delete updates.enemyScore;
+        }
+      } else {
+        this.scoreboardChallenge = null;   // a clean read clears any pending doubt
+      }
     }
 
     // Game mode from the HUD (agent select header, loading screen, scoreboard,
