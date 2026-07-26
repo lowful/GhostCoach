@@ -65,14 +65,18 @@ const AI = {
   // the env var. NOTE: a value set in Railway (AI_VISION_MODEL) OVERRIDES this
   // default, so switching the live model also requires updating that env var.
   visionModel: process.env.AI_VISION_MODEL || 'google/gemini-3-flash-preview',
-  // Text tasks (grading, chat, reviews) are not latency bound and have no
-  // frame-to-frame consistency requirement, so the reasoning model still fits
-  // there, with the self-healing fallback in textInfer covering its quirks.
-  textModel:   process.env.AI_TEXT_MODEL || 'qwen/qwen3-vl-235b-a22b-thinking',
-  // Kept for anything that explicitly opts into deep reasoning on an image; the
-  // live analyze loop no longer uses it. Defaults to the instruct model so an
-  // unset env var cannot silently reintroduce the hybrid.
-  visionDeep:  process.env.AI_VISION_MODEL_DEEP || process.env.AI_VISION_MODEL || 'qwen/qwen3-vl-235b-a22b-instruct',
+  // Text tasks (grading, chat, reviews) also default to Gemini 3 Flash. Besides
+  // being the stronger writer, it is NOT a <think>-wrapper model, so it avoids
+  // the reasoning-truncation that made Qwen thinking return an empty answer and
+  // broke Ask Coach and session grading. The self-healing fallback in textInfer
+  // only triggers for a "thinking" model, so it stays dormant here (a safety net
+  // if text is ever pointed back at a thinking model). A Railway-set
+  // AI_TEXT_MODEL overrides this default.
+  textModel:   process.env.AI_TEXT_MODEL || 'google/gemini-3-flash-preview',
+  // Unused by the live analyze loop; kept for anything that explicitly opts into
+  // a deep-reasoning image read. Defaults to the same vision model so an unset
+  // env var cannot silently reintroduce a second model.
+  visionDeep:  process.env.AI_VISION_MODEL_DEEP || process.env.AI_VISION_MODEL || 'google/gemini-3-flash-preview',
 };
 
 // One OpenAI-style chat call. `imageB64` present => multimodal (vision) request.
