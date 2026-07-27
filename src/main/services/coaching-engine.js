@@ -63,6 +63,7 @@ class CoachingEngine extends EventEmitter {
     this.enemyHistory  = [];      // recent enemy spots/angles the AI reported
     this.lastWarnedSpot = null;   // de-dupe the "they keep peeking X" warning
     this.recentAbilities = [];    // recent ability words in AI tips (anti-fixation)
+    this.recentPlays     = [];    // recent stock plays (crossfire, off-angle...), for variety
     this.lastPhaseChange = null;  // { from, to, at }: round-transition awareness
     this.inLobby        = false;  // server saw a menu/lobby: silence ALL tips
     this.matchMemory    = [];     // running log of the match (rounds, streaks, reads)
@@ -106,6 +107,7 @@ class CoachingEngine extends EventEmitter {
     this.enemyHistory = [];
     this.lastWarnedSpot = null;
     this.recentAbilities = [];
+    this.recentPlays = [];
     this.lastPhaseChange = null;
     this.inLobby = false;
     this.matchMemory = [];
@@ -483,7 +485,12 @@ class CoachingEngine extends EventEmitter {
       teammates:    this.matchContext.teammates || null, // passthrough if the server reports the comp
       // Death review: the player died moments ago, the server prompts for a
       // cause-and-fix explanation ONLY when the evidence clearly supports one.
-      justDied:     this.lastDeathAt > 0 && Date.now() - this.lastDeathAt < 12000,
+      // The death window closes the moment the player is ALIVE again, not just
+      // after 12 seconds. A short round can end and respawn them inside that
+      // window, and reviewing a death at someone standing at full health with a
+      // fresh round in front of them reads as the coach not watching at all.
+      justDied:     this.isSpectating()
+                    && this.lastDeathAt > 0 && Date.now() - this.lastDeathAt < 12000,
       // The death review is already done: the coach should stay quiet until the
       // player respawns rather than spend a call on a tip we would drop.
       deathReviewDone: this.isSpectating() && this.deathTipsSent >= DEATH_TIPS_MAX,
@@ -627,6 +634,18 @@ class CoachingEngine extends EventEmitter {
     if (!this.validateTipForAgent(cleaned)) {
       noteReject('named an ability the player\'s agent does not have');
       this.emitLibraryTip();   // swap in a solid general tip instead of silence
+      return;
+    }
+
+    // Anti-fixation on PLAYS, not just abilities. The model leans hard on a few
+    // stock recommendations (crossfires above all) and re-serves them with fresh
+    // wording on a new site, which slips past both the similarity check and the
+    // topic cooldown. A play may not be recommended again while it is still two
+    // tips old, so the coaching has to actually vary.
+    const play = playPatternIn(cleaned);
+    if (play && this.recentPlays.slice(-2).includes(play)) {
+      noteReject(`already recommended a ${play} in the last two tips`);
+      this.emitLibraryTip();
       return;
     }
 
@@ -832,6 +851,15 @@ class CoachingEngine extends EventEmitter {
     this.lastTipTime = Date.now();
     // Count coaching tips shown while dead, so the review is capped.
     if (source !== 'system' && this.isSpectating()) this.deathTipsSent++;
+    // Remember which stock play this tip recommended, whatever its source, so
+    // the variety guard sees library filler too and cannot be reset by it.
+    if (source !== 'system') {
+      const playName = playPatternIn(verified);
+      if (playName) {
+        this.recentPlays.push(playName);
+        if (this.recentPlays.length > 6) this.recentPlays.shift();
+      }
+    }
     this._cycleShown = tip;   // what got shown this analyze cycle (for the AI log)
     console.log(`[engine] TIP (${source}): ${verified}  [ai=${this.aiTipCount} lib=${this.libraryTipCount}]`);
     this.emit('tip', tip);
@@ -1602,6 +1630,23 @@ function takeRejectReason() {
   const r = lastRejectReason;
   lastRejectReason = null;
   return r;
+}
+
+// The stock plays the model reaches for over and over. Naming them lets the
+// engine stop the same recommendation being re-served in fresh wording, which
+// is what made every other tip a crossfire in a real session.
+const PLAY_PATTERNS = [
+  ['crossfire',  /\bcross ?fire\b/i],
+  ['off-angle',  /\boff.?angle\b/i],
+  ['fall-back',  /\bfall back\b|\bplay for the retake\b|\bback to site\b/i],
+  ['group-up',   /\bgroup (?:up|with)\b|\bstick with your team\b|\bwith your teammates?\b/i],
+  ['reposition', /\breposition\b|\bdo not (?:re)?hold the same\b|\bmove after (?:the|your) kill\b/i],
+  ['trade',      /\btrade (?:your|the|them)\b|\btrade partner\b/i],
+];
+function playPatternIn(text) {
+  const t = String(text || '');
+  for (const [name, re] of PLAY_PATTERNS) if (re.test(t)) return name;
+  return null;
 }
 
 // High-confidence situational guards only, never reject on a guess.
