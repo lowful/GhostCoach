@@ -120,4 +120,57 @@ The ONLY callouts that exist on ${name}: ${names}.
 Never use a callout that is not in that list, it belongs to a different map and the tip will be wrong.`;
 }
 
-module.exports = { locate, resolveSpot, minimapBrief, hasGeometry };
+/**
+ * Identify the map from the location labels the GAME ITSELF prints at the
+ * top-left of the minimap ("Mid Top", "B Market", "A Lobby").
+ *
+ * This exists because asking the model which map it is on fails in the worst
+ * way: it answers confidently and CONSISTENTLY wrong, so a correction rule that
+ * waits for the model to contradict itself never fires. One session reported
+ * Ascent on all 78 frames.
+ *
+ * The labels are different evidence entirely. They are printed text, not a
+ * judgement, and the set of callouts is map specific, so intersecting the
+ * labels seen so far narrows the candidates fast: "Mid Top" alone fits eight
+ * maps, but adding "B Market" leaves only Sunset. When exactly one map contains
+ * every label observed, that is the map, and it does not matter what the model
+ * believes.
+ *
+ * Returns { map, confident, candidates } or null when nothing is known yet.
+ */
+function identifyFromLabels(labels) {
+  const seen = [...new Set((labels || [])
+    .map((l) => String(l || '').toLowerCase().trim())
+    .filter(Boolean))];
+  if (!seen.length) return null;
+
+  const candidates = [];
+  for (const [map, geo] of Object.entries(GEOMETRY)) {
+    const names = new Set();
+    for (const c of geo.callouts) {
+      names.add(c.n.toLowerCase());
+      if (c.a) names.add(String(c.a).toLowerCase());
+    }
+    // Every label seen must exist on this map for it to remain a candidate.
+    if (seen.every((l) => names.has(l))) candidates.push(map);
+  }
+
+  if (candidates.length === 1) {
+    const name = candidates[0];
+    return { map: name.charAt(0).toUpperCase() + name.slice(1), confident: true, candidates };
+  }
+  // No map contains all of them: the labels were misread, or they span two
+  // matches. Report it rather than guessing at the closest fit.
+  if (candidates.length === 0) return { map: null, confident: false, candidates: [] };
+  return { map: null, confident: false, candidates };
+}
+
+/** Is this label a real callout on this map? Used to sanity check a map claim. */
+function labelFitsMap(map, label) {
+  const geo = geometryFor(map);
+  if (!geo || !label) return null;                 // unknown map: no opinion
+  const l = String(label).toLowerCase().trim();
+  return geo.callouts.some((c) => c.n.toLowerCase() === l || (c.a && String(c.a).toLowerCase() === l));
+}
+
+module.exports = { locate, resolveSpot, minimapBrief, hasGeometry, identifyFromLabels, labelFitsMap };

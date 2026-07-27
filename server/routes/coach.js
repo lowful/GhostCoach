@@ -748,9 +748,10 @@ COACH LIKE AN ACTUAL COACH, NOT A HINT BOT. Every tip should teach something a S
 When (and ONLY when) the tip explains why the player died or why the round was lost, line 1 starts with exactly "DEATH: " before the sentence. The app renders those as a special review card, so never use the marker on ordinary tips and never skip it on a death or round review.
 
 Then, for any live-gameplay frame (including SKIP), add a second line reporting what the HUD actually shows, null for anything unreadable, never guess:
-STATE: {"side":"attack","phase":"active","round":5,"clock":"1:12","team":3,"enemy":1,"credits":4200,"hp":87,"alive":true,"aliveTell":"own rifle and HP 87 bottom center","mates":3,"foes":2,"weapon":"Vandal","map":"Ascent","mode":null,"mmPos":[0.48,0.2],"playerSpot":null,"enemySpot":null,"spike":null,"spikeSpot":null,"killFeed":null,"teamRead":null,"note":null}
+STATE: {"side":"attack","phase":"active","round":5,"clock":"1:12","team":3,"enemy":1,"credits":4200,"hp":87,"alive":true,"aliveTell":"own rifle and HP 87 bottom center","mates":3,"foes":2,"weapon":"Vandal","map":"Ascent","mode":null,"mmPos":[0.48,0.2],"locLabel":"Mid Top","playerSpot":null,"enemySpot":null,"spike":null,"spikeSpot":null,"killFeed":null,"teamRead":null,"note":null}
 - side: during the buy phase the banner at the TOP of the screen says ATTACKING or DEFENDING, read it there first, it is authoritative. Otherwise "attack" if your team carries or bought the spike, "defense" if you see a defuser or you are holding sites, else null. Getting the side wrong is the single worst mistake you can make, every tip built on it turns into anti-coaching, so report null over a guess. THE HALVES DEPEND ON THE MODE: in Unrated and Competitive the starting side holds through round 12, flips for rounds 13 to 24, and only overtime (round 25+) alternates. In SWIFTPLAY halves are 4 rounds: the starting side holds rounds 1 to 4, flips for rounds 5 to 8, and a 4-4 sudden death round 9 must be read from the banner. If the round number puts the match past halftime for the mode and you knew the first-half side, report the flipped side even when the frame alone is ambiguous.
 - mode: the queue, ONLY when it is actually printed on screen ("SWIFTPLAY", "COMPETITIVE", "UNRATED" on the agent select header, the loading screen, the scoreboard header, or the end of round banner). Report exactly what you read, else null, never infer it. The mode decides when sides swap, so a wrong mode flips every later side call.
+- locLabel: THE GAME TELLS YOU WHERE THE PLAYER IS, SO READ IT. Just above or beside the top-left corner of the minimap, Valorant prints the player's CURRENT location as text, like "Mid Top", "A Lobby", "B Market", "Attacker Side Spawn". Copy that text EXACTLY as printed, including the site letter. Do not translate it, do not shorten it, do not substitute a callout you think fits better. This is printed by the game, so it beats anything you could work out from the picture, and it is also how the app confirms which map is being played. Report null only when that label is genuinely not on screen.
 - mmPos: THE MOST IMPORTANT FIELD FOR LOCATION. Where the player's own YELLOW/GOLD minimap arrow (the one with the vision cone, NOT the blue teammate icons) sits ON THE MINIMAP, as two decimals [across, down]. Treat the minimap box's top-left corner as [0,0] and its bottom-right corner as [1,1]: so [0.5,0.5] is the middle of the minimap, [0.5,0.1] is near the top edge, [0.9,0.5] is near the right edge. Just measure where the yellow arrow is in that box, you do NOT need to know the callout's name. The app converts these numbers into the correct callout using the real map data, which is far more reliable than naming the spot yourself. Report null ONLY if the minimap or the yellow arrow is genuinely not visible.
   IMPORTANT: only report mmPos if the minimap is in its normal fixed orientation (north up, the layout matching the map above). If the player uses a ROTATING minimap that spins as they turn, the numbers would be meaningless, so report null and fall back to playerSpot.
 - playerSpot: a backup, plain-words location for when you cannot give mmPos ("A site", "B main", "mid", "attacker spawn"). Use ONLY callouts that exist on this map. Report null when you cannot tell, a guessed spot becomes a wrong callout later.
@@ -864,6 +865,10 @@ function mapState(s) {
   // location context the next tips and death reviews are grounded in. The
   // analyze route overwrites this with the coordinate-resolved callout whenever
   // mmPos gives one, since that name is guaranteed to exist on this map.
+  // The location label the GAME prints beside the minimap. Printed text, not a
+  // judgement, so it is the most trustworthy location signal available and it
+  // also fingerprints the map.
+  if (str(s.locLabel)) out.locLabel = str(s.locLabel);
   if (str(s.playerSpot)) out.playerSpot = str(s.playerSpot);
   // The yellow arrow's position on the minimap, [across, down] in 0..1. Only a
   // well-formed pair inside the minimap box is kept; anything else is dropped
@@ -1034,13 +1039,33 @@ router.post('/analyze', async (req, res) => {
     // HUD state report wins over anything the legacy JSON path produced.
     let outCtx = { ...finalContext, ...hudState };
 
+    // MAP FINGERPRINT from the game's own printed location label. The model's
+    // map opinion cannot be trusted on its own: it is wrong CONSISTENTLY, so a
+    // rule that waits for it to contradict itself never fires (one session read
+    // Ascent on all 78 frames). The label is independent evidence, so if the
+    // label the game printed does not exist on the map the model claims, the
+    // claim is dropped rather than allowed to drive callouts.
+    if (outCtx.locLabel) {
+      const claimed = outCtx.map || context.map;
+      const fits = locator.labelFitsMap(claimed, outCtx.locLabel);
+      if (fits === false) {
+        console.log(`[coach] map claim "${claimed}" rejected: it has no "${outCtx.locLabel}"`);
+        delete outCtx.map;
+        outCtx.mapLabelConflict = true;
+      } else if (fits === true) {
+        // The label corroborates the map, so the location is known exactly.
+        outCtx.playerSpot = outCtx.locLabel;
+        outCtx.playerSpotVerified = true;
+      }
+    }
+
     // DETERMINISTIC LOCATION: the model reported WHERE the yellow arrow sits on
     // the minimap; the callout NAME comes from the map's real geometry, never
     // from the model's memory. This is what stops callouts belonging to another
     // map. Needs a locked map (the client only sends one after two agreeing
     // reads), so an unknown map simply keeps the model's own wording.
     const mapForSpot = outCtx.map || context.map;
-    if (outCtx.mmPos && mapForSpot) {
+    if (outCtx.mmPos && mapForSpot && !outCtx.playerSpotVerified) {
       const fix = locator.resolveSpot(mapForSpot, outCtx.mmPos[0], outCtx.mmPos[1]);
       if (fix) {
         // Cross-check against the model's own words. If it also named a spot and
@@ -1840,6 +1865,78 @@ function chatReplyOk(t) {
 // The "Ask Coach" conversation: post-match reviews, "what did I do wrong", etc.
 // Text-only: the coach works from session tips, match memory, and tracker
 // stats. Flattens the conversation into one prompt so it works everywhere.
+// POST /api/coach/frame-chat
+// "Why did I die here?" against a SINGLE frame from the AI decision log. Unlike
+// /chat, this one is multimodal: the screenshot rides along, so the coach can
+// look at the moment rather than reason from a text summary of it. The frames
+// either side are attached too when available, since a death is usually
+// explained by what was happening just before it.
+router.post('/frame-chat', async (req, res) => {
+  try {
+    const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
+    if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+
+    const body = req.body || {};
+    const question = String(body.question || '').trim().slice(0, 500);
+    if (!question) return res.status(400).json({ error: 'No question' });
+
+    const images = (Array.isArray(body.images) ? body.images : [])
+      .filter((i) => typeof i === 'string' && i.length > 100)
+      .slice(0, 3);
+    if (!images.length) return res.status(400).json({ error: 'No frame' });
+
+    const st = body.state || {};
+    const shown = String(body.shown || '').slice(0, 300);
+    const history = (Array.isArray(body.history) ? body.history : [])
+      .slice(-8)
+      .map((m) => `${m && m.role === 'assistant' ? 'Coach' : 'Player'}: ${String((m && m.content) || '').slice(0, 600)}`)
+      .filter((l) => l.length > 8);
+
+    const known = [];
+    if (st.map) known.push(`map ${st.map}`);
+    if (st.side) known.push(`playing ${st.side}`);
+    if (st.roundNumber) known.push(`round ${st.roundNumber}`);
+    if (st.teamScore != null && st.enemyScore != null) known.push(`score ${st.teamScore}-${st.enemyScore}`);
+    if (st.clock) known.push(`clock ${st.clock}`);
+    if (st.playerHp != null) known.push(`health ${st.playerHp}`);
+    if (st.playerAlive === false) known.push('the player was dead / spectating');
+    if (st.playerSpot) known.push(`at ${st.playerSpot}`);
+    if (st.spike) known.push(`spike ${st.spike}${st.spikeSpot ? ' at ' + st.spikeSpot : ''}`);
+    if (st.killFeed) known.push(`kill feed said: ${st.killFeed}`);
+    if (st.playerNote) known.push(`noted at the time: ${st.playerNote}`);
+
+    const prompt = `You are the player's Valorant coach, looking back at a saved moment from their match WITH them. ${images.length > 1 ? 'Several frames are attached in time order; the LAST one is the moment being asked about, the earlier ones are the seconds leading up to it.' : 'One frame is attached: the moment being asked about.'}
+
+WHAT THE APP RECORDED AT THE TIME: ${known.length ? known.join(', ') : 'very little, so rely on the image'}.
+${shown ? `THE TIP IT GAVE THEN: "${shown}"` : ''}
+${history.length ? `\nTHE CONVERSATION SO FAR:\n${history.join('\n')}` : ''}
+
+THE PLAYER ASKS: ${question}
+
+Answer as their coach, talking about this exact moment.
+- Look at the frame properly before answering: the minimap, the HUD, the kill feed at the top right, their health, what is in their hands, where enemies are marked.
+- Ground every claim in what is actually visible or in the recorded facts above. If the frame does not show why something happened, say so plainly instead of inventing a reason. "I cannot tell from this frame" is a good answer when it is the true one.
+- Be specific and practical: what happened, why it happened, and what to do differently. Do not lecture, and do not repeat the tip above word for word.
+- 2 to 5 sentences, plain conversational English, no markdown, no lists. Use commas and periods, never dashes.`;
+
+    const raw = await Promise.race([
+      visionInfer(images, prompt, 420, false, AI.visionModel),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 30000)),
+    ]);
+    trackCall(licenseKey, images.length);
+
+    const reply = sanitize(stripThinking(String(raw || ''))).trim();
+    if (!reply) return res.json({ error: 'The coach had no answer for that frame. Try asking differently.' });
+    res.json({ reply: reply.slice(0, 1200) });
+  } catch (e) {
+    if (e && e.status === 402) {
+      return res.status(402).json({ error: 'ai-credits', message: 'The coach AI is out of credits.' });
+    }
+    console.error('[coach] frame-chat error:', e.message);
+    res.status(503).json({ error: 'Could not reach the coach right now.' });
+  }
+});
+
 router.post('/chat', async (req, res) => {
   try {
     const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
