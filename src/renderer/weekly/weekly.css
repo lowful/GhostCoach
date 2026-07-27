@@ -190,3 +190,6 @@ h3 {
   margin-top: 18px;
 }
 .actions .btn { flex: 1; font-size: 12.5px; padding: 9px 12px; }
+
+/* The window settles in rather than snapping on. */
+.sheet { animation: sheetIn 420ms var(--ease-expo) both; }

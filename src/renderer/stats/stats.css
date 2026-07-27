@@ -211,3 +211,6 @@ section h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; lette
 }
 @keyframes skeleton { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .card.skeleton { animation: none; } }
+
+/* The window settles in rather than snapping on. */
+.sheet { animation: sheetIn 420ms var(--ease-expo) both; }

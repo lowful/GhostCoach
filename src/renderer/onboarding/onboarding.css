@@ -19,7 +19,16 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
 .card .op-row { -webkit-app-region: no-drag; }
 @keyframes rise { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
 
-.icon-btn.x { position: absolute; top: 10px; right: 10px; }
+/* The close button sits INSIDE the card's rounded corner. At a 10px inset a
+   34px button overlaps the 20px corner radius, so its edge poked outside the
+   card and read as floating off the panel. Inset past the radius instead, and
+   keep it above the page content so a tall page can never overlap it. */
+.icon-btn.x {
+  position: absolute;
+  top: 14px; right: 14px;
+  z-index: 3;
+  width: 30px; height: 30px;
+}
 
 .hero { text-align: center; margin-bottom: 18px; }
 .ghost { filter: drop-shadow(0 0 12px rgba(255,70,85,0.45)); margin-bottom: 8px; animation: float 4.5s ease-in-out infinite; }
@@ -126,3 +135,29 @@ kbd { font-family: 'Consolas', monospace; font-size: 10.5px; background: rgba(0,
 .op-row label { font-size: 12px; font-weight: 600; color: var(--text-dim); flex: none; }
 .op-row input[type="range"] { flex: 1; }
 .op-row b { font-size: 12px; font-weight: 700; color: var(--text); min-width: 40px; text-align: right; }
+
+/* Each page assembles: the hero settles first, then its content follows in
+   sequence. Short and expo-eased so it reads as polish, not as waiting. */
+.page .hero { animation: riseIn 340ms var(--ease-expo) both; }
+.page .steps li,
+.page .keys .k,
+.page .style-grid .style-opt {
+  animation: riseIn 380ms var(--ease-expo) both;
+}
+.page .steps li:nth-child(1),
+.page .keys .k:nth-child(1),
+.page .style-grid .style-opt:nth-child(1) { animation-delay: 70ms; }
+.page .steps li:nth-child(2),
+.page .keys .k:nth-child(2),
+.page .style-grid .style-opt:nth-child(2) { animation-delay: 125ms; }
+.page .keys .k:nth-child(3),
+.page .style-grid .style-opt:nth-child(3) { animation-delay: 180ms; }
+.page .keys .k:nth-child(4),
+.page .style-grid .style-opt:nth-child(4) { animation-delay: 235ms; }
+.page .lead, .page .op-row, .page .seg, .page .tip-note {
+  animation: riseIn 380ms var(--ease-expo) both;
+  animation-delay: 150ms;
+}
+
+/* The ghost mark gets a gentle settle on top of its float. */
+.hero .ghost { animation: float 4.5s ease-in-out infinite, countIn 520ms var(--ease-expo) both; }
