@@ -424,6 +424,12 @@ function buildContextPrompt(context) {
   const roundLostLine = !ctx.justDied && ctx.justLostRound
     ? 'YOUR TEAM JUST LOST THE ROUND. If the frames and match memory CLEARLY show why the round slipped (a lost man advantage, a failed retake, spike left too late, the player caught somewhere useless), give the round review: start line 1 with exactly "DEATH: " then name what lost the round and the fix in one sentence. If you cannot actually see why it was lost, do NOT guess, coach something else or SKIP.\n\n'
     : '';
+  // Death reviews were inventing specifics: who killed the player, with what,
+  // and how many kills they had first. None of that is knowable unless the kill
+  // feed says so, and a wrong detail discredits an otherwise correct lesson.
+  const deathFacts = `
+NEVER INVENT THE DETAILS OF A DEATH. Do not name who killed the player, what weapon killed them, or how many kills they got first, unless the KILL FEED actually says so. If the feed does not tell you, describe only what you can see: the position they were in and the habit that put them there ("you died holding that angle alone with no trade") rather than a story ("you died to Yoru in A Garden after two kills"). A death review with one invented detail teaches the player to distrust the whole review.
+`;
   const deathLine = ctx.justDied
     ? 'THE PLAYER JUST DIED. If the frames, match memory, and state CLEARLY show why (a dry peek, no trade partner in range, repeeking the same angle, a bad position, fighting without util), make this tip the DEATH REVIEW: start line 1 with exactly "DEATH: " then name the cause and the exact fix in one sentence. This is also where held-back observations belong, if you noticed a mistake earlier, chose not to interrupt, and it just got them killed, say it now. Name the PLACE of the death only when the death frames or match memory actually show it, look back at what you were sent instead of assuming; a review that guesses the location teaches the player to distrust every review. But if the death looks unlucky, a fair duel simply lost, or you cannot actually see the cause, do NOT guess and do NOT invent a reason, coach something else or SKIP. A wrong death explanation is worse than none.\n\n'
     : '';
@@ -512,6 +518,18 @@ THE SPIKE IS DOWN${ctx.spikeSpot ? ' at ' + ctx.spikeSpot : ''}. THIS IS NOW THE
 ${defending
   ? 'The player is DEFENDING, so they must RETAKE. Nothing else wins this round: no amount of holding an angle somewhere else matters once the spike is planted. Get them moving toward the spike with a plan, not just "go there": how to enter (util first, not a dry run in), where to clear, whether to wait a beat for a teammate so the entry gets traded, and that they need TIME to defuse, so late is the same as never. If they are far from the site, the tip is to rotate to it now. A defuse needs 7 seconds, or 3.5 with a half defuse, so remind them to start it with enough clock and to use cover or a smoke for it if they can.'
   : 'The player is ATTACKING and the spike is planted, so the job is to KEEP it, not to hunt kills. Coach the post plant: hold angles that watch the spike, play for time rather than for picks, use util to deny the defuse, and do not push out into a retake and give the site back. Dying away from the spike is how a won round gets lost.'}` : '';
+
+  // Read the scoreline and match the coaching to it. A player cruising 4-0 does
+  // not need urgent corrections every round; a stream of drastic calls there
+  // reads as noise and makes the coach easy to tune out.
+  const teamSc = typeof ctx.teamScore === 'number' ? ctx.teamScore : null;
+  const enemySc = typeof ctx.enemyScore === 'number' ? ctx.enemyScore : null;
+  const lead = teamSc != null && enemySc != null ? teamSc - enemySc : null;
+  const scoreMood = lead == null ? '' : lead >= 4 ? `
+
+THE PLAYER IS COMFORTABLY AHEAD (${teamSc}-${enemySc}). What they are doing is working, so do not coach as if the match is slipping away. Raise your bar for speaking at all: only interrupt for something that genuinely costs them this round, and let the quiet rounds be quiet. No sweeping strategy changes, no telling them to overhaul a setup that is winning. A short reinforcement of what is working, or silence, beats another correction.` : lead <= -4 ? `
+
+THE PLAYER IS WELL BEHIND (${teamSc}-${enemySc}). Keep it steady and practical. They do not need to be told they are losing, they can see the score. Coach the next round only, one concrete fixable thing at a time, and keep the tone level: piling on when someone is already down makes them play worse, not better.` : '';
 
   const s = ctx.playerStats;
   const extLine = s && (s.kpr != null || s.adr || s.acs)
@@ -712,7 +730,7 @@ ${deathLine}${roundLostLine}${enemyBlock}${memoryBlock}${transLine}${focusLine}C
 - Last kill feed read: ${ctx.killFeed || 'nothing noted'}
 - Player location (read from the minimap a few seconds ago): ${ctx.playerSpot || 'Unknown'}${ctx.playerSpotVerified ? ' (this one was resolved from the minimap coordinates, it is reliable)' : ''}
 - Credits: ${ctx.playerCredits == null ? 'Unknown' : ctx.playerCredits} | Alive: ${ctx.playerAlive === false ? 'No' : 'Yes'} | Deaths in a row: ${ctx.consecutiveDeaths || 0}${ctx.playerAlive === false ? '\n- THE PLAYER IS DEAD RIGHT NOW. They cannot move, peek, rotate, buy, or use util this round. The ONLY valid tips are why they died and what to change, or what to watch and learn while spectating. Any tip telling a dead player to act is automatically wrong.' : ''}
-- Teammates alive: ${ctx.teammatesAlive == null ? 'Unknown' : ctx.teammatesAlive} | Enemies alive: ${ctx.enemiesAlive == null ? 'Unknown' : ctx.enemiesAlive}${ctx.teammatesAlive === 0 && ctx.playerAlive !== false ? ' | THE PLAYER IS SOLO, this is a clutch' : ''}${spikeBlock}${mapBlock}${patchBlock}${delayBlock}${locationGuard}${abilityGuard}
+- Teammates alive: ${ctx.teammatesAlive == null ? 'Unknown' : ctx.teammatesAlive} | Enemies alive: ${ctx.enemiesAlive == null ? 'Unknown' : ctx.enemiesAlive}${ctx.teammatesAlive === 0 && ctx.playerAlive !== false ? ' | THE PLAYER IS SOLO, this is a clutch' : ''}${spikeBlock}${scoreMood}${mapBlock}${patchBlock}${delayBlock}${locationGuard}${abilityGuard}${deathFacts}
 
 RECENT TIPS (do not repeat these word for word; if the SAME mistake is still happening and the advice matters, give it again in FRESH wording and mark the repetition, "still", "again", "third time now", important advice bears repeating, lazy copies do not):
 ${recent}
@@ -725,6 +743,7 @@ Jett: smokes, updraft, dash. Reyna: blind, heal, dismiss. Phoenix: flash, molly,
 
 OUTPUT
 Line 1 is the tip: one plain sentence, 8 to 22 words, ending with a period. Talk like a chill, sharp teammate in the player's ear, casual and clear, not stiff or formal, plain everyday words a Silver player gets instantly. Still say the PLACE and the ACTION ("hold the Hookah door and let them cross into you", never "play safer"), just say it like a person, not a textbook. No quotes, no "Tip:", no markdown, no preamble, no jargon the player would have to look up. Use commas and periods, never dashes. Always finish the sentence; never end on a preposition, article, conjunction, or possessive. If it is live gameplay with nothing new worth saying, line 1 is exactly SKIP. If it is not live gameplay at all, output ONLY the word LOBBY and nothing else.
+VARY THE COACHING. You lean on a few stock recommendations, above all "set up a crossfire", and re-serve them with new wording on a new site. A player who hears "hold a crossfire" every other round stops listening. Before you repeat a play you have already given, ask whether the frame actually calls for something else: crosshair placement, timing and tempo, util usage, trading, spacing, when to give ground, when to take space, economy, or a habit you can see them repeating. The recent tips are listed below, so treat their ADVICE, not just their wording, as used up.
 COACH LIKE AN ACTUAL COACH, NOT A HINT BOT. Every tip should teach something a Silver or Gold player would not already know, or catch a real mistake they are making right now. Give the REASON baked in, not just the instruction: "swing wide off Heaven so their close angle cannot trade you" beats "swing wide". Bad tips you must NOT give: vague filler anyone knows ("play smart", "aim better", "be careful", "watch your positioning", "communicate with your team"), and stating the obvious ("shoot the enemy", "you have the spike"). If your tip would make a Radiant nod because it is genuinely sharp, it is good; if it sounds like a loading-screen hint, it is filler, so SKIP instead. One specific, correct, reasoned tip per real moment beats a stream of generic ones.
 When (and ONLY when) the tip explains why the player died or why the round was lost, line 1 starts with exactly "DEATH: " before the sentence. The app renders those as a special review card, so never use the marker on ordinary tips and never skip it on a death or round review.
 
