@@ -81,9 +81,67 @@ function render() {
     box.appendChild(row);
   }
   if (!any) box.appendChild(el('div', 'srow', 'The AI reported no readable HUD state for this frame.'));
+
+  // The chat follows the frame you are looking at.
+  if (typeof paintConversation === 'function') paintConversation();
 }
 
 function go(to) { idx = Math.max(0, Math.min(records.length - 1, to)); render(); }
+
+// ── Ask the coach about the frame you are looking at ────────────────────────
+// The conversation is per frame: stepping to a different moment starts a fresh
+// one, because a follow-up about another frame would otherwise be answered with
+// the previous frame's context.
+const askLog = $('ask-log');
+const askInput = $('ask-input');
+const askSend = $('ask-send');
+let conversations = {};          // frame index -> [{ role, content }]
+
+function paintConversation() {
+  askLog.textContent = '';
+  for (const m of conversations[idx] || []) {
+    askLog.appendChild(el('div', 'ask-msg ' + (m.role === 'assistant' ? 'coach' : m.role === 'error' ? 'err' : 'you'), m.content));
+  }
+  askLog.scrollTop = askLog.scrollHeight;
+}
+
+async function ask(question) {
+  const q = String(question || '').trim();
+  if (!q || askSend.disabled) return;
+  const at = idx;                                   // the frame this is about
+  conversations[at] = conversations[at] || [];
+  conversations[at].push({ role: 'user', content: q });
+  askInput.value = '';
+  askSend.disabled = true;
+  paintConversation();
+  const waiting = el('div', 'ask-msg wait', 'Looking at the frame...');
+  askLog.appendChild(waiting);
+  askLog.scrollTop = askLog.scrollHeight;
+
+  try {
+    const res = await window.ghost.ask({
+      index: at,
+      question: q,
+      // Only this frame's history, so the coach is never answering about a
+      // moment the player has already scrolled away from.
+      history: conversations[at].slice(0, -1),
+    });
+    const reply = res && res.reply;
+    conversations[at].push(reply
+      ? { role: 'assistant', content: reply }
+      : { role: 'error', content: (res && res.error) || 'No answer came back.' });
+  } catch (e) {
+    conversations[at].push({ role: 'error', content: 'Could not reach the coach.' });
+  } finally {
+    askSend.disabled = false;
+    if (at === idx) paintConversation();
+  }
+}
+
+$('ask-form').addEventListener('submit', (e) => { e.preventDefault(); ask(askInput.value); });
+for (const b of document.querySelectorAll('.hint')) {
+  b.addEventListener('click', () => ask(b.dataset.q));
+}
 
 $('close').addEventListener('click', () => window.ghost.close());
 $('prev').addEventListener('click', () => go(idx - 1));

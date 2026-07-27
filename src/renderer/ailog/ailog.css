@@ -53,3 +53,43 @@ header {
 
 /* Why a tip the model produced never reached the player. */
 .why { margin-top: 6px; font-size: 11px; color: #ff9aa3; line-height: 1.45; }
+
+/* ── Ask the coach about this frame ──────────────────────────────────────── */
+.block.ask { border-top: 1px solid var(--glass-border); padding-top: 12px; }
+.ask-log { display: flex; flex-direction: column; gap: 7px; margin-bottom: 8px; }
+.ask-log:empty { display: none; }
+.ask-msg {
+  font-size: 12px; line-height: 1.5; border-radius: 9px; padding: 8px 10px;
+  border: 1px solid var(--glass-border); word-break: break-word;
+}
+.ask-msg.you   { background: rgba(255,255,255,0.05); color: var(--text-dim); align-self: flex-end; max-width: 92%; }
+.ask-msg.coach { background: rgba(0,240,255,0.07); border-color: rgba(0,240,255,0.28); color: var(--text); }
+.ask-msg.err   { background: rgba(255,70,85,0.08); border-color: rgba(255,70,85,0.30); color: #ff9aa3; }
+.ask-msg.wait  { color: var(--text-mute); font-style: italic; }
+
+.ask-row { display: flex; gap: 6px; }
+.ask-input {
+  flex: 1; min-width: 0; font-family: var(--font); font-size: 12px; color: var(--text);
+  background: rgba(0,0,0,0.30); border: 1px solid var(--glass-border);
+  border-radius: 8px; padding: 8px 10px; outline: none;
+}
+.ask-input:focus { border-color: rgba(0,240,255,0.5); }
+.ask-input::placeholder { color: var(--text-mute); }
+.ask-send {
+  flex: none; font-family: var(--font); font-size: 12px; font-weight: 700; color: #fff;
+  background: linear-gradient(135deg, var(--red), var(--red-2)); border: none;
+  border-radius: 8px; padding: 0 14px; cursor: pointer;
+  transition: filter var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+}
+.ask-send:hover  { filter: brightness(1.08); }
+.ask-send:active { transform: scale(0.97); }
+.ask-send:disabled { opacity: 0.5; cursor: default; }
+
+.ask-hints { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+.hint {
+  font-family: var(--font); font-size: 10.5px; color: var(--text-dim);
+  background: rgba(255,255,255,0.04); border: 1px solid var(--glass-border);
+  border-radius: 999px; padding: 4px 9px; cursor: pointer;
+  transition: color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.hint:hover { color: var(--text); border-color: rgba(0,240,255,0.35); }

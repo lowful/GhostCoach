@@ -360,6 +360,44 @@ const controller = {
   openAiLog()     { aiLogWindow.open(); },
   getAiLog()      { return latestAiLog(); },
 
+  /** "Why did I die here?" against one frame of the AI log. The screenshot goes
+   *  with the question so the coach looks at the moment instead of reasoning
+   *  from a summary, and the two preceding frames ride along because a death is
+   *  usually explained by what was happening just before it. */
+  async askAboutFrame(payload) {
+    const licenseKey = store.get('licenseKey');
+    if (!licenseKey) return { error: 'No license active.' };
+    const p = payload || {};
+    const question = String(p.question || '').trim();
+    if (!question) return { error: 'Ask a question first.' };
+
+    const log = latestAiLog();
+    const recs = Array.isArray(log.records) ? log.records : [];
+    const i = Math.max(0, Math.min(recs.length - 1, Number(p.index) || 0));
+    const target = recs[i];
+    if (!target) return { error: 'That frame is no longer in the log.' };
+
+    // Up to two frames of run-up, oldest first, then the frame in question.
+    const b64 = (r) => (r && typeof r.frameData === 'string'
+      ? r.frameData.replace(/^data:image\/[a-z]+;base64,/, '') : null);
+    const images = [recs[i - 2], recs[i - 1], target].map(b64).filter(Boolean);
+
+    try {
+      const { ok, data } = await api.post('/api/coach/frame-chat', {
+        question,
+        images,
+        state: target.state || {},
+        shown: target.shown ? target.shown.text : '',
+        history: Array.isArray(p.history) ? p.history.slice(-8) : [],
+      }, licenseKey, 35000);
+      if (ok && data && data.reply) return { reply: data.reply };
+      return { error: (data && (data.message || data.error)) || 'The coach had no answer.' };
+    } catch (e) {
+      console.error('[ai-log] frame chat failed:', e.message);
+      return { error: 'Could not reach the coach server.' };
+    }
+  },
+
   /** The weekly report the popup renders. Reading it marks the week as seen
    *  and rolls the comparison baseline, so next week measures from here. */
   getWeeklyReport() {

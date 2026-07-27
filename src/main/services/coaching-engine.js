@@ -120,6 +120,8 @@ class CoachingEngine extends EventEmitter {
     this.pendingFirstSide = null;
     this.pendingMap = null;
     this.scoreboardChallenge = null;   // pending implausible round/score read
+    this.seenLabels = [];              // location labels the game printed, for map fingerprinting
+    this.mapConfirmedByLabels = false; // once true, the model cannot change the map
     this.pendingMode = null;
     this.standardEvidence = 0;
     this.swapEvidence = 0;
@@ -934,6 +936,9 @@ class CoachingEngine extends EventEmitter {
   applyMapRead(raw) {
     const v = String(raw || '').trim();
     if (!v) return;
+    // Printed location labels already settled this. The model's opinion does not
+    // get to overturn evidence the game itself rendered.
+    if (this.mapConfirmedByLabels) return;
     const same = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase();
 
     // Not locked yet: two agreeing reads acquire the lock.
@@ -989,6 +994,49 @@ class CoachingEngine extends EventEmitter {
   /** True while a contradicting map read is pending, so we do not know which
    *  map's callouts are legal. Named callouts are blocked until it resolves. */
   mapInDoubt() { return (this.mapDoubt || 0) > 0; }
+
+  /**
+   * Identify the map from the location labels the game prints beside the
+   * minimap. This is the answer to the model being confidently and CONSISTENTLY
+   * wrong about the map: a correction rule that waits for it to disagree with
+   * itself never fires, but the labels are independent evidence.
+   *
+   * Each label narrows the candidates ("Mid Top" fits eight maps, adding
+   * "B Market" leaves only Sunset). When exactly one map contains every label
+   * seen this session, that IS the map, and it overrides whatever the model
+   * claims, including a lock the model already won.
+   */
+  applyLocationLabel(label) {
+    const l = String(label || '').trim();
+    if (!l) return;
+    if (!this.seenLabels) this.seenLabels = [];
+    if (!this.seenLabels.includes(l)) this.seenLabels.push(l);
+    if (this.seenLabels.length > 12) this.seenLabels.shift();
+
+    const id = mapFromLabels(this.seenLabels);
+    if (!id) return;
+
+    if (id.confident && id.map) {
+      if (this.matchContext.map !== id.map) {
+        console.log(`[engine] map identified from printed labels as ${id.map}`
+          + ` (was ${this.matchContext.map || 'unknown'}), labels: ${this.seenLabels.join(', ')}`);
+        this.matchContext.map = id.map;
+        this.matchContext.playerSpot = null;
+        this.matchContext.playerSpotVerified = false;
+        this.matchContext.teamRead = null;
+      }
+      // Printed text is the strongest evidence available, so it also settles
+      // any pending doubt outright.
+      this.mapDoubt = 0;
+      this.mapChallenger = null;
+      this.matchContext.mapUncertain = false;
+      this.mapConfirmedByLabels = true;
+    } else if (!id.candidates.length) {
+      // No single map contains all these labels, so one was misread. Drop the
+      // oldest and keep going rather than locking onto a contradiction.
+      this.seenLabels.shift();
+    }
+  }
 
   /** Dead and watching. Either signal counts: the phase read and the alive flag
    *  are kept consistent, but one can land a frame before the other. */
@@ -1120,7 +1168,14 @@ class CoachingEngine extends EventEmitter {
     }
     if (updates.playerAlive === false && updates.phase !== 'dead') {
       const tell   = String(updates.aliveTell || '');
-      const proven = DEAD_TELL.test(tell) && !UNSURE_TELL.test(tell);
+      // A named tell only counts as proof when the health number was ALSO
+      // genuinely absent. In a real session the health went unread on more than
+      // half the frames, which left a single hallucinated tell able to declare
+      // a death on its own; requiring the corroborating absence keeps the fast
+      // path for real deaths (where there is no health to read) and makes a
+      // frame the model simply could not parse wait for a second opinion.
+      const healthAbsent = updates.playerHp == null || updates.playerHp === 0;
+      const proven = healthAbsent && DEAD_TELL.test(tell) && !UNSURE_TELL.test(tell);
       this.aliveFalseStreak = (this.aliveFalseStreak || 0) + 1;
       if (proven) {
         if (this.aliveFalseStreak === 1) console.log(`[engine] death seen on one frame: "${tell}"`);
@@ -1146,6 +1201,14 @@ class CoachingEngine extends EventEmitter {
       // rejected, so unlocked frames only ever get general directions.
       if (key === 'map') {
         this.applyMapRead(v);
+        continue;
+      }
+      // The location label the GAME printed. Accumulating these fingerprints the
+      // map far more reliably than asking the model which map it is on, because
+      // the label is text the game rendered rather than the model's judgement.
+      if (key === 'locLabel') {
+        this.applyLocationLabel(v);
+        this.matchContext.locLabel = v;
         continue;
       }
       // handled separately (mode needs its 2-read lock), never merged raw
@@ -1630,6 +1693,42 @@ function takeRejectReason() {
   const r = lastRejectReason;
   lastRejectReason = null;
   return r;
+}
+
+// Which maps contain a given printed location label. Built from the game's own
+// callout data, so it stays correct as maps are added or renamed.
+const MAP_LABEL_INDEX = (() => {
+  try {
+    const geo = require('../../shared/valorant-data.generated.json').mapGeometry || {};
+    const idx = {};
+    for (const [map, g] of Object.entries(geo)) {
+      const names = new Set();
+      for (const c of g.callouts) {
+        names.add(c.n.toLowerCase());
+        if (c.a) names.add(String(c.a).toLowerCase());
+      }
+      idx[map] = names;
+    }
+    return idx;
+  } catch (e) {
+    console.log('[engine] map label index unavailable:', e.message);
+    return {};
+  }
+})();
+
+/** Narrow the map by intersecting every printed label seen so far. */
+function mapFromLabels(labels) {
+  const seen = [...new Set((labels || []).map((l) => String(l || '').toLowerCase().trim()).filter(Boolean))];
+  if (!seen.length) return null;
+  const candidates = [];
+  for (const [map, names] of Object.entries(MAP_LABEL_INDEX)) {
+    if (seen.every((l) => names.has(l))) candidates.push(map);
+  }
+  if (candidates.length === 1) {
+    const n = candidates[0];
+    return { map: n.charAt(0).toUpperCase() + n.slice(1), confident: true, candidates };
+  }
+  return { map: null, confident: false, candidates };
 }
 
 // The stock plays the model reaches for over and over. Naming them lets the

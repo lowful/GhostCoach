@@ -55,6 +55,22 @@
         <div class="lbl">What the AI read (its notes)</div>
         <div id="state" class="state"></div>
       </div>
+
+      <!-- Ask the coach about THIS frame; the screenshot goes with the question -->
+      <div class="block ask">
+        <div class="lbl">Ask about this moment</div>
+        <div id="ask-log" class="ask-log"></div>
+        <form id="ask-form" class="ask-row">
+          <input id="ask-input" class="ask-input" type="text" autocomplete="off"
+                 placeholder="Why did I die here?" maxlength="300" />
+          <button id="ask-send" class="ask-send" type="submit" title="Ask">Ask</button>
+        </form>
+        <div class="ask-hints">
+          <button type="button" class="hint" data-q="Why did I die here?">Why did I die here?</button>
+          <button type="button" class="hint" data-q="What should I have done instead?">What should I have done?</button>
+          <button type="button" class="hint" data-q="Where were the enemies at this moment?">Where were they?</button>
+        </div>
+      </div>
     </section>
   </main>
 
