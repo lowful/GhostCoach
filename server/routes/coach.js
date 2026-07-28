@@ -437,7 +437,19 @@ NEVER INVENT THE DETAILS OF A DEATH. Do not name who killed the player, what wea
   const spectatorLine = (ctx.playerAlive === false || ctx.phase === 'dead')
     ? `THE PLAYER IS DEAD AND YOU ARE LOOKING AT A TEAMMATE'S CAMERA. Every live HUD element on this frame belongs to THAT TEAMMATE, not to your player: the health, the weapon, the abilities, the credits, the position and the crosshair are all theirs. Do NOT say the player is holding, using, or standing anywhere based on this frame, and never describe their weapon from it. If you review the death, describe what the player did BEFORE they died, using the earlier frames and the match memory, and report weapon as null rather than guessing.
 
-THE LOCATION LABEL ON THIS FRAME IS THE TEAMMATE'S LOCATION, NOT WHERE THE PLAYER DIED. It moves with the spectator camera, so it is different on almost every frame while the player lies dead in one place. ${ctx.deathSpot ? `THE PLAYER DIED AT: ${String(ctx.deathSpot).slice(0, 40)}. That is the only place you may name for this death.` : 'The death location was not captured, so name NO location for this death at all and describe the mistake without one.'}\n\n`
+THE LOCATION LABEL ON THIS FRAME IS THE TEAMMATE'S LOCATION, NOT WHERE THE PLAYER DIED. It moves with the spectator camera, so it is different on almost every frame while the player lies dead in one place.\n\n`
+    : '';
+
+  // WHERE THE DEATH HAPPENED, stated wherever a review might be written.
+  // This used to live only inside the spectating block, but reviews also land a
+  // frame or two AFTER the player respawns, and on those frames the block was
+  // gone and the model went back to naming whatever location the last frame
+  // showed. One session claimed deaths at A Sewer, B Site and Mid Window while
+  // the frame label read Mid Doors, A Site and Defender Side Spawn.
+  const deathWhereLine = (ctx.deathSpot || ctx.justDied || ctx.playerAlive === false || ctx.phase === 'dead')
+    ? (ctx.deathSpot
+        ? `WHERE THE PLAYER DIED: ${String(ctx.deathSpot).slice(0, 40)}. This was captured at the moment of death and it is the ONLY location you may name when talking about that death. Do not name any other place, and do not use the location shown on the current frame, which is wherever the camera is now.\n\n`
+        : `THE DEATH LOCATION WAS NOT CAPTURED. Name NO location at all for this death, describe the mistake without a place. Guessing a callout here teaches the player to distrust every review you write.\n\n`)
     : '';
 
   const deathLine = ctx.justDied
@@ -732,7 +744,7 @@ Reply with exactly SKIP only when you genuinely have nothing accurate and new: n
 ${ctx.deathReviewDone ? 'THE PLAYER IS DEAD AND THE DEATH REVIEW IS ALREADY DONE. They are spectating and cannot act on anything this round, so more tips are pure noise over someone watching a killcam. Reply with exactly SKIP (still report STATE so the app can see when they respawn). Do not explain the death again, do not offer things to watch for, do not coach the teammate they are spectating. Just SKIP until they are alive again.\n' : ''}BUY PHASE IS DIFFERENT: hold a HIGHER bar. During the buy phase (barriers up, pre-round) only speak when you have a genuinely high-level, SPECIFIC setup call worth making, tied to what you can actually read on the minimap or the buy: a real default or exec plan, a concrete crossfire or off-angle setup, a util line-up for this site, a clear economy read (force, save, half-buy mistake). If the only thing you would say is generic ("group up", "play as a team", "communicate", "get ready", "hold your angles"), SKIP instead. A player does not need a coach to tell them to group up in spawn. Generic buy-phase filler is worse than silence, so when the buy read is not sharp, say nothing and wait for the round to go live.
 If the screen is NOT live gameplay (main menu, lobby, agent select, loading screen, career or collection page, range with no match), reply with exactly LOBBY.
 
-${spectatorLine}${deathLine}${roundLostLine}${enemyBlock}${memoryBlock}${transLine}${focusLine}CURRENT MATCH STATE (trust this, do not re-derive it every frame):
+${spectatorLine}${deathWhereLine}${deathLine}${roundLostLine}${enemyBlock}${memoryBlock}${transLine}${focusLine}CURRENT MATCH STATE (trust this, do not re-derive it every frame):
 - Agent: ${ctx.agent || 'Unknown'} | Map: ${ctx.map || 'Unknown'} | Side: ${ctx.side || 'Unknown'}
 - Mode: ${modeLine}
 - Round: ${ctx.roundNumber || 'Unknown'} | Score: ${ctx.teamScore || 0}-${ctx.enemyScore || 0} | Phase: ${ctx.phase || 'Unknown'} | Clock: ${ctx.clock || 'read it from the timer'}
