@@ -13,7 +13,8 @@
     "release": "electron-builder --win --publish always && node scripts/publish-download.js",
     "sync:valorant": "node scripts/sync-valorant-data.js",
     "sync:patch": "node scripts/sync-patch-notes.js",
-    "publish:download": "node scripts/publish-download.js"
+    "publish:download": "node scripts/publish-download.js",
+    "check:playbook": "node scripts/check-playbook.js"
   },
   "build": {
     "appId": "com.ghostcoach.app2",

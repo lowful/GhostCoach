@@ -89,7 +89,7 @@ const PLAYBOOK = [
   { text: 'Bait enemy util before committing, a fake peek that pulls their flash makes the real swing free.', weight: 1 },
 
   // ── info, comms, minimap ────────────────────────────────────────────────
-  { text: 'Call what you see the instant you see it, one enemy spotted changes your whole team’s round.', weight: 2 },
+  { text: 'Call what you see the instant you see it, one enemy spotted changes the whole round for your team.', weight: 2 },
   { text: 'Watch teammate fights on the minimap even from across the map, their contact sets your timing.', weight: 1 },
   { text: 'When a teammate dies, note WHERE from the kill feed, that enemy is still near there.', weight: 2 },
   { text: 'Count the enemies seen this round, five accounted for means your flank is safe, three means it is not.', weight: 2 },
@@ -312,6 +312,134 @@ const PLAYBOOK = [
   { maps: ['Sunset'], text: 'Sunset sites are tight with strong close corners, clear with util, dry entries die to a shotgun every time.', weight: 1 },
   { maps: ['Abyss'], text: 'You can fall off Abyss, mind the edges in fights and never strafe blind near the void.', weight: 2 },
   { maps: ['Abyss'], text: 'Abyss drops enable surprise rotations, but you cannot climb back up, drop only with a plan.', weight: 1 },
+
+  // ── tempo and round structure ───────────────────────────────────────────
+  // The concepts that separate a player who executes from one who only aims.
+  { text: 'Every round has three phases, take space, gather info, then commit, and losing rounds usually means committing before the info arrived.', weight: 3 },
+  { text: 'Default first means spreading out to touch three areas without dying, you are buying information with position, not looking for a fight.', weight: 2 },
+  { side: 'attack', phase: 'active', text: 'Do not execute before your team is set, a site hit with two players in position and three still walking is five separate duels.', weight: 3 },
+  { side: 'attack', text: 'Fast, default and slow are three different plans, pick one as a team, a half fast hit is the worst of all of them.', weight: 2 },
+  { side: 'attack', text: 'A fake only works if it costs them something, show yourself and burn one piece of util, then leave before you trade lives for the lie.', weight: 2 },
+  { side: 'attack', text: 'Hit the site with 25 to 20 seconds left, earlier gives them time to rotate back, later leaves no time to plant and set up.', weight: 2 },
+  { text: 'Tempo is a weapon, if you lost the last two rounds slow, the fast hit catches a defense that has settled into holding deep.', weight: 2 },
+  { side: 'defense', text: 'Defense wins by delay, not by kills, every second you cost them without dying is a second closer to the timer beating them.', weight: 3 },
+  { side: 'defense', text: 'Give ground for free only where it costs them time, fight where you have a crossfire and fall back where you do not.', weight: 2 },
+  { text: 'The round clock is a resource, at 20 seconds attackers must commit and defenders can stop guessing, play the clock deliberately.', weight: 2 },
+  { text: 'When your team has the man advantage, slow the round down, time is on your side and every trade favours you.', weight: 2 },
+  { text: 'When you are down a player, speed up or fully save, a slow round a man short just gives them time to close the trap.', weight: 2 },
+
+  // ── economy as a system ─────────────────────────────────────────────────
+  // Kept qualitative on purpose: exact credit prices shift between patches, so
+  // these teach the decision rather than a number that can quietly go stale.
+  { situations: ['eco'], text: 'On a real eco, buy nothing and stack for one site, five pistols in one place beat five spread out with nothing.', weight: 3 },
+  { situations: ['eco'], text: 'The point of an eco is the round AFTER it, dying with a bought pistol you did not need is how ecos cost two rounds.', weight: 2 },
+  { situations: ['eco'], text: 'Play for a gun on eco, take close angles where a pistol trades evenly with a rifle, never duel a rifle across open ground.', weight: 2 },
+  { situations: ['forcebuy'], text: 'A force buy needs a plan, commit everyone to one push, a scattered force is just a slower eco.', weight: 2 },
+  { situations: ['forcebuy'], text: 'Force only when winning the round matters more than the next one, if losing this round still leaves you fine, save instead.', weight: 2 },
+  { situations: ['antieco'], text: 'Against an eco, hold long angles and refuse close fights, their pistols and shotguns only beat you inside their range.', weight: 3 },
+  { situations: ['antieco'], text: 'Do not over push an eco, stay grouped at distance, the free round is lost by walking into a shotgun corner alone.', weight: 2 },
+  { situations: ['fullbuy'], text: 'On a full buy your life IS the round, a rifle traded for nothing hands them the next round too.', weight: 2 },
+  { situations: ['pistol'], text: 'Pistol rounds are decided by numbers and armour, stay together and let the first contact be traded instantly.', weight: 2 },
+  { situations: ['lostpistol'], text: 'After a lost pistol, either full save or full commit, the half buy that follows is what turns one lost round into four.', weight: 2 },
+  { text: 'Track their economy, not just yours, a team that just lost two rounds cannot afford rifles and shields, so play the angles their guns are bad at.', weight: 2 },
+  { text: 'Picking up an enemy rifle is worth more than most kills, it buys your next round as well as this one.', weight: 1 },
+  { text: 'Drop for a teammate before buying your own third utility, one more rifle in the round beats one more ability.', weight: 1 },
+
+  // ── mid round adaptation ────────────────────────────────────────────────
+  { phase: 'active', text: 'When the first contact goes badly, stop the execute, reset and take the space back with util rather than feeding one at a time.', weight: 3 },
+  { phase: 'active', text: 'If two enemies show on one side, the other side is thin, call the rotate immediately instead of finishing the fight you are losing.', weight: 3 },
+  { phase: 'active', text: 'A round with no contact by mid clock means they are stacked or lurking, stop walking blind and force contact with util.', weight: 2 },
+  { phase: 'active', text: 'Adapt to what you find, not to what you planned, the best players change site the moment the read says to.', weight: 2 },
+  { side: 'defense', phase: 'active', text: 'Do not rotate off one enemy sighting, one body can be the fake, rotate on committed contact or on the spike.', weight: 3 },
+  { side: 'defense', phase: 'active', text: 'Rotate early or not at all, arriving to a site halfway through the fight is just a free kill for them.', weight: 2 },
+  { text: 'Lurking is only useful if it threatens something, sit where a rotation must walk past you, not in an empty corner.', weight: 2 },
+  { text: 'Play off your teammates fights, when you hear their contact, that is the moment their attention is elsewhere, take your space then.', weight: 2 },
+
+  // ── post plant and retake geometry ──────────────────────────────────────
+  { phase: 'postplant', text: 'After the plant the round is already yours, do not hunt, hold angles that force them to come to you.', weight: 3 },
+  { phase: 'postplant', text: 'Spread out post plant, two players in one spot die to one piece of util, spread means they have to win several fights.', weight: 3 },
+  { phase: 'postplant', text: 'Hold different distances from the spike post plant, one close to punish the defuse, one far to catch the entry.', weight: 2 },
+  { phase: 'postplant', text: 'Watch the defuse bar, half a defuse means they will finish it, so peek on the tick not before, and let the timer do the work.', weight: 2 },
+  { phase: 'postplant', text: 'Never all peek the same angle post plant, stagger your peeks so a lost duel does not lose the round.', weight: 2 },
+  { phase: 'postplant', text: 'A fake defuse pulls a peek, tap the spike once and hold the angle they show themselves in.', weight: 2 },
+  { situations: ['retake'], text: 'Retake together on a count, arriving one at a time is how a 4v2 retake gets lost.', weight: 3 },
+  { situations: ['retake'], text: 'Clear the spike area before the corners on a retake, you have to defuse, and the clock beats a perfect clear.', weight: 2 },
+  { situations: ['retake'], text: 'Use util to isolate the defuse, a smoke over the spike or a molly on the far angle buys the seconds a retake needs.', weight: 2 },
+  { situations: ['retake'], text: 'On a retake, check the common post plant spots first, players hide in the same three places every round.', weight: 2 },
+  { side: 'attack', phase: 'postplant', text: 'Plant for your setup, not for speed, a plant your team can actually hold beats a fast plant in the open.', weight: 3 },
+  { side: 'attack', phase: 'postplant', text: 'Plant where the spike is hidden from the retake entrance, a defuse they cannot see is a defuse they cannot start safely.', weight: 2 },
+
+  // ── crossfires and site holds ───────────────────────────────────────────
+  { side: 'defense', text: 'A crossfire means two angles the enemy cannot watch at once, if you can both see the same door from the same side, it is not a crossfire.', weight: 3 },
+  { side: 'defense', text: 'Hold with one player close and one far, the close angle wins the swing and the far angle punishes whoever wins it.', weight: 2 },
+  { side: 'defense', text: 'Never stand where you died last round, they will clear that spot first, and the same angle twice is a free kill for them.', weight: 3 },
+  { side: 'defense', text: 'Play off angles the attackers do not clear first, but only with an escape, an off angle with no exit is one kill then a lost site.', weight: 2 },
+  { side: 'defense', text: 'Fall back into your site rather than dying in the choke, a live defender on site turns a lost entry into a won retake.', weight: 2 },
+
+  // ── per map, callouts verified against the generated map data ───────────
+  { maps: ['Ascent'], side: 'defense', text: 'Holding Mid Catwalk and Mid Market denies the whole map on Ascent, lose them and both sites get hit from two sides.', weight: 2 },
+  { maps: ['Ascent'], side: 'attack', text: 'A Main and A Lobby are heavily held on Ascent, take Mid first and squeeze A Site from Mid Link instead of forcing the choke.', weight: 2 },
+  { maps: ['Ascent'], phase: 'postplant', text: 'Post plant on Ascent B Site, hold from Mid Link and B Lobby so the retake has to cross open ground.', weight: 1 },
+  { maps: ['Bind'], text: 'Bind has no mid, so every round is a commitment to one side, and the teleporters are the only fast rotate.', weight: 2 },
+  { maps: ['Bind'], text: 'The teleporters on Bind make a loud noise everyone hears, use them to fake a rotate as often as to actually rotate.', weight: 2 },
+  { maps: ['Bind'], side: 'attack', text: 'A Short and A Lobby split A Site on Bind, hit both at once or the defenders just hold whichever one you picked.', weight: 1 },
+  { maps: ['Haven'], side: 'defense', text: 'Haven has three sites and five players, so rotations decide it, hold C Long and A Long with util and buy time rather than trading.', weight: 2 },
+  { maps: ['Haven'], side: 'attack', text: 'Fake one site on Haven and hit another, the third site is always the thinnest once they commit.', weight: 2 },
+  { maps: ['Split'], text: 'Split rewards vertical play, clear A Rafters and B Rafters on every site take, that is where the free kills live.', weight: 2 },
+  { maps: ['Split'], side: 'attack', text: 'Mid Mail and Mid Vent open both Split sites, taking mid is worth more than any single entry.', weight: 2 },
+  { maps: ['Lotus'], side: 'attack', text: 'C Waterfall and A Main are the loud entrances on Lotus, the doors give you away, so plan the noise into the fake.', weight: 2 },
+  { maps: ['Lotus'], side: 'defense', text: 'With three sites on Lotus a single defender must delay rather than duel, use the door audio to time the rotate.', weight: 1 },
+  { maps: ['Icebox'], text: 'Plant near cover on Icebox, an open plant on either site is defusable from angles you cannot hold.', weight: 2 },
+  { maps: ['Icebox'], text: 'Icebox fights are vertical and close, clear A Nest and B Green style high angles before you look at ground level.', weight: 1 },
+  { maps: ['Breeze'], text: 'Breeze punishes dry crosses, Mid Top and A Bridge are long sightlines, cross behind smoke or do not cross.', weight: 2 },
+  { maps: ['Breeze'], side: 'defense', text: 'On Breeze defense hold far angles with rifles and Operators, giving close ground is fine when the retake is across open space.', weight: 1 },
+  { maps: ['Fracture'], text: 'Fracture attacks arrive from both spawns, so defenders must call which half is real before rotating.', weight: 2 },
+  { maps: ['Fracture'], side: 'attack', text: 'Split your team across both sides on Fracture, a one sided hit lets them collapse everything on you.', weight: 2 },
+  { maps: ['Pearl'], text: 'Mid Plaza and Mid Doors decide Pearl, controlling mid threatens both sites and cuts every rotation.', weight: 2 },
+  { maps: ['Pearl'], text: 'Pearl is pure angles and corners, no verticality, so clear methodically and expect off angles at every link.', weight: 1 },
+  { maps: ['Sunset'], text: 'Mid Courtyard and Mid Tiles are the Sunset hinge, take mid and both sites open, lose it and you are forced into chokes.', weight: 2 },
+  { maps: ['Sunset'], side: 'attack', text: 'A Main and B Main on Sunset are tight, entering dry into either is how rounds end early, lead with util every time.', weight: 1 },
+  { maps: ['Abyss'], text: 'On Abyss there are no walls at the edges, check your footing in every duel and never strafe blind near the drop.', weight: 2 },
+  { maps: ['Abyss'], text: 'Mid Library and Mid Catwalk control Abyss rotations, and the drops are one way, so commit only with a plan.', weight: 1 },
+  { maps: ['Corrode'], text: 'Mid Stairs and Mid Window connect both Corrode sites, contest mid early or you will be forced through A Main and B Main every round.', weight: 2 },
+  { maps: ['Corrode'], text: 'Corrode links are tight, hold B Elbow and A Elbow style corners close and trade fast rather than duelling long.', weight: 1 },
+  { maps: ['Summit'], text: 'Mid Fountain and Mid Tiles decide Summit, taking mid threatens both sites and shortens every rotation you make.', weight: 2 },
+  { maps: ['Summit'], text: 'B Drop on Summit is a fast one way route, use it to flank or to reset, but never drop without knowing where their lurk is.', weight: 1 },
+
+  // ── per agent, abilities verified against the generated agent data ──────
+  { agents: ['Jett'], text: 'Cloudburst is a one way for yourself, throw it to break the angle you are about to take, not to blanket the site.', weight: 2 },
+  { agents: ['Jett'], text: 'Save updraft for the fight, not the walk, the height only helps when it puts you somewhere they are not already aiming.', weight: 2 },
+  { agents: ['Raze'], text: 'Boom bot is free information, send it before an entry to clear the close corners you would otherwise walk into.', weight: 2 },
+  { agents: ['Raze'], text: 'Blast pack moves you as well as damages, use one to enter fast and keep the second as your way out.', weight: 2 },
+  { agents: ['Reyna'], text: 'Reyna only snowballs off kills, so pick fights you can win cleanly, and use dismiss the instant a fight turns.', weight: 2 },
+  { agents: ['Reyna'], text: 'Leer is a self flash for the swing behind it, throw it and move, standing still behind your own leer wastes it.', weight: 2 },
+  { agents: ['Phoenix'], text: 'Curveball around the corner you intend to take, then swing with it, a flash nobody follows is a wasted ability.', weight: 2 },
+  { agents: ['Neon'], text: 'Fast lane cuts sightlines for a whole entry, run it into site rather than using it to cross empty ground.', weight: 2 },
+  { agents: ['Sova'], text: 'Recon bolt is worth more before the fight than during it, scan the site before you commit, not after you are already in it.', weight: 2 },
+  { agents: ['Sova'], text: 'Owl drone tags enemies for your whole team, send it into the space you are about to take, not into space you already own.', weight: 1 },
+  { agents: ['Fade'], text: 'Haunt reveals before the execute, use it to pick the site rather than to confirm what you already committed to.', weight: 2 },
+  { agents: ['Breach'], text: 'Flashpoint through the wall is unavoidable, but only if your team swings with it, count them in before you throw.', weight: 2 },
+  { agents: ['Skye'], text: 'Guiding light is a flash you can steer, hold it until your entry is moving, then pop it right on their angle.', weight: 2 },
+  { agents: ['KAY/O'], text: 'Zero point suppression stops abilities, throw it into the site right before the hit so their util cannot answer yours.', weight: 2 },
+  { agents: ['Omen'], text: 'Dark cover one ways and blinds are the real value, paranoia through a wall before an entry beats any fancy teleport.', weight: 2 },
+  { agents: ['Omen'], text: 'Shrouded step is repositioning, not entry, use it to appear where they already cleared instead of teleporting into their crosshair.', weight: 2 },
+  { agents: ['Brimstone'], text: 'Sky smoke covers a whole execute at once, place all three for the entry rather than dripping them out one at a time.', weight: 2 },
+  { agents: ['Viper'], text: 'Toxic screen splits the map in half, place it to cut their rotation, not just to hide your own crossing.', weight: 2 },
+  { agents: ['Viper'], text: 'Poison cloud is reusable, so pull it back when the fight moves and place it again rather than leaving it burning on nothing.', weight: 1 },
+  { agents: ['Astra'], text: 'Place stars during the buy phase, having them already out is what makes Astra fast enough to answer a mid round rotate.', weight: 2 },
+  { agents: ['Killjoy'], text: 'Alarmbot and turret are information first, place them to tell you about a flank, not only to damage a push.', weight: 2 },
+  { agents: ['Killjoy'], text: 'Nanoswarm holds the defuse, keep one for post plant rather than spending both stopping the entry.', weight: 2 },
+  { agents: ['Cypher'], text: 'Trapwire the flank routes, not the entrance they will clear anyway, the value is in the flank you did not have to watch.', weight: 2 },
+  { agents: ['Cypher'], text: 'Spycam is a second pair of eyes for the whole team, place it where you are not looking and call what it sees.', weight: 1 },
+  { agents: ['Sage'], text: 'Barrier orb buys time and space, wall the choke to delay the hit rather than walling yourself into a corner.', weight: 2 },
+  { agents: ['Sage'], text: 'Slow orb into the site stops a fast execute dead, throw it as they enter rather than saving it for a fight you already lost.', weight: 2 },
+  { agents: ['Chamber'], text: 'Rendezvous is your escape, hold the aggressive angle only while the anchor is placed and in range.', weight: 2 },
+  { agents: ['Deadlock'], text: 'Barrier mesh and gravnet buy time on a retake, place them to slow the plant rather than to win a duel.', weight: 1 },
+  { agents: ['Gekko'], text: 'Wingman can plant and defuse the spike, use it when the angle onto the spike is too dangerous to take yourself.', weight: 2 },
+  { agents: ['Yoru'], text: 'Fakeout sells a fake push, run it in without you and take the space they leave when they rotate to answer it.', weight: 2 },
+  { agents: ['Clove'], text: 'Clove can act after dying, so trading your life on the entry costs less, but only if you use the window rather than waste it.', weight: 2 },
+  { agents: ['Iso'], text: 'Undercut makes the next duel easier, throw it through the wall right before the peek rather than after contact.', weight: 2 },
+  { agents: ['Harbor'], text: 'High tide is a moving wall, drag it across the site to cover the whole entry instead of dropping it in one spot.', weight: 2 },
 ];
 
 // Optional growth file: knowledge extracted from videos and VODs merges here.
@@ -438,4 +566,4 @@ function block(ctx, limit) {
     + notes.map((t) => '- ' + t).join('\n');
 }
 
-module.exports = { retrieve, block, situationOf, size: () => ALL.length };
+module.exports = { retrieve, block, situationOf, size: () => ALL.length, all: () => ALL };
