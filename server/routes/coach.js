@@ -1489,11 +1489,20 @@ router.get('/matches', async (req, res) => {
     // slots for the most recent swiftplay so both queues stay visible.
     let chosen = rows.slice(0, 10);
     if (modeKey === 'unrated') {
-      const allSw = rows.filter((m) => m._queue === 'swiftplay');
-      const shownSw = chosen.filter((m) => m._queue === 'swiftplay').length;
-      if (shownSw === 0 && allSw.length) {
-        const wantSw = allSw.slice(0, Math.min(3, allSw.length));
-        chosen = chosen.slice(0, 10 - wantSw.length).concat(wantSw).sort(byDate);
+      // The reservation has to run BOTH ways. It used to protect swiftplay
+      // only, on the assumption that unrated is the queue that crowds. For a
+      // player whose recent games are mostly swiftplay the imbalance simply
+      // inverts: the ten most recent are all swiftplay and their unrated games
+      // vanish from the tab that is supposed to show them. Whichever queue is
+      // missing gets up to 3 reserved slots, so the merged view always shows
+      // both when both exist.
+      for (const q of ['swiftplay', 'unrated']) {
+        const all = rows.filter((m) => m._queue === q);
+        const shown = chosen.filter((m) => m._queue === q).length;
+        if (shown === 0 && all.length) {
+          const want = all.slice(0, Math.min(3, all.length));
+          chosen = chosen.slice(0, 10 - want.length).concat(want).sort(byDate);
+        }
       }
     }
     const matches = [];
