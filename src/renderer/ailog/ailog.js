@@ -50,7 +50,11 @@ function render() {
   // Tip shown after the gates (and the raw AI tip when it differs / was dropped).
   const shown = r.shown && r.shown.text;
   const shownEl = $('shown');
-  shownEl.textContent = shown || 'No tip shown this frame (SKIP or filtered).';
+  shownEl.replaceChildren();
+  // Death reviews are labelled here the same way the overlay labels them, so
+  // the log and the in-game card agree about what you were shown.
+  if (shown && r.shown.death) shownEl.appendChild(el('span', 'death-tag', '\u{1F480} Death Review'));
+  shownEl.appendChild(document.createTextNode(shown || 'No tip shown this frame (SKIP or filtered).'));
   shownEl.classList.toggle('none', !shown);
   // Show the model's own tip whenever it differs from what you saw, plus WHY it
   // was dropped. A rejected AI tip usually gets backfilled by a library tip, so
@@ -87,6 +91,30 @@ function render() {
 }
 
 function go(to) { idx = Math.max(0, Math.min(records.length - 1, to)); render(); }
+
+/**
+ * Pin a skull on the scrubber for every frame that showed a death review, so
+ * the deaths in a session are findable at a glance instead of by scrubbing.
+ *
+ * Built once after load, because the set never changes while the log is open.
+ * Older logs recorded no `death` flag at all, so they simply get no marks
+ * rather than wrong ones.
+ */
+function buildMarks() {
+  const box = $('marks');
+  box.replaceChildren();
+  if (records.length < 2) return;
+
+  records.forEach((r, i) => {
+    if (!(r.shown && r.shown.death)) return;
+    const b = el('button', 'mark-death', '\u{1F480}');
+    b.type = 'button';
+    b.style.left = `${(i / (records.length - 1)) * 100}%`;
+    b.title = `Death review at frame ${i + 1}: ${r.shown.text || ''}`;
+    b.addEventListener('click', () => go(i));
+    box.appendChild(b);
+  });
+}
 
 // ── Ask the coach about the frame you are looking at ────────────────────────
 // The conversation is per frame: stepping to a different moment starts a fresh
@@ -162,7 +190,11 @@ window.ghost.getLog().then((log) => {
   }
   $('main').hidden = false;
   $('slider').max = String(records.length - 1);
-  $('subtitle').textContent = `${records.length} frames from your latest session`;
+  const deaths = records.filter((r) => r.shown && r.shown.death).length;
+  $('subtitle').textContent = deaths
+    ? `${records.length} frames from your latest session, ${deaths} death ${deaths === 1 ? 'review' : 'reviews'}`
+    : `${records.length} frames from your latest session`;
+  buildMarks();
   // Jump to the most recent frame first, that is usually what you want to review.
   go(records.length - 1);
 }).catch((err) => {
