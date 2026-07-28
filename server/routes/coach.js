@@ -435,7 +435,9 @@ NEVER INVENT THE DETAILS OF A DEATH. Do not name who killed the player, what wea
   // cannot tell from the pixels alone whose loadout it is looking at, and it
   // was confidently attributing the spectated player's gun to the player.
   const spectatorLine = (ctx.playerAlive === false || ctx.phase === 'dead')
-    ? `THE PLAYER IS DEAD AND YOU ARE LOOKING AT A TEAMMATE'S CAMERA. Every live HUD element on this frame belongs to THAT TEAMMATE, not to your player: the health, the weapon, the abilities, the credits, the position and the crosshair are all theirs. Do NOT say the player is holding, using, or standing anywhere based on this frame, and never describe their weapon from it. If you review the death, describe what the player did BEFORE they died, using the earlier frames and the match memory, and report weapon as null rather than guessing.\n\n`
+    ? `THE PLAYER IS DEAD AND YOU ARE LOOKING AT A TEAMMATE'S CAMERA. Every live HUD element on this frame belongs to THAT TEAMMATE, not to your player: the health, the weapon, the abilities, the credits, the position and the crosshair are all theirs. Do NOT say the player is holding, using, or standing anywhere based on this frame, and never describe their weapon from it. If you review the death, describe what the player did BEFORE they died, using the earlier frames and the match memory, and report weapon as null rather than guessing.
+
+THE LOCATION LABEL ON THIS FRAME IS THE TEAMMATE'S LOCATION, NOT WHERE THE PLAYER DIED. It moves with the spectator camera, so it is different on almost every frame while the player lies dead in one place. ${ctx.deathSpot ? `THE PLAYER DIED AT: ${String(ctx.deathSpot).slice(0, 40)}. That is the only place you may name for this death.` : 'The death location was not captured, so name NO location for this death at all and describe the mistake without one.'}\n\n`
     : '';
 
   const deathLine = ctx.justDied

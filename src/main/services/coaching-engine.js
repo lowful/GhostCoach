@@ -1268,8 +1268,16 @@ class CoachingEngine extends EventEmitter {
       // map far more reliably than asking the model which map it is on, because
       // the label is text the game rendered rather than the model's judgement.
       if (key === 'locLabel') {
+        // The label still identifies the MAP while spectating, because the
+        // teammate is on the same map, so fingerprinting always gets it.
         this.applyLocationLabel(v);
-        this.matchContext.locLabel = v;
+        // But it stops being where the PLAYER is the moment they die: it then
+        // follows the spectator camera. One session walked A Main, Mid Top, A
+        // Tower, A Security, A Link and B Nest while the player lay dead in one
+        // spot, and the death reviews named whichever one they happened to land
+        // on. Keeping the last label read while alive is what makes "you died
+        // at X" true.
+        if (!spectatingNow) this.matchContext.locLabel = v;
         continue;
       }
       // handled separately (mode needs its 2-read lock), never merged raw
@@ -1340,7 +1348,16 @@ class CoachingEngine extends EventEmitter {
       this.lastDeathAt = Date.now();   // opens the death-review window
       this.matchContext.lastDeathAt = this.lastDeathAt;   // visible to the tip verifier
       this.deathTipsSent = 0;          // this death gets its own review budget
-      this.remember(`Player died round ${(this.matchContext.teamScore | 0) + (this.matchContext.enemyScore | 0) + 1}`);
+      // WHERE THE PLAYER ACTUALLY DIED, pinned at the moment of death.
+      // Everything positional goes stale the instant the spectator camera takes
+      // over, so the review has to be told the spot rather than read it off a
+      // frame showing a teammate somewhere else entirely. Both fields still
+      // hold their last-alive values here, because the spectator guard above
+      // stopped merging them.
+      this.matchContext.deathSpot =
+        this.matchContext.locLabel || this.matchContext.playerSpot || null;
+      const where = this.matchContext.deathSpot;
+      this.remember(`Player died round ${(this.matchContext.teamScore | 0) + (this.matchContext.enemyScore | 0) + 1}${where ? ` at ${where}` : ''}`);
       if (this.matchContext.consecutiveDeaths >= 2) {
         this.remember(`Player has died ${this.matchContext.consecutiveDeaths} rounds in a row`);
       }
@@ -1352,6 +1369,9 @@ class CoachingEngine extends EventEmitter {
         || (updates.playerAlive === true && prevAlive === false)) {
       this.matchContext.consecutiveDeaths = 0;
       this.deathTipsSent = 0;   // coaching resumes now that they can act again
+      // The last death's location must not survive into the round after it, or
+      // a later tip can cite a spot from a round that already ended.
+      this.matchContext.deathSpot = null;
     }
     // A dead player is never in some other phase. Keeping these consistent is
     // what makes the verifier that blocks action advice for dead players fire,
@@ -1499,6 +1519,7 @@ function freshContext() {
     phase: 'unknown', playerCredits: null, playerWeapon: null, playerAlive: true,
     teammatesAlive: null, enemiesAlive: null,   // reported by the AI from the HUD bar
     playerHp: null,   // own health number: the ground truth for being alive
+    deathSpot: null,  // where the player died, pinned at death; positional reads go stale once spectating starts
     spike: null,      // 'planted' | 'carried' | 'dropped', drives retake / post-plant coaching
     spikeSpot: null,  // where it is, for the retake call
     killFeed: null,   // last factual event from the kill feed (top right)
