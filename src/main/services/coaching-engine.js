@@ -77,6 +77,8 @@ class CoachingEngine extends EventEmitter {
     this.aliveFalseStreak = 0;    // consecutive alive:false reads (2 confirm a death)
     this.firstHalfSide    = null; // locked first-half side; halftime flip is then arithmetic
     this.pendingFirstSide = null; // needs two agreeing reads before locking
+    this.lockedSide       = null; // sticky side for the window halftime math cannot cover
+    this.sideChallenge    = null; // a contradicting side read waiting for a second opinion
     this.pendingMap       = null; // map needs two agreeing reads before locking
     // Game mode decides the halftime math: swiftplay halves are 4 rounds,
     // unrated/competitive halves are 12. Locked from two agreeing HUD reads,
@@ -118,6 +120,8 @@ class CoachingEngine extends EventEmitter {
     this.deathTipsSent = 0;
     this.firstHalfSide = null;
     this.pendingFirstSide = null;
+    this.lockedSide = null;
+    this.sideChallenge = null;
     this.pendingMap = null;
     this.scoreboardChallenge = null;   // pending implausible round/score read
     this.seenLabels = [];              // location labels the game printed, for map fingerprinting
@@ -251,7 +255,12 @@ class CoachingEngine extends EventEmitter {
             image: shot,
             state: data.context || {},
             aiTip: data.tip || '',
-            shown: this._cycleShown ? { text: this._cycleShown.text, source: this._cycleShown.source } : null,
+            // `death` rides along so the AI log can mark death reviews on the
+            // timeline. Without it the log cannot tell a review apart from an
+            // ordinary tip, because the text alone is not a reliable tell.
+            shown: this._cycleShown
+              ? { text: this._cycleShown.text, source: this._cycleShown.source, death: !!this._cycleShown.death }
+              : null,
             // Why the model's tip never reached the player. Always read (which
             // also clears it, so a stale reason cannot leak into a later frame).
             // NOT conditional on nothing being shown: a rejected AI tip usually
@@ -368,7 +377,7 @@ class CoachingEngine extends EventEmitter {
         if (this.isSimilarToRecent(cleaned)) {
           console.log('[engine] forced tip was a repeat, swapping to library');
         } else {
-          const sent = this.emitTip(cleaned, 'ai', { death: !!data.death });
+          const sent = this.emitTip(cleaned, 'ai', { death: !!data.death || this.inDeathWindow() });
           if (sent) return;
           // Verify gate dropped the forced tip. This used to end in SILENCE (the
           // "force tip does nothing" bug); fall through to a guaranteed library tip.
@@ -661,7 +670,7 @@ class CoachingEngine extends EventEmitter {
     }
 
     this.skipCount = 0;
-    const sent = this.emitTip(cleaned, 'ai', { death: !!response.death });
+    const sent = this.emitTip(cleaned, 'ai', { death: !!response.death || this.inDeathWindow() });
     if (sent && abilityWord) {
       this.recentAbilities.push(abilityWord);
       if (this.recentAbilities.length > 6) this.recentAbilities.shift();
@@ -702,7 +711,7 @@ class CoachingEngine extends EventEmitter {
     // CONFIRMED the agent; on a mere guess we stick to general tips.
     // Library tips inside the death window are the death-flavored bucket, so
     // they wear the same white skull card the AI's death reviews do.
-    const inDeathWindow = { death: !!(this.lastDeathAt && Date.now() - this.lastDeathAt < 15000) };
+    const inDeathWindow = { death: this.inDeathWindow() };
     const agentTip = this.matchContext.agentConfirmed
       ? agentData.getAgentTip(this.matchContext.agent) : null;
     if (agentTip && !recentTexts.includes(agentTip) && !this.isSimilarToRecent(agentTip)
@@ -1044,6 +1053,26 @@ class CoachingEngine extends EventEmitter {
     return this.matchContext.playerAlive === false || this.matchContext.phase === 'dead';
   }
 
+  /**
+   * Is this tip a death review? Decided by the CLIENT, not by the model.
+   *
+   * The server marks reviews with a "DEATH: " prefix, but that instruction only
+   * reaches the model when ctx.justDied is already true, and justDied is built
+   * from the PREVIOUS frame's state. The death is discovered from the response
+   * to the very frame the model is writing the review on, so on that frame the
+   * model was never told to add the marker. The result: the actual death review
+   * arrives unmarked and renders as an ordinary tip, and by the next frame the
+   * review is usually dropped as a duplicate.
+   *
+   * The player being dead is the fact that matters, and the client already
+   * knows it, so it decides. Library tips have always used this window; the AI
+   * path now uses the same one, which is why the two used to disagree.
+   */
+  inDeathWindow() {
+    if (this.isSpectating()) return true;
+    return !!(this.lastDeathAt && Date.now() - this.lastDeathAt < DEATH_WINDOW_MS);
+  }
+
   updateMatchContext(updates) {
     const prevPhase = this.matchContext.phase;
     const prevRound = this.matchContext.roundNumber;
@@ -1064,6 +1093,8 @@ class CoachingEngine extends EventEmitter {
       console.log(`[engine] new match detected (round ${prevRound} -> ${updates.roundNumber}), side/mode/map locks reset`);
       this.firstHalfSide = null;
       this.pendingFirstSide = null;
+      this.lockedSide = null;
+      this.sideChallenge = null;
       this.pendingMode = null;
       this.standardEvidence = 0;
       this.swapEvidence = 0;
@@ -1382,6 +1413,35 @@ class CoachingEngine extends EventEmitter {
         console.log(`[engine] side corrected by halftime math: round ${rn} -> ${expected} (${this.matchContext.gameMode || 'mode unknown'})`);
         this.matchContext.side = expected;
       }
+      this.sideChallenge = null;   // halftime math is authoritative, drop any pending flip
+      return;
+    }
+
+    // NO HALFTIME MATH AVAILABLE. halfOfRound() returns null for rounds 5-9
+    // while the mode is still unknown, because swiftplay and standard disagree
+    // about where the half ends, and standard only locks at a score of 6 or
+    // round 10. That left a live window with NO side guard at all, and the
+    // model's side read is not stable enough to go unguarded: real sessions
+    // show 5 stray "attacking" frames inside 33 "defending" ones in rounds 1-5,
+    // which is a read that cannot be true, since sides only swap at halftime.
+    //
+    // So in that window the side becomes sticky. A flip has to be confirmed by
+    // two consecutive agreeing reads before it is accepted, exactly like the
+    // scoreboard and map guards. One odd frame can no longer turn the coach
+    // around and have it call a defence like an attack.
+    if (sideRead && this.lockedSide && sideRead !== this.lockedSide) {
+      if (this.sideChallenge === sideRead) {
+        console.log(`[engine] side flip confirmed by two reads: ${this.lockedSide} -> ${sideRead}`);
+        this.lockedSide = sideRead;
+        this.sideChallenge = null;
+      } else {
+        this.sideChallenge = sideRead;
+        this.matchContext.side = this.lockedSide;   // hold the line until corroborated
+        console.log(`[engine] side read ${sideRead} contradicts locked ${this.lockedSide}, waiting for a second read`);
+      }
+    } else if (sideRead) {
+      this.lockedSide = sideRead;
+      this.sideChallenge = null;
     }
   }
 
