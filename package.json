@@ -14,7 +14,8 @@
     "sync:valorant": "node scripts/sync-valorant-data.js",
     "sync:patch": "node scripts/sync-patch-notes.js",
     "publish:download": "node scripts/publish-download.js",
-    "check:playbook": "node scripts/check-playbook.js"
+    "check:playbook": "node scripts/check-playbook.js",
+    "test:deathspot": "node scripts/test-death-spot.js"
   },
   "build": {
     "appId": "com.ghostcoach.app2",

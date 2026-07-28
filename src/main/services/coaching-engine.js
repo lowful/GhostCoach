@@ -1792,6 +1792,80 @@ function wrongMapCallout(text, map) {
   return null;
 }
 
+/** Distinct callout words named in a tip, lowercased. */
+function namedCallouts(text) {
+  const found = String(text || '').toLowerCase().match(CALLOUT_RE);
+  return found ? [...new Set(found)] : [];
+}
+
+// FULL location names ("a sewer", "c link", "mid window"), built from the real
+// per map callout lists. CALLOUT_RE above cannot be reused here: it holds only
+// the 34 DISTINCTIVE words (hookah, boba, snowman) that identify a map, and
+// deliberately excludes the structural ones (link, window, site, long) that
+// make up most actual callouts. Matching by pattern instead, something like
+// "(a|b|c|mid) <word>", would catch every "a free kill" and "a crossfire" in
+// the language, so the names come from the data.
+const SPOT_RE = (() => {
+  try {
+    const geo = require('../../shared/valorant-data.generated.json').mapGeometry || {};
+    const names = new Set();
+    for (const g of Object.values(geo)) {
+      for (const c of (g.callouts || [])) if (c && c.n) names.add(String(c.n).toLowerCase());
+    }
+    if (!names.size) return null;
+    // Longest first, so "b boat house" wins over a nested shorter name.
+    const alts = [...names].sort((a, b) => b.length - a.length)
+      .map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    return new RegExp('\\b(' + alts.join('|') + ')\\b', 'gi');
+  } catch { return null; }
+})();
+
+/** Full location names a tip mentions, lowercased. */
+function namedSpots(text) {
+  if (!SPOT_RE) return [];
+  const found = String(text || '').toLowerCase().match(SPOT_RE);
+  return found ? [...new Set(found.map((s) => s.trim()))] : [];
+}
+
+// A tip that explains a death. Matched on the text rather than a flag, because
+// verifyTip is the last gate and runs on library tips and rescued text too,
+// where no flag was ever attached. Deliberately narrow: it must be about the
+// PLAYER dying, so "trade your teammate when they die" is not caught.
+const DEATH_REVIEW_RE = /\byou (died|got (killed|traded|picked)|were (killed|traded|caught)|lost that (duel|fight))\b|\byour death\b|\bthat death\b/i;
+
+function isDeathReview(text, ctx) {
+  if (!ctx) return false;
+  // While the player is DEAD every location on screen is the spectated
+  // teammate's, and the player cannot act on any of them, so any location a tip
+  // names is either about their death or is meaningless. Gate regardless of
+  // wording: the tips that drifted worst ("You pushed into C Link alone") never
+  // contained the phrase "you died" at all, so keying off that phrase missed
+  // exactly the cases this exists to catch.
+  if (ctx.playerAlive === false || ctx.phase === 'dead') return true;
+  // Just respawned: only gate text that is actually reviewing the death, so a
+  // live tip about the round now is free to name wherever it needs to.
+  return !!(ctx.lastDeathAt && Date.now() - ctx.lastDeathAt < DEATH_WINDOW_MS
+    && DEATH_REVIEW_RE.test(String(text || '')));
+}
+
+/**
+ * The tip names places, but not the one the player actually died at.
+ *
+ * At least ONE named spot has to be the death spot, rather than every named
+ * spot having to be it. A review legitimately mentions other places, "you died
+ * in Mid Window while your team was stacking C Lobby" is a good tip and the
+ * strict version threw it away. What must never happen is a tip that talks
+ * about locations without the real one among them, which is how "pushed into C
+ * Link" reached a player who died at A Sewer.
+ */
+function wrongDeathSpot(text, deathSpot) {
+  const spots = namedSpots(text);
+  if (!spots.length) return null;                 // no location claimed, fine
+  const truth = String(deathSpot || '').trim().toLowerCase();
+  if (!truth) return spots[0];                    // nothing captured: cannot verify any of them
+  return spots.includes(truth) ? null : spots[0];
+}
+
 // The reason the most recent tip was dropped. The console line alone is not
 // enough: the AI decision log needs to SHOW why a tip the model produced never
 // reached the player, otherwise a filtered tip looks identical to no tip.
@@ -1899,6 +1973,28 @@ function scenarioFits(text, source, ctx) {
     }
     const bad = wrongMapCallout(l, ctx.map);
     if (bad) { noteReject(`used the callout "${bad}" which does not belong to ${ctx.map || 'the unknown map'}`); return false; }
+
+    // DEATH LOCATION GATE. Telling the prompt where the player died is not
+    // enough on its own: measured over one real session, reviews named the
+    // right spot 7 times and the wrong one 8, either drifting to whatever the
+    // spectator camera was showing (pinned A Sewer, tip said C Link) or
+    // inventing a place when no spot had been captured at all.
+    //
+    // So the client decides, the same way it already decides the map. A review
+    // may name the spot the player actually died at and nothing else; if no
+    // spot was captured it may name no location at all. Rejecting is the right
+    // outcome rather than rewriting, because the sentence is built around the
+    // place and a substitution would leave the reasoning describing somewhere
+    // the player never was.
+    if (isDeathReview(l, ctx)) {
+      const wrongSpot = wrongDeathSpot(l, ctx.deathSpot);
+      if (wrongSpot) {
+        noteReject(ctx.deathSpot
+          ? `said the death was at "${wrongSpot}" but the player died at "${ctx.deathSpot}"`
+          : `named "${wrongSpot}" as the death spot, but no death location was captured`);
+        return false;
+      }
+    }
   }
 
   // Updraft advice: never. Knife advice: only right after a death it may have caused.
@@ -1931,3 +2027,7 @@ function scenarioFits(text, source, ctx) {
 }
 
 module.exports = CoachingEngine;
+// Exposed for tests. The death-location gate is the kind of rule that is easy
+// to get subtly wrong (gating a general tip, or letting the spectated location
+// through), so it is checked directly rather than only through a live session.
+module.exports.__test = { isDeathReview, wrongDeathSpot, namedCallouts, namedSpots };
