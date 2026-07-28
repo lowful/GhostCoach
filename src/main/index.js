@@ -20,6 +20,7 @@ const logger   = require('./logger');
 const store    = require('./services/store');
 const capture  = require('./services/capture');
 const CoachingEngine = require('./services/coaching-engine');
+const { verifyCoachedMatch, matchSummary } = require('./services/match-link');
 const registry = require('./windows/registry');
 const overlayWindow    = require('./windows/overlay-window');
 const panelWindow      = require('./windows/panel-window');
@@ -290,9 +291,19 @@ const controller = {
       const sessionTips  = state.tips.filter((t) => t.source === 'ai' || t.source === 'library').map((t) => t.text);
       const durationMin  = state.sessionStartedAt ? (Date.now() - state.sessionStartedAt) / 60000 : 0;
       if (sessionTips.length >= 3 || (durationMin >= 5 && sessionTips.length >= 1)) {
-        logSessionPerformance(sessionTips,
-          { map: engine.matchContext.map, agent: engine.matchContext.agent }, durationMin,
-          engine.playerNotes.slice(-20));   // observed facts keep the grading honest
+        const mctx = { map: engine.matchContext.map, agent: engine.matchContext.agent };
+        const startedAt = state.sessionStartedAt || Date.now();
+        const endedAt   = Date.now();
+        // Riot publishes a match a few minutes after it ends, so it is often
+        // not there yet at stop time. Grade now either way (the dashboard
+        // should not stall on Riot), then backfill the scoreboard onto the
+        // record once it lands.
+        (async () => {
+          const match = await fetchCoachedMatch(startedAt, endedAt, mctx).catch(() => null);
+          await logSessionPerformance(sessionTips, mctx, durationMin,
+            engine.playerNotes.slice(-20), match);   // observed facts keep the grading honest
+          if (!match) scheduleMatchBackfill(startedAt, endedAt, mctx);
+        })();
       }
       // The match just played should show in stats right away, not after a
       // cache window; drop the caches so the next dashboard look refetches,
@@ -737,6 +748,39 @@ async function fetchLastMatch() {
   } catch { return null; }
 }
 
+/**
+ * Is this tracker match the one we just coached?
+ *
+ * fetchLastMatch() returns the most recent match within three hours, which is
+ * NOT the same claim. A player can queue again before the review lands, alt
+ * tab into a different game, or open the app after a match they never coached,
+ * and every one of those would otherwise attribute someone else's numbers to
+ * this session. A session graded on the wrong match is worse than one graded
+ * on no match at all, because it looks authoritative while being wrong.
+ *
+ * So all three available facts have to agree:
+ *   time   the match started inside the coached window (with slack at both
+ *          ends, since coaching usually starts mid-agent-select and the clock
+ *          Riot reports is the match start, not the buy phase)
+ *   map    the map we watched, when the map lock ever confirmed one
+ *   agent  the agent we watched, when the agent was confirmed
+ *
+ * Map and agent are only checked when WE know them; an unknown on our side is
+ * not evidence against the match. But whatever we do know must not contradict.
+ */
+/** The coached match, or null when it cannot be confirmed as ours. */
+async function fetchCoachedMatch(startedAt, endedAt, mctx) {
+  const lm = await fetchLastMatch();
+  if (!lm) return null;
+  const v = verifyCoachedMatch(lm, startedAt, endedAt, mctx);
+  if (!v.ok) {
+    console.log(`[match-link] not linking the last match to this session: ${v.why}`);
+    return null;
+  }
+  console.log(`[match-link] linked: ${lm.map} ${lm.agent} ${lm.result} ${lm.score} (${lm.kills}/${lm.deaths}/${lm.assists}, ACS ${lm.acs})`);
+  return lm;
+}
+
 // ── Session performance log (extended stats dashboard) ──────────────────────
 // One small record per coached session (four category scores + strengths and
 // weaknesses text). Kept in its own file, NOT the 7-day session archive, so
@@ -769,6 +813,47 @@ function appendPerf(rec) {
     all.push(rec);
     fs.writeFileSync(perfFile(), JSON.stringify(all.slice(-100), null, 2));
   } catch (e) { console.error('[perf] save failed:', e.message); }
+}
+
+/**
+ * Riot publishes a match a few minutes after it ends, so the scoreboard is
+ * usually missing at the moment a session is graded. Retry a couple of times,
+ * and when it lands attach it to the session record it belongs to.
+ *
+ * The record is found by its own timestamp rather than by taking the newest
+ * one, so starting another session in the meantime cannot make this land on
+ * the wrong row. The grade itself is not recomputed: it is already saved and
+ * shown, and quietly changing a score the player has seen is worse than a
+ * record whose scoreboard arrived late.
+ */
+const MATCH_BACKFILL_DELAYS_MS = [100000, 240000];
+
+function scheduleMatchBackfill(startedAt, endedAt, mctx, attempt = 0) {
+  const delay = MATCH_BACKFILL_DELAYS_MS[attempt];
+  if (delay == null) return;
+  setTimeout(async () => {
+    try {
+      const match = await fetchCoachedMatch(startedAt, endedAt, mctx);
+      if (!match) return scheduleMatchBackfill(startedAt, endedAt, mctx, attempt + 1);
+
+      const all = loadPerf();
+      // The row written for THIS session: graded after it ended, and the
+      // closest one to that moment.
+      let target = null;
+      for (const r of all) {
+        if (!r || typeof r.at !== 'number' || r.match) continue;
+        if (r.at < endedAt - 60000) continue;
+        if (!target || r.at < target.at) target = r;
+      }
+      if (!target) return;
+
+      target.match = matchSummary(match);
+      fs.writeFileSync(perfFile(), JSON.stringify(all.slice(-100), null, 2));
+      console.log('[match-link] backfilled the scoreboard onto the session record');
+    } catch (e) {
+      console.error('[match-link] backfill failed:', e.message);
+    }
+  }, delay);
 }
 
 /** Tracker-derived category levels, the heavier half of the ratings.
@@ -877,12 +962,18 @@ function computeCategoryTrends(perf, stats, prevStats) {
 /** Have the server grade the finished session (0-100 per category plus
  *  strengths/weaknesses from the tips), then log it locally. Fire and forget:
  *  a failure just means this session shows no score card. */
-async function logSessionPerformance(tips, mctx, durationMin, notes) {
+async function logSessionPerformance(tips, mctx, durationMin, notes, match) {
   try {
     if (!Array.isArray(tips) || tips.length < 1) return;
+    // The confirmed match, when we have one. Grading from tips alone means the
+    // score reflects what the coach TALKED about; the scoreboard is what
+    // actually happened, so a session where the player was told to fix their
+    // aim and then went 30/5 should not be graded the same as one where they
+    // went 5/20 hearing the same advice.
     const { ok, data } = await api.post('/api/coach/score-session',
       { tips: tips.slice(0, 30), notes: Array.isArray(notes) ? notes.slice(0, 20) : [],
-        context: { map: mctx.map, agent: mctx.agent, durationMin } },
+        context: { map: mctx.map, agent: mctx.agent, durationMin },
+        match: match || null },
       store.get('licenseKey'), 32000);
     const impact = data && (data.impact != null ? data.impact : data.economy);
     if (!ok || !data || data.error || impact == null) return;
@@ -894,6 +985,10 @@ async function logSessionPerformance(tips, mctx, durationMin, notes) {
       agent: mctx.agent || null,
       durationMin: Math.round(durationMin || 0),
       scores,
+      // The scoreboard for the match this session actually coached, kept on the
+      // record so history and the weekly report can show the result next to the
+      // grade instead of the grade floating free of any outcome.
+      match: matchSummary(match),
       overall: Math.round((scores.impact + scores.positioning + scores.utility + scores.aim) / 4),
       summary:    data.summary    || '',   // the coach's spoken-style recap
       strengths:  data.strengths  || '',

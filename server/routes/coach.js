@@ -1616,7 +1616,22 @@ router.post('/score-session', async (req, res) => {
       ? '\nOBSERVED FACTS (what the player was actually SEEN doing on screen, weigh these ABOVE the tips):\n' + notes.map((n) => '- ' + n).join('\n') + '\n'
       : '';
 
-    const prompt = `A Valorant player finished a coached session${ctx.map ? ' on ' + String(ctx.map).slice(0, 20) : ''}${ctx.agent ? ' playing ' + String(ctx.agent).slice(0, 16) : ''}${ctx.durationMin ? ', about ' + Math.round(ctx.durationMin) + ' minutes long' : ''}. These coaching tips were shown during it:\n${tips.join('\n')}\n${notesBlock}\nReturn ONLY valid JSON, no markdown:\n{"impact":70,"positioning":70,"utility":70,"aim":70,"summary":"...","strengths":"...","weaknesses":"...","practice":"..."}\nScore each category 0-100. impact means round influence: opening picks, entries that created space, clutch attempts, multikills, and being part of the plays that decided rounds; a quiet passenger scores low even with a clean K/D. When OBSERVED FACTS are provided they are the primary evidence, they describe what the player actually did; the tips only show what the coaching focused on and do NOT prove the player did or failed anything. Many corrections in a category still suggests a lower score there, but never state the player did something unless an observed fact shows it. No signal for a category means a neutral 70-75.
+    // THE SCOREBOARD, when the client could confirm the match was this session.
+    // Tips only record what the coach chose to talk about, so grading on them
+    // alone measures the coaching rather than the player: someone told to fix
+    // their aim who then went 30/5 scored the same as someone told the same
+    // thing who went 5/20. The client will not send this unless the map, the
+    // agent and the timing all agreed, so it can be trusted as this match.
+    const m = (req.body && req.body.match) || null;
+    const matchBlock = m ? `
+FINAL SCOREBOARD for this exact match (verified as the coached game, this is hard evidence and outranks everything else for the aim and impact scores):
+- Result: ${String(m.result || '?').slice(0, 12)} ${String(m.score || '').slice(0, 10)}
+- K/D/A: ${m.kills | 0}/${m.deaths | 0}/${m.assists | 0} (K/D ${Number(m.kd) || 0})
+- ACS ${m.acs | 0}, ADR ${m.adr | 0}, headshot ${m.headshotPct | 0}%
+Use these numbers. A strong scoreboard means the aim and impact scores should be high even if the coaching corrected a lot, and a weak one means they should be low even if the session was quiet. Never restate the raw numbers back to the player in summary, strengths, weaknesses, or practice; they can already see their own scoreboard. Let the numbers set the SCORES and describe the habit behind them in words.
+` : '';
+
+    const prompt = `A Valorant player finished a coached session${ctx.map ? ' on ' + String(ctx.map).slice(0, 20) : ''}${ctx.agent ? ' playing ' + String(ctx.agent).slice(0, 16) : ''}${ctx.durationMin ? ', about ' + Math.round(ctx.durationMin) + ' minutes long' : ''}. These coaching tips were shown during it:\n${tips.join('\n')}\n${notesBlock}${matchBlock}\nReturn ONLY valid JSON, no markdown:\n{"impact":70,"positioning":70,"utility":70,"aim":70,"summary":"...","strengths":"...","weaknesses":"...","practice":"..."}\nScore each category 0-100. impact means round influence: opening picks, entries that created space, clutch attempts, multikills, and being part of the plays that decided rounds; a quiet passenger scores low even with a clean K/D. When OBSERVED FACTS are provided they are the primary evidence, they describe what the player actually did; the tips only show what the coaching focused on and do NOT prove the player did or failed anything. Many corrections in a category still suggests a lower score there, but never state the player did something unless an observed fact shows it. No signal for a category means a neutral 70-75.
 THIS IS THE POST GAME TALK. The player is reading it after the match is over, away from the game. They cannot picture a specific round or a specific spot on the map anymore, so replaying moments back at them is useless. NAME THE HABIT INSTEAD.
 - WRONG (never write anything like this): "You repeatedly dry peeked Mid Top, B Site, and B Main without a trade partner." "You died at A Main three times." "You repeeked Hookah after your kill."
 - RIGHT: "You're dry peeking a lot, taking duels without a flash or a teammate ready to trade." "Over-peeking is your biggest leak, you keep re-challenging the same angle after you win a fight." "You're over-extending on defense and dying before your team can help."

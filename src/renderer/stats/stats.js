@@ -471,7 +471,10 @@ function sessionRow(s, i) {
   place.textContent = fmtDate(s.at);
   const sub = document.createElement('span');
   sub.className = 'sub';
-  sub.textContent = [s.map, s.agent].filter(Boolean).join(' · ');
+  // Result in the collapsed row: whether the session was a win is the first
+  // thing anyone wants next to its grade, and it should not need a click.
+  sub.textContent = [s.map, s.agent, s.match && s.match.score ? s.match.score : null]
+    .filter(Boolean).join(' · ');
   const spacer = document.createElement('span');
   spacer.className = 'spacer';
   const mvpSlot = document.createElement('span');
@@ -519,7 +522,38 @@ function sessionRow(s, i) {
       scores: s.scores, strengths: s.strengths, weaknesses: s.weaknesses,
     });
   });
-  detail.append(scores, rl, rp, sl, sp, wl, wp);
+  detail.append(scores);
+  // The scoreboard of the match this session actually coached, when the app
+  // could confirm the match was this one. It sits above the recap so the grade
+  // is read next to the result that produced it, rather than floating free.
+  if (s.match) {
+    const mrow = document.createElement('div');
+    mrow.className = 'scores4 matchline';
+    const won = /vict|win/i.test(s.match.result || '');
+    const res = document.createElement('span');
+    res.className = 'sc ' + (won ? 'won' : 'lost');
+    const rb = document.createElement('b');
+    rb.textContent = s.match.score || '';
+    res.append((s.match.result || '') + ' ', rb);
+    mrow.append(res);
+    const pairs = [
+      ['K/D/A', `${s.match.kills}/${s.match.deaths}/${s.match.assists}`],
+      ['ACS', s.match.acs],
+      ['ADR', s.match.adr],
+      ['HS', (s.match.headshotPct != null ? s.match.headshotPct + '%' : null)],
+    ];
+    for (const [label, value] of pairs) {
+      if (value == null || value === '') continue;
+      const chip = document.createElement('span');
+      chip.className = 'sc';
+      const b = document.createElement('b');
+      b.textContent = value;
+      chip.append(label + ' ', b);
+      mrow.append(chip);
+    }
+    detail.append(mrow);
+  }
+  detail.append(rl, rp, sl, sp, wl, wp);
   if (hasPractice) detail.append(pl, pp);
   detail.append(ask);
   row.append(top, detail);
