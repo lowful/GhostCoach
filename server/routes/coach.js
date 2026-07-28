@@ -1369,6 +1369,11 @@ function computeMatchRating(won, kd) {
 const MATCHES_TTL_MS     = 5 * 60 * 1000;   // fresh games show up fast (swiftplay especially)
 const MATCHES_REFRESH_MS = 3 * 60 * 1000;
 const matchesCache = new Map();   // riotId(lower) -> { data, fetchedAt, lastManualRefresh }
+// Last good rows PER QUEUE, so a rate-limited call falls back to what that
+// queue last returned instead of reading as an empty queue. Held longer than
+// the match cache: stale games are far better than a queue vanishing.
+const QUEUE_FALLBACK_MS = 60 * 60 * 1000;
+const queueCache = new Map();     // riotId|mode|queue -> { rows, at }
 
 // GET /api/coach/rank-history?username=Name%23TAG
 // Competitive RR/elo movement for the rank journey graph, oldest to newest.
@@ -1474,11 +1479,41 @@ router.get('/matches', async (req, res) => {
     const region = acct.json?.data?.region;
     if (!region) return res.json({ error: 'Account not found.' });
 
+    // ONE UPSTREAM FAILURE MUST NOT LOOK LIKE AN EMPTY QUEUE.
+    //
+    // The unrated view needs two upstream calls (unrated + swiftplay), which
+    // doubles the exposure to HenrikDev's rate limit. This loop used to take
+    // `sm.json.data` when it was an array and fall back to [] otherwise, never
+    // checking the status, so a 429 or a 5xx on either call was indistinguishable
+    // from "this player has no games in that queue". The queue then silently
+    // disappeared from the merged view, and because the failure alternates
+    // between the two calls, so did the symptom: the same account returned ten
+    // swiftplay and no unrated on one request, then four unrated and no
+    // swiftplay on the next.
+    //
+    // Now a failed queue is remembered as failed. On failure the last good rows
+    // for that queue are reused when we have them, so a transient upstream
+    // hiccup can no longer erase half the tab.
     const rows = [];
+    const failedQueues = [];
     for (const q of MODE_QUEUES[modeKey]) {
+      const qKey = key + '|' + q;
       const sm = await henrikGet(`/valorant/v1/stored-matches/${region}/${enc(name)}/${enc(tag)}?mode=${q}&size=10`);
-      const arr = (sm.json && Array.isArray(sm.json.data)) ? sm.json.data : [];
-      for (const m of arr) if (m && m.stats) { m._queue = q; rows.push(m); }
+      const arr = (sm.ok && sm.json && Array.isArray(sm.json.data)) ? sm.json.data : null;
+
+      if (arr) {
+        const fresh = arr.filter((m) => m && m.stats);
+        for (const m of fresh) { m._queue = q; rows.push(m); }
+        queueCache.set(qKey, { rows: fresh, at: now });
+        continue;
+      }
+
+      failedQueues.push(q);
+      console.warn(`[matches] ${q} lookup failed for ${username} (status ${sm.status}), falling back to cache`);
+      const cached = queueCache.get(qKey);
+      if (cached && now - cached.at < QUEUE_FALLBACK_MS) {
+        for (const m of cached.rows) { m._queue = q; rows.push(m); }
+      }
     }
     const byDate = (a, b) => (Date.parse(b.meta?.started_at || 0) || 0) - (Date.parse(a.meta?.started_at || 0) || 0);
     rows.sort(byDate);
@@ -1544,9 +1579,17 @@ router.get('/matches', async (req, res) => {
     // missing one is just null and fills in on a later refresh.
     await Promise.all(matches.map(async (m) => { m.mvp = await mvpForMatch(region, m.id, name, tag); }));
 
-    const entry = { data: matches, fetchedAt: now, lastManualRefresh: wantsRefresh ? now : (hit ? hit.lastManualRefresh : 0) };
+    // A result built while a queue was failing is degraded, so it is not worth
+    // the full TTL. Backdating fetchedAt lets the next poll retry almost
+    // immediately instead of serving an incomplete list for five minutes.
+    const degraded = failedQueues.length > 0;
+    const entry = {
+      data: matches,
+      fetchedAt: degraded ? now - (MATCHES_TTL_MS - 30 * 1000) : now,
+      lastManualRefresh: wantsRefresh ? now : (hit ? hit.lastManualRefresh : 0),
+    };
     matchesCache.set(key, entry);
-    res.json({ matches, fetchedAt: now, cached: false });
+    res.json({ matches, fetchedAt: now, cached: false, partial: degraded || undefined });
   } catch (e) {
     console.error('[coach] matches error:', e.message);
     // Serve the stale cache over an error page any day.
