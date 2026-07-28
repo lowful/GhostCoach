@@ -430,6 +430,14 @@ function buildContextPrompt(context) {
   const deathFacts = `
 NEVER INVENT THE DETAILS OF A DEATH. Do not name who killed the player, what weapon killed them, or how many kills they got first, unless the KILL FEED actually says so. If the feed does not tell you, describe only what you can see: the position they were in and the habit that put them there ("you died holding that angle alone with no trade") rather than a story ("you died to Yoru in A Garden after two kills"). A death review with one invented detail teaches the player to distrust the whole review.
 `;
+  // While the player is dead the camera is on a TEAMMATE, so everything on the
+  // HUD describes that teammate. Reported as its own rule because the model
+  // cannot tell from the pixels alone whose loadout it is looking at, and it
+  // was confidently attributing the spectated player's gun to the player.
+  const spectatorLine = (ctx.playerAlive === false || ctx.phase === 'dead')
+    ? `THE PLAYER IS DEAD AND YOU ARE LOOKING AT A TEAMMATE'S CAMERA. Every live HUD element on this frame belongs to THAT TEAMMATE, not to your player: the health, the weapon, the abilities, the credits, the position and the crosshair are all theirs. Do NOT say the player is holding, using, or standing anywhere based on this frame, and never describe their weapon from it. If you review the death, describe what the player did BEFORE they died, using the earlier frames and the match memory, and report weapon as null rather than guessing.\n\n`
+    : '';
+
   const deathLine = ctx.justDied
     ? 'THE PLAYER JUST DIED. If the frames, match memory, and state CLEARLY show why (a dry peek, no trade partner in range, repeeking the same angle, a bad position, fighting without util), make this tip the DEATH REVIEW: start line 1 with exactly "DEATH: " then name the cause and the exact fix in one sentence. This is also where held-back observations belong, if you noticed a mistake earlier, chose not to interrupt, and it just got them killed, say it now. Name the PLACE of the death only when the death frames or match memory actually show it, look back at what you were sent instead of assuming; a review that guesses the location teaches the player to distrust every review. But if the death looks unlucky, a fair duel simply lost, or you cannot actually see the cause, do NOT guess and do NOT invent a reason, coach something else or SKIP. A wrong death explanation is worse than none.\n\n'
     : '';
@@ -722,7 +730,7 @@ Reply with exactly SKIP only when you genuinely have nothing accurate and new: n
 ${ctx.deathReviewDone ? 'THE PLAYER IS DEAD AND THE DEATH REVIEW IS ALREADY DONE. They are spectating and cannot act on anything this round, so more tips are pure noise over someone watching a killcam. Reply with exactly SKIP (still report STATE so the app can see when they respawn). Do not explain the death again, do not offer things to watch for, do not coach the teammate they are spectating. Just SKIP until they are alive again.\n' : ''}BUY PHASE IS DIFFERENT: hold a HIGHER bar. During the buy phase (barriers up, pre-round) only speak when you have a genuinely high-level, SPECIFIC setup call worth making, tied to what you can actually read on the minimap or the buy: a real default or exec plan, a concrete crossfire or off-angle setup, a util line-up for this site, a clear economy read (force, save, half-buy mistake). If the only thing you would say is generic ("group up", "play as a team", "communicate", "get ready", "hold your angles"), SKIP instead. A player does not need a coach to tell them to group up in spawn. Generic buy-phase filler is worse than silence, so when the buy read is not sharp, say nothing and wait for the round to go live.
 If the screen is NOT live gameplay (main menu, lobby, agent select, loading screen, career or collection page, range with no match), reply with exactly LOBBY.
 
-${deathLine}${roundLostLine}${enemyBlock}${memoryBlock}${transLine}${focusLine}CURRENT MATCH STATE (trust this, do not re-derive it every frame):
+${spectatorLine}${deathLine}${roundLostLine}${enemyBlock}${memoryBlock}${transLine}${focusLine}CURRENT MATCH STATE (trust this, do not re-derive it every frame):
 - Agent: ${ctx.agent || 'Unknown'} | Map: ${ctx.map || 'Unknown'} | Side: ${ctx.side || 'Unknown'}
 - Mode: ${modeLine}
 - Round: ${ctx.roundNumber || 'Unknown'} | Score: ${ctx.teamScore || 0}-${ctx.enemyScore || 0} | Phase: ${ctx.phase || 'Unknown'} | Clock: ${ctx.clock || 'read it from the timer'}

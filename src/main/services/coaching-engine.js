@@ -1069,8 +1069,15 @@ class CoachingEngine extends EventEmitter {
    * path now uses the same one, which is why the two used to disagree.
    */
   inDeathWindow() {
-    if (this.isSpectating()) return true;
-    return !!(this.lastDeathAt && Date.now() - this.lastDeathAt < DEATH_WINDOW_MS);
+    // BEING DEAD IS THE WHOLE TEST, and it ends the moment the player respawns.
+    //
+    // This used to also return true for any tip within 15s of a death, which
+    // put the white skull card on tips shown to a player standing at full
+    // health in the next buy phase: six of them in one session. A death review
+    // aimed at someone who is alive with a fresh round in front of them reads
+    // as the coach not watching. buildOutgoingContext's justDied has always
+    // closed its window on respawn for exactly this reason; this now matches.
+    return this.isSpectating();
   }
 
   updateMatchContext(updates) {
@@ -1218,9 +1225,32 @@ class CoachingEngine extends EventEmitter {
     }
     if (updates.aliveTell) this.lastAliveTell = String(updates.aliveTell).slice(0, 60);
 
+    // A DEAD PLAYER'S HUD BELONGS TO SOMEBODY ELSE.
+    //
+    // Valorant puts you on a teammate's camera the moment you die, so the
+    // health, the weapon and the position on screen are THEIRS, not the
+    // player's. Nothing here knew that, so the spectated teammate's loadout was
+    // merged in as the player's own. One real session reported nine different
+    // weapons while the player was dead (Operator, Bulldog, Sheriff, Phantom,
+    // Vandal, Shorty and more) and the coach then told the player "you died
+    // peeking a close angle with the Operator" for a gun they never held.
+    //
+    // The last values read while the player was actually alive are the true
+    // ones, so while spectating these fields are simply not merged. The death
+    // review then describes the player's own loadout, which is what it is for.
+    const spectatingNow = updates.playerAlive === false || updates.phase === 'dead'
+                          || this.isSpectating();
+    const SPECTATOR_OWNED = ['playerWeapon', 'playerCredits', 'playerSpot', 'mmPos'];
+
     for (const key of Object.keys(updates)) {
       const v = updates[key];
       if (v === null || v === undefined) continue;
+      if (spectatingNow && SPECTATOR_OWNED.includes(key)) {
+        if (this.matchContext[key] !== v) {
+          console.log(`[engine] ignoring ${key}="${v}" while spectating (it belongs to the spectated player)`);
+        }
+        continue;
+      }
       if (key === 'agent') {                              // locked once set
         if (!this.matchContext.agent) this.matchContext.agent = v;
         continue;
