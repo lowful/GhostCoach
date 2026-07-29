@@ -1873,6 +1873,39 @@ function isDeathReview(text, ctx) {
     && DEATH_REVIEW_RE.test(String(text || '')));
 }
 
+// Advice that parks the player where they are. Deliberately narrow: only
+// phrasings that mean "stay put", never "rotate", "fall back" or "push", which
+// are the correct answers to a push and must survive.
+const HOLD_ADVICE = /\b(hold|holding|anchor|stay|sit|post up|lock down|watch)\b/i;
+const MOVE_ADVICE = /\b(rotate|rotating|fall back|retreat|collapse|reposition|push|move to|head to|get to|go to|leave)\b/i;
+
+/**
+ * The tip tells the player to hold their ground while a confirmed push is
+ * landing on a different site.
+ *
+ * Requires ALL of: a live push (question marks are a lean, not a fact), the
+ * enemies already inside the site (still in lobby is a look, not a commit),
+ * the push at a site the player is NOT at, and hold-shaped advice with no
+ * movement in it. Anything less and the tip is allowed, because silencing a
+ * round wrongly is worse than an imperfect tip.
+ *
+ * @returns {{where:string}|null}
+ */
+function wrongSideHold(text, ctx) {
+  if (!ctx || !ctx.pushSite || ctx.pushLive !== true || ctx.pushOnSite !== true) return null;
+  if (!/defend/i.test(String(ctx.side || ''))) return null;
+
+  const where = String(ctx.locLabel || ctx.playerSpot || '');
+  const playerSite = (where.match(/^\s*(A|B|C|Mid)\b/i) || [])[1];
+  if (!playerSite) return null;                                   // cannot tell where they are
+  if (playerSite.toUpperCase() === String(ctx.pushSite).toUpperCase()) return null;  // their own fight
+
+  const t = String(text || '');
+  if (!HOLD_ADVICE.test(t)) return null;
+  if (MOVE_ADVICE.test(t)) return null;   // it does tell them to move, let it through
+  return { where };
+}
+
 /**
  * The tip names places, but not the one the player actually died at.
  *
@@ -2011,6 +2044,20 @@ function scenarioFits(text, source, ctx) {
     // outcome rather than rewriting, because the sentence is built around the
     // place and a substitution would leave the reasoning describing somewhere
     // the player never was.
+    // HOLDING A DEAD ANGLE WHILE THEY HIT SOMEWHERE ELSE.
+    //
+    // With a live push confirmed on site at a DIFFERENT site from the player,
+    // a tip telling them to sit still is the worst one available: it keeps
+    // them out of a round that is already happening without them. The prompt
+    // covers this, but "hold your angle" is the single most common shape of
+    // advice in the whole library, so the model reaches for it constantly and
+    // a rule it can overlook is not enough.
+    const stuck = wrongSideHold(l, ctx);
+    if (stuck) {
+      noteReject(`told the player to hold ${stuck.where} while ${ctx.pushCount} enemies are confirmed on ${ctx.pushSite}`);
+      return false;
+    }
+
     if (isDeathReview(l, ctx)) {
       const wrongSpot = wrongDeathSpot(l, ctx.deathSpot);
       if (wrongSpot) {
@@ -2055,4 +2102,4 @@ module.exports = CoachingEngine;
 // Exposed for tests. The death-location gate is the kind of rule that is easy
 // to get subtly wrong (gating a general tip, or letting the spectated location
 // through), so it is checked directly rather than only through a live session.
-module.exports.__test = { isDeathReview, wrongDeathSpot, namedCallouts, namedSpots };
+module.exports.__test = { isDeathReview, wrongDeathSpot, namedCallouts, namedSpots, wrongSideHold };

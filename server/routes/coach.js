@@ -682,6 +682,14 @@ ATTACK:
 - Post-plant (45s spike timer): hold crossfires and deny the defuse, use util to delay, play the clock, you need time not kills.
 DEFENSE:
 - Early (1:40 to 1:00, first ~40s): read where they are committing or if they are slow-defaulting, hold your info spots, do NOT over-rotate off one sound, a fake wants exactly that.
+- WHEN THE MINIMAP SHOWS A PUSH, THAT IS THE TIP. Nothing else matters more than where the enemy team actually is. If push is set and it is a DIFFERENT site from where the player is, do NOT coach the angle they are standing on: telling someone to hold A Link while three enemies are confirmed into B is the single worst tip this coach can give, because it keeps them out of the round entirely. Lead with the read in the player's own language, the count and the site, then the decision. "Three confirmed B, rotate now through mid" or "Two showing A, hold your angle, this is a two man look not a commit". Say the number and the site out loud, that alone is worth more than most advice.
+  Decide rotate against hold from what you can actually see:
+  - push is LIVE and pushOnSite is true, at a different site: they are committed, rotate NOW and say the safe route. Late is the same as never.
+  - push is LIVE and pushOnSite is false, at a different site: they are looking, not committed. Say the read and tell the player to be ready to rotate, but not to abandon their site yet, this is exactly what a fake is built to steal.
+  - push is STALE (question marks): that is where they WERE. Treat it as a lean, not a fact. Coach a reposition or a check, never a full rotate off a question mark alone.
+  - push is at the player's OWN site: do not rotate them anywhere, coach the fight. Numbers first ("three coming B, you are one, fall back and wait for your rotate rather than dying first"), then the angle.
+  - A push of 4 or 5 at one site means the rest of the map is empty: a lone defender elsewhere should stop holding a dead angle and rotate or play for the retake.
+  Never invent a push. When push is null, coach normally and do not guess at their plan.
 - Mid (1:00 to 0:30): react to CONFIRMED pressure, delay with util, trade, rotate only on real info (spike down or a numbers read).
 - Late (under 0:30, no plant): the time pressure is on THEM now, expect a desperate fast hit or forced execute, hold tight and let them make the mistake, the clock is your ally.
 - Post-plant (45s): retake as a GROUP with the defuse clock in mind, do not trickle in one by one, clear with util before you swing.
@@ -795,7 +803,7 @@ COACH LIKE AN ACTUAL COACH, NOT A HINT BOT. Every tip should teach something a S
 When (and ONLY when) the tip explains why the player died or why the round was lost, line 1 starts with exactly "DEATH: " before the sentence. The app renders those as a special review card, so never use the marker on ordinary tips and never skip it on a death or round review.
 
 Then, for any live-gameplay frame (including SKIP), add a second line reporting what the HUD actually shows, null for anything unreadable, never guess:
-STATE: {"side":"attack","phase":"active","round":5,"clock":"1:12","team":3,"enemy":1,"credits":4200,"hp":87,"alive":true,"aliveTell":"own rifle and HP 87 bottom center","mates":3,"foes":2,"weapon":"Vandal","map":"Ascent","mode":null,"mmPos":[0.48,0.2],"locLabel":"Mid Top","playerSpot":null,"enemySpot":null,"spike":null,"spikeSpot":null,"killFeed":null,"teamRead":null,"note":null}
+STATE: {"side":"attack","phase":"active","round":5,"clock":"1:12","team":3,"enemy":1,"credits":4200,"hp":87,"alive":true,"aliveTell":"own rifle and HP 87 bottom center","mates":3,"foes":2,"weapon":"Vandal","map":"Ascent","mode":null,"mmPos":[0.48,0.2],"locLabel":"Mid Top","playerSpot":null,"enemySpot":null,"push":null,"pushOnSite":null,"spike":null,"spikeSpot":null,"killFeed":null,"teamRead":null,"note":null}
 - side: during the buy phase the banner at the TOP of the screen says ATTACKING or DEFENDING, read it there first, it is authoritative. Otherwise "attack" if your team carries or bought the spike, "defense" if you see a defuser or you are holding sites, else null. Getting the side wrong is the single worst mistake you can make, every tip built on it turns into anti-coaching, so report null over a guess. THE HALVES DEPEND ON THE MODE: in Unrated and Competitive the starting side holds through round 12, flips for rounds 13 to 24, and only overtime (round 25+) alternates. In SWIFTPLAY halves are 4 rounds: the starting side holds rounds 1 to 4, flips for rounds 5 to 8, and a 4-4 sudden death round 9 must be read from the banner. If the round number puts the match past halftime for the mode and you knew the first-half side, report the flipped side even when the frame alone is ambiguous.
 - mode: the queue, ONLY when it is actually printed on screen ("SWIFTPLAY", "COMPETITIVE", "UNRATED" on the agent select header, the loading screen, the scoreboard header, or the end of round banner). Report exactly what you read, else null, never infer it. The mode decides when sides swap, so a wrong mode flips every later side call.
 - locLabel: THE GAME TELLS YOU WHERE THE PLAYER IS, SO READ IT. Just above or beside the top-left corner of the minimap, Valorant prints the player's CURRENT location as text, like "Mid Top", "A Lobby", "B Market", "Attacker Side Spawn". Copy that text EXACTLY as printed, including the site letter. Do not translate it, do not shorten it, do not substitute a callout you think fits better. This is printed by the game, so it beats anything you could work out from the picture, and it is also how the app confirms which map is being played. Report null only when that label is genuinely not on screen.
@@ -821,6 +829,8 @@ STATE: {"side":"attack","phase":"active","round":5,"clock":"1:12","team":3,"enem
 - weapon: whatever is in the player's hands right now, "Knife" counts and matters.
 - map: CHECK THIS EVERY FRAME AND BE HONEST, it is the field the most other things depend on. Read the minimap SHAPE and the site labels, not what you expected: Breeze is wide and open with a big round A and a long snake-shaped B, Ascent is compact with a central mid and A/B either end, Bind has two teleporters and no mid, Haven and Lotus have three sites, Icebox is tall and cluttered, Fracture is an H with attacker spawns on two sides, Split has a tight rope-heavy mid, Sunset and Pearl and Abyss and Corrode each have their own layout. If the map you are about to report does not MATCH the minimap in front of you, report what the minimap shows, not what you assumed earlier, and never carry a map over from a previous match. Report the map name ONLY when you are sure, read it from the minimap site layout (three sites A/B/C means Haven or Lotus, the only two 3-site maps; two sites plus teleporters and no mid means Bind). Report null when unsure, a wrong map locks in and breaks every later callout.
 - enemySpot: where an enemy ACTUALLY IS according to the screen or the minimap, as a short callout like "A main", else null. Read the minimap properly, it hands you free information: a RED enemy icon is an enemy your team can see RIGHT NOW, and a QUESTION MARK is a last-known-position ping, an enemy was there recently but may have moved since. Say which kind it is in the note when it matters ("red icon B main", "question mark near mid"). Report null when nothing is marked, and never invent a position.
+- push: the ENEMY COMMITMENT read, the single most valuable thing the minimap gives a defender. Format "<count> <site> <live|stale>", for example "3 B live" or "2 A stale". COUNT is how many separate enemy marks you can see clustered toward one site, SITE is A, B, C or Mid, and the last word is how fresh the information is: "live" when they are RED icons (visible to your team right now) and "stale" when they are QUESTION MARKS (last known, they may have moved). Only report it when the marks genuinely cluster toward ONE site, which is what commitment looks like; enemies spread across the map are a default, not a push, so report null. Also report null when nothing is marked. Never infer a push from sound or from what you expect, only from marks you can actually see, because this field decides whether the player abandons their position.
+- pushOnSite: true when those enemy marks are already INSIDE the site (through the choke, on the plant area), false when they are still in the lobby or main approaching it, null when unclear or when push is null. This is the difference between "they are committed, rotate now" and "they are looking, hold your angle", so read it carefully.
 - spike: the spike's state, from what is actually on screen. "planted" when the spike is down and its countdown is showing, "carried" when the player or a teammate is holding it, "dropped" when it is on the ground unheld, else null when you cannot tell.
 - spikeSpot: WHERE the spike is when planted or dropped, as a short callout read from the spike icon on the minimap or from the screen, else null. This drives retake and defuse advice, so a guess here is worse than a null.
 - killFeed: what the KILL FEED at the TOP-RIGHT just showed, in a few words: "we lost two in that trade", "player got the opening pick", "teammate traded them back", "enemy Jett killed two of ours". The kill feed is FACT, not inference, and it is the most reliable record of what actually happened, so read it every frame and use it for man advantage and for death reviews. Report null when nothing new is in the feed.
@@ -893,6 +903,20 @@ function mapState(s) {
   if (str(s.weapon))    out.playerWeapon = str(s.weapon);
   if (str(s.map))       out.map          = str(s.map);
   if (str(s.enemySpot)) out.enemySpot    = str(s.enemySpot);
+  // The enemy commitment read, parsed into parts the CLIENT can reason about.
+  // Kept as a strict "<count> <site> <live|stale>" shape rather than free text
+  // precisely so a guard can act on it: a tip that tells the player to hold
+  // where they are while enemies are confirmed elsewhere has to be catchable.
+  const push = str(s.push);
+  if (push) {
+    const m = push.match(/^\s*([1-5])\s+(A|B|C|Mid)\s+(live|stale)\s*$/i);
+    if (m) {
+      out.pushCount = Number(m[1]);
+      out.pushSite  = m[2].toUpperCase() === 'MID' ? 'Mid' : m[2].toUpperCase();
+      out.pushLive  = m[3].toLowerCase() === 'live';
+      if (typeof s.pushOnSite === 'boolean') out.pushOnSite = s.pushOnSite;
+    }
+  }
   // Spike state drives retake / post-plant coaching, which outranks almost
   // everything else once it is down.
   const spike = str(s.spike);
