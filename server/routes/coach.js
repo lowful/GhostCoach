@@ -80,6 +80,26 @@ const AI = {
 };
 
 // ─── Out-of-credits breaker ──────────────────────────────────────────────────
+// EXHAUSTED CREDITS DO NOT ALWAYS ARRIVE AS 402.
+//
+// The breaker below originally keyed on the 402 status alone. A real outage
+// proved that wrong: the account ran dry and OpenRouter answered 403 for every
+// request instead. Nothing detected it, so the breaker never opened, the
+// coaching loop hammered the provider every few seconds for the whole outage,
+// and the player was told the coach was "temporarily down" rather than the
+// truth, which was the one thing they could actually act on.
+//
+// So the status is now only half the test. Any refusal whose body talks about
+// credits, quota or billing counts, whatever code it arrived under.
+const CREDITS_TEXT = /credit|quota|insufficient|billing|payment required|out of funds|top ?up/i;
+
+/** Is this provider refusal actually "the account has no money"? */
+function looksLikeCreditsFailure(status, body) {
+  if (status === 402) return true;                       // the documented case
+  if (status !== 403 && status !== 429) return false;    // anything else is a real error
+  return CREDITS_TEXT.test(String(body || ''));
+}
+
 // When the AI account runs dry every request 402s. The coaching loop fires
 // every few seconds per player, so without a breaker the server spends the
 // outage hammering the provider and filling the log with identical errors
@@ -109,8 +129,9 @@ async function chatCall({ prompt, imageB64, maxTokens, temperature, model: pinne
   // Fail fast while the credits breaker is open: the provider would only 402
   // again, and every attempt costs a round trip and another identical log line.
   if (creditsLookExhausted()) {
-    const err = new Error('AI 402');
+    const err = new Error('AI credits exhausted');
     err.status = 402;
+    err.credits = true;
     throw err;
   }
   const images  = Array.isArray(imageB64) ? imageB64 : (imageB64 ? [imageB64] : []);
@@ -160,14 +181,18 @@ async function chatCall({ prompt, imageB64, maxTokens, temperature, model: pinne
     // outage: retrying cannot fix it, so it must be reported differently from a
     // hiccup (the player was told "temporarily down" and reasonably assumed a
     // bug) and it must open the breaker so we stop hammering the provider.
-    if (resp.status === 402) {
+    const outOfCredits = looksLikeCreditsFailure(resp.status, text);
+    if (outOfCredits) {
       noteCreditsExhausted();
-      console.error('[coach] AI OUT OF CREDITS (402). Top up at https://openrouter.ai/settings/credits');
+      console.error(`[coach] AI OUT OF CREDITS (${resp.status}). Top up at https://openrouter.ai/settings/credits`);
     } else {
       console.error(`[coach] AI error (${resp.status}):`, text.slice(0, 200));
     }
     const err = new Error(`AI ${resp.status}`);
     err.status = resp.status;
+    // Carried separately from the status, because the status alone cannot
+    // answer this question. Everything downstream keys off the flag.
+    err.credits = outOfCredits;
     throw err;
   }
   clearCreditsFlag();   // a successful call proves credits are available again
@@ -1132,7 +1157,7 @@ router.post('/analyze', async (req, res) => {
     // Out of credits is a distinct, actionable state, not an outage. Report it
     // as such so the player is told the truth ("AI credits ran out") instead of
     // "temporarily down", which reads like a bug in the app.
-    if (err && err.status === 402) {
+    if (err && (err.credits || err.status === 402)) {
       return res.status(402).json({
         tip: '', context: {}, error: 'ai-credits',
         message: 'The coach AI is out of credits. Top up the OpenRouter account to resume AI tips.',
@@ -2027,7 +2052,7 @@ Answer as their coach, talking about this exact moment.
     if (!reply) return res.json({ error: 'The coach had no answer for that frame. Try asking differently.' });
     res.json({ reply: reply.slice(0, 1200) });
   } catch (e) {
-    if (e && e.status === 402) {
+    if (e && (e.credits || e.status === 402)) {
       return res.status(402).json({ error: 'ai-credits', message: 'The coach AI is out of credits.' });
     }
     console.error('[coach] frame-chat error:', e.message);
