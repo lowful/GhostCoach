@@ -1815,9 +1815,24 @@ router.get('/last-match', async (req, res) => {
     const region = acct.json?.data?.region;
     if (!region) return res.json({ error: 'Account not found.' });
 
-    const sm = await henrikGet(`/valorant/v1/stored-matches/${region}/${enc(name)}/${enc(tag)}?mode=competitive&size=1`);
-    const m  = sm.json?.data?.[0];
-    if (!m || !m.stats) return res.json({ error: 'No recent match found yet. Matches appear a few minutes after they end.' });
+    // EVERY QUEUE, NOT JUST COMPETITIVE.
+    //
+    // This asked for mode=competitive, so for a player whose recent games are
+    // swiftplay or unrated it answered with whatever competitive match they
+    // last played, which in a real account was a MONTH old. The session to
+    // match link then correctly refused it every single time (different map,
+    // different agent, month old timestamp), so no coached session ever got a
+    // scoreboard. The guard was working; it was being fed the wrong match.
+    //
+    // No mode filter and a handful of rows, newest first. One upstream call,
+    // which also keeps this off the rate limit that made the merged unrated
+    // view flicker earlier. Anything irrelevant is rejected downstream by the
+    // map, agent and timing checks, so casting wide here is safe.
+    const sm   = await henrikGet(`/valorant/v1/stored-matches/${region}/${enc(name)}/${enc(tag)}?size=5`);
+    const rows = Array.isArray(sm.json?.data) ? sm.json.data.filter((x) => x && x.stats) : [];
+    rows.sort((a, b) => (Date.parse(b.meta?.started_at || 0) || 0) - (Date.parse(a.meta?.started_at || 0) || 0));
+    const m = rows[0];
+    if (!m) return res.json({ error: 'No recent match found yet. Matches appear a few minutes after they end.' });
 
     const st = m.stats, teams = m.teams || {};
     const rounds  = (teams.red | 0) + (teams.blue | 0);
