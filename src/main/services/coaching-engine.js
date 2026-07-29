@@ -124,6 +124,7 @@ class CoachingEngine extends EventEmitter {
     this.sideChallenge = null;
     this.pendingMap = null;
     this.scoreboardChallenge = null;   // pending implausible round/score read
+    this.lastScoreAt = 0;              // when a round/score read was last believed, for the rate ceiling
     this.seenLabels = [];              // location labels the game printed, for map fingerprinting
     this.mapConfirmedByLabels = false; // once true, the model cannot change the map
     this.pendingMode = null;
@@ -1169,8 +1170,37 @@ class CoachingEngine extends EventEmitter {
       // the round flaps, which is what drives the halftime side math back and
       // forth mid match.
       const backwards = jump < 0 || scoresFell;
+
+      // TIME IS THE CEILING, AND NO AMOUNT OF AGREEMENT BEATS IT.
+      //
+      // "Twice in a row: believe it" was too weak on its own. The model reads
+      // the SAME wrong HUD on consecutive frames, so agreeing with itself costs
+      // it nothing, and a real session walked from round 3 to round 12 in 90
+      // seconds and from 1-2 to 2-10 in another 81. Nine rounds cannot happen
+      // in ninety seconds: a Valorant round is 100 seconds of play plus a buy
+      // phase, so even the fastest possible round cannot repeat under about
+      // half a minute.
+      //
+      // So the clock decides what is possible and the agreement rule only
+      // decides what is believable within it. A genuine gap (alt tab, a paused
+      // session) still passes, because the allowance grows with real elapsed
+      // time rather than with frames.
+      const sinceScore = this.lastScoreAt ? (Date.now() - this.lastScoreAt) : 0;
+      const roundsPossible = this.lastScoreAt
+        ? 1 + Math.floor(sinceScore / MIN_ROUND_MS)
+        : Infinity;   // first read of the session has nothing to measure against
+      const tooFast = jump > roundsPossible;
+
       if (backwards) {
         console.log(`[engine] ignoring backwards scoreboard read: round ${prevRound} -> ${updates.roundNumber}`);
+        delete updates.roundNumber;
+        delete updates.teamScore;
+        delete updates.enemyScore;
+      } else if (tooFast) {
+        // Never confirmable. Repeating an impossible claim does not make it true.
+        console.log(`[engine] ignoring impossible scoreboard jump: round ${prevRound} -> ${updates.roundNumber}`
+          + ` (+${jump}) after only ${Math.round(sinceScore / 1000)}s, at most +${roundsPossible} was possible`);
+        this.scoreboardChallenge = null;
         delete updates.roundNumber;
         delete updates.teamScore;
         delete updates.enemyScore;
@@ -1193,6 +1223,11 @@ class CoachingEngine extends EventEmitter {
       } else {
         this.scoreboardChallenge = null;   // a clean read clears any pending doubt
       }
+      // Stamp the clock whenever a read SURVIVED the guard above. Anything the
+      // guard stripped leaves roundNumber deleted, so the allowance keeps
+      // growing from the last believed read rather than resetting on a rejection
+      // and quietly handing the next bad read a bigger budget.
+      if (typeof updates.roundNumber === 'number') this.lastScoreAt = Date.now();
     }
 
     // Game mode from the HUD (agent select header, loading screen, scoreboard,
@@ -1759,6 +1794,12 @@ const PROMPT_LEAK = /"(?:side|phase|round|team|enemy|credits|alive|weapon|map|en
 const UPDRAFT_BAN = /\bupdraft\b/i;
 const KNIFE_TIP   = /\bknife\b/i;
 const DEATH_WINDOW_MS = 15000;
+// The fastest a Valorant round can possibly repeat: a 30 second buy phase plus
+// the shortest survivable round. Real rounds average well over a minute, so
+// this is already generous, and it needs to be: too loose and a run of rejected
+// reads banks enough time for the bad value to walk in anyway, which is exactly
+// what 30 seconds did when replayed against the session that prompted this.
+const MIN_ROUND_MS = 40000;
 
 // How many coaching tips a player gets after dying. Enough to explain the death
 // and the fix; past that they are spectating and cannot act on anything, so the
