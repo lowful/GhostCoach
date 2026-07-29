@@ -30,7 +30,10 @@ app.whenReady().then(async () => {
     width: 360, height: 340,
     x: -2000, y: 0,             // offscreen, but composited so capture works
     frame: false, show: true, transparent: false,
-    backgroundColor: '#0a121a', // solid, so the PNG is not an alpha soup
+    // A mid grey stand-in for the desktop. The real window is transparent, and
+    // a dark backdrop hides exactly the artefacts worth checking for, such as a
+    // drop shadow reading as a halo. Grey shows them.
+    backgroundColor: process.env.SPLASH_BG || '#0a121a',
     webPreferences: { backgroundThrottling: false },
   });
 
