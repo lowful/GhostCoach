@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'self';" />
+  <title>GhostCoach</title>
+  <link rel="stylesheet" href="../shared/theme.css" />
+  <link rel="stylesheet" href="splash.css" />
+</head>
+<body>
+  <!-- The launch animation. The ghost is inlined rather than loaded from
+       assets/logo-ghost.svg because the eyes, the body and the glow each move
+       on their own timing, and that is only possible with the nodes in the
+       document. Keep the two in sync if the logo ever changes. -->
+  <div class="stage">
+    <div class="card">
+      <div class="grid" aria-hidden="true"></div>
+      <div class="bloom" aria-hidden="true"></div>
+
+      <div class="ghost-wrap">
+        <span class="ring ring-1" aria-hidden="true"></span>
+        <span class="ring ring-2" aria-hidden="true"></span>
+
+        <svg class="ghost" viewBox="0 0 120 140" width="96" height="112" role="img" aria-label="GhostCoach">
+          <defs>
+            <linearGradient id="body" x1="60" y1="8" x2="60" y2="132" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stop-color="#FF5E6B"/>
+              <stop offset="1" stop-color="#E8323F"/>
+            </linearGradient>
+            <radialGradient id="sheen" cx="0.5" cy="0.32" r="0.7">
+              <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.22"/>
+              <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+            </radialGradient>
+            <filter id="drop" x="-30%" y="-30%" width="160%" height="160%">
+              <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#FF4655" flood-opacity="0.45"/>
+            </filter>
+            <!-- The scan band that sweeps down the ghost, the visual promise
+                 that this thing reads your screen. -->
+            <linearGradient id="scanFade" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0"    stop-color="#00F0FF" stop-opacity="0"/>
+              <stop offset="0.45" stop-color="#00F0FF" stop-opacity="0.85"/>
+              <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0.95"/>
+              <stop offset="1"    stop-color="#00F0FF" stop-opacity="0"/>
+            </linearGradient>
+            <clipPath id="bodyClip">
+              <path d="M60 8C33 8 16 28 16 56V118c0 6 7 9 11 5l8-8 8 8c2 2 6 2 8 0l8-8 8 8c2 2 6 2 8 0l8-8 8 8c4 4 11 1 11-5V56C104 28 87 8 60 8 Z"/>
+            </clipPath>
+          </defs>
+
+          <g class="g-body">
+            <path class="body" filter="url(#drop)" fill="url(#body)" d="
+              M60 8 C33 8 16 28 16 56 V118 c0 6 7 9 11 5 l8-8 8 8c2 2 6 2 8 0
+              l8-8 8 8c2 2 6 2 8 0 l8-8 8 8c4 4 11 1 11-5 V56 C104 28 87 8 60 8 Z"/>
+            <path fill="url(#sheen)" d="M60 8C33 8 16 28 16 56v22c0-28 17-48 44-48s44 20 44 48V56C104 28 87 8 60 8Z"/>
+
+            <g clip-path="url(#bodyClip)">
+              <rect class="scan" x="0" y="-46" width="120" height="46" fill="url(#scanFade)"/>
+            </g>
+
+            <g class="eyes">
+              <circle cx="45" cy="58" r="8" fill="#0F1923"/>
+              <circle cx="75" cy="58" r="8" fill="#0F1923"/>
+              <circle class="spark" cx="47.5" cy="55.5" r="2.6" fill="#00F0FF"/>
+              <circle class="spark" cx="77.5" cy="55.5" r="2.6" fill="#00F0FF"/>
+            </g>
+          </g>
+        </svg>
+      </div>
+
+      <div class="wordmark">GHOSTCOACH</div>
+      <div class="tagline">Reading the round</div>
+      <div class="bar" aria-hidden="true"><i></i></div>
+    </div>
+  </div>
+</body>
+</html>

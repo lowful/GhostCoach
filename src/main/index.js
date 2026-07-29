@@ -34,6 +34,7 @@ const dockWindow       = require('./windows/dock-window');
 const activationWindow = require('./windows/activation-window');
 const onboardingWindow = require('./windows/onboarding-window');
 const chatWindow       = require('./windows/chat-window');
+const splashWindow     = require('./windows/splash-window');
 const api              = require('./services/api-client');
 const tray     = require('./tray');
 const hotkeys  = require('./hotkeys');
@@ -1373,7 +1374,16 @@ function launchMainApp() {
     console.log('[main] first run, waiting on onboarding before opening the app');
     return;
   }
+  // Launch animation while the surfaces come up. Opened BEFORE the work so it
+  // covers the real startup cost rather than adding to it, and closed once the
+  // panel is actually on screen. splash-window enforces its own minimum on
+  // screen time, so a fast start still gets the full animation instead of a
+  // flicker.
+  splashWindow.open();
   createAppSurfaces();
+  const panel = panelWindow.get();
+  if (panel) panel.webContents.once('did-finish-load', () => splashWindow.close());
+  else splashWindow.close();
 }
 
 function createAppSurfaces() {
