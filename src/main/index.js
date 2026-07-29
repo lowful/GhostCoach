@@ -222,9 +222,23 @@ const controller = {
           store.set('lastMatchStats', { ...current, _at: Date.now(), _riotId: (store.get('riotId') || '').trim() });
         }
       } catch {}
-      // The actual match from the tracker: result, KDA, ACS, ADR, and a grade.
+      // THE MATCH THIS SESSION COACHED, or nothing.
+      //
+      // This used raw fetchLastMatch(), which is "whatever the tracker saw most
+      // recently" with only a three hour window on it. After a lost Bind game
+      // the review card announced "Won 5-2" on Abyss, because that was simply a
+      // different match. A scoreboard from the wrong game is worse than no
+      // scoreboard: the player checks it against what they just lived through,
+      // finds it wrong, and stops trusting the review.
+      //
+      // fetchCoachedMatch applies the map, agent and timing checks, so it
+      // returns null rather than something plausible-looking but unrelated.
       try {
-        const lm = await fetchLastMatch();
+        const lm = await fetchCoachedMatch(
+          state.sessionStartedAt || Date.now(),
+          Date.now(),
+          { map: engine.matchContext.map, agent: engine.matchContext.agent },
+        );
         if (lm) data.lastMatch = lm;
       } catch {}
       registry.broadcast(C.PUSH_MATCH_REVIEW, data);
@@ -860,10 +874,85 @@ function scheduleMatchBackfill(startedAt, endedAt, mctx, attempt = 0) {
       target.match = matchSummary(match);
       fs.writeFileSync(perfFile(), JSON.stringify(all.slice(-100), null, 2));
       console.log('[match-link] backfilled the scoreboard onto the session record');
+
+      // AND RE-GRADE, now that the scoreboard exists.
+      //
+      // The first grade is written from the coaching tips alone, because it has
+      // to go out immediately and Riot publishes a match minutes late. Tips
+      // record what the coach TALKED about, not how the player did, so a
+      // session full of corrections scored badly even when the player was
+      // dropping kills, which is exactly the complaint that prompted this.
+      // With the real numbers in hand the session is scored again and the row
+      // is updated in place.
+      await regradeWithMatch(target, match);
     } catch (e) {
       console.error('[match-link] backfill failed:', e.message);
     }
   }, delay);
+}
+
+/**
+ * Score a session again with the real scoreboard and update its row in place.
+ *
+ * Needs the tips the session actually produced, so it reads them back from the
+ * archive rather than trusting anything still in memory: by the time a match
+ * publishes, the player may have started another session or restarted the app.
+ * If the archive cannot be matched the row keeps its first grade, which is
+ * still a real grade, just a tips-only one.
+ */
+async function regradeWithMatch(target, match) {
+  try {
+    const dir = sessionsDir();
+    if (!fs.existsSync(dir)) return;
+
+    // The archive written for this session: the closest one at or after the
+    // moment it was graded.
+    let file = null, best = Infinity;
+    for (const f of fs.readdirSync(dir)) {
+      if (!SESSION_FILE_RE.test(f)) continue;
+      try {
+        const j = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+        const gap = Math.abs((j.endedAt || 0) - target.at);
+        if (gap < best && gap < 5 * 60 * 1000) { best = gap; file = j; }
+      } catch {}
+    }
+    if (!file || !Array.isArray(file.tips)) return;
+
+    const tips = file.tips.filter((t) => t.source === 'ai' || t.source === 'library').map((t) => t.text);
+    if (!tips.length) return;
+
+    gradingNow = { at: Date.now(), map: target.map, agent: target.agent };
+    registry.broadcast(C.PUSH_STATE, buildState());
+
+    const { ok, data } = await api.post('/api/coach/score-session',
+      { tips: tips.slice(0, 30), notes: [],
+        context: { map: target.map, agent: target.agent, durationMin: target.durationMin },
+        match },
+      store.get('licenseKey'), 32000);
+
+    const impact = data && (data.impact != null ? data.impact : data.economy);
+    if (!ok || !data || data.error || impact == null) return;
+
+    // Re-read from disk: the file may have changed while the request was out.
+    const all = loadPerf();
+    const row = all.find((r) => r && r.at === target.at);
+    if (!row) return;
+
+    row.scores = { impact, positioning: data.positioning, utility: data.utility, aim: data.aim };
+    row.overall = Math.round((row.scores.impact + row.scores.positioning + row.scores.utility + row.scores.aim) / 4);
+    if (data.summary)    row.summary    = data.summary;
+    if (data.strengths)  row.strengths  = data.strengths;
+    if (data.weaknesses) row.weaknesses = data.weaknesses;
+    if (data.practice)   row.practice   = data.practice;
+    row.gradedWithMatch = true;
+    fs.writeFileSync(perfFile(), JSON.stringify(all.slice(-100), null, 2));
+    console.log(`[perf] re-graded with the scoreboard: overall ${row.overall}`);
+  } catch (e) {
+    console.error('[perf] re-grade failed:', e.message);
+  } finally {
+    gradingNow = null;
+    try { registry.broadcast(C.PUSH_STATE, buildState()); } catch {}
+  }
 }
 
 /** Tracker-derived category levels, the heavier half of the ratings.
