@@ -561,6 +561,41 @@ function sessionRow(s, i) {
   return row;
 }
 
+/**
+ * The row shown while the newest session is being graded. Deliberately not
+ * expandable and not a real score: it is a placeholder that gets replaced by
+ * the genuine row when the grade lands, so it must never look like a result.
+ */
+function gradingRow(g) {
+  const row = document.createElement('div');
+  row.className = 'row session grading';
+
+  const top = document.createElement('div');
+  top.className = 'top';
+
+  const spinner = document.createElement('span');
+  spinner.className = 'grading-spin';
+
+  const place = document.createElement('span');
+  place.className = 'place';
+  place.textContent = 'Latest session';
+
+  const sub = document.createElement('span');
+  sub.className = 'sub';
+  sub.textContent = [g.map, g.agent].filter(Boolean).join(' · ');
+
+  const spacer = document.createElement('span');
+  spacer.className = 'spacer';
+
+  const label = document.createElement('span');
+  label.className = 'grading-label';
+  label.textContent = 'Grading';
+
+  top.append(spinner, place, sub, spacer, label);
+  row.append(top);
+  return row;
+}
+
 // ── Shareable scorecard: a flashy PNG built on canvas ────────────────────────
 const cardLogo = new Image();
 cardLogo.src = '../../../assets/logo-ghost.svg';
@@ -776,13 +811,18 @@ function renderSessions(d) {
   sessionListEl.innerHTML = '';
   sessionMvpSlots.length = 0;   // rows are being rebuilt, drop stale slots
   const sessions = d.sessions || [];
+  // Grading takes 20 to 30 seconds. Without this row the session is simply
+  // absent while it runs, which looks exactly like it failed.
+  const pending = d.grading ? gradingRow(d.grading) : null;
+
   // Every graded session shows up (a session qualifies with multiple tips or
   // 5+ minutes of coaching); the empty state only appears with none at all.
-  if (!sessions.length) {
+  if (!sessions.length && !pending) {
     sessionEmptyEl.hidden = false;
     return;
   }
   sessionEmptyEl.hidden = true;
+  if (pending) sessionListEl.append(pending);
   sessions.forEach((s, i) => sessionListEl.append(sessionRow(s, i)));
   annotateSessionMvps();   // matches may have loaded first
 }
@@ -908,8 +948,24 @@ async function load() {
     renderAgents(d.topAgents);
     renderMatches(d.matches);
     renderSessions(d);
+    watchGrading(!!d.grading);
   } catch (e) {
     console.error('[stats] load failed', e);
+  }
+}
+
+/**
+ * While a grade is in flight, re-pull the dashboard so the pending row turns
+ * into the real one without the player reopening the window. Stops the moment
+ * grading finishes, so an idle stats window is not polling forever.
+ */
+let gradingPoll = null;
+function watchGrading(active) {
+  if (active && !gradingPoll) {
+    gradingPoll = setInterval(load, 4000);
+  } else if (!active && gradingPoll) {
+    clearInterval(gradingPoll);
+    gradingPoll = null;
   }
 }
 

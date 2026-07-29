@@ -295,16 +295,22 @@ const controller = {
         const mctx = { map: engine.matchContext.map, agent: engine.matchContext.agent };
         const startedAt = state.sessionStartedAt || Date.now();
         const endedAt   = Date.now();
-        // Riot publishes a match a few minutes after it ends, so it is often
-        // not there yet at stop time. Grade now either way (the dashboard
-        // should not stall on Riot), then backfill the scoreboard onto the
-        // record once it lands.
-        (async () => {
-          const match = await fetchCoachedMatch(startedAt, endedAt, mctx).catch(() => null);
-          await logSessionPerformance(sessionTips, mctx, durationMin,
-            engine.playerNotes.slice(-20), match);   // observed facts keep the grading honest
-          if (!match) scheduleMatchBackfill(startedAt, endedAt, mctx);
-        })();
+        // GRADE FIRST, AND NEVER BEHIND THE TRACKER.
+        //
+        // This used to await the match lookup before grading, which is a
+        // network call with a 30 second timeout. Stopping coaching is usually
+        // the last thing a player does before quitting the app, so that await
+        // was routinely killed mid flight and the session was silently never
+        // graded at all. Four qualifying sessions in a row (18 to 25 tips,
+        // 11 to 14 minutes each) produced no grade because of it.
+        //
+        // The grade depends only on data already in memory, so it goes out
+        // immediately. The scoreboard is a bonus that lands separately and
+        // backfills onto the record whenever Riot publishes the match.
+        logSessionPerformance(sessionTips, mctx, durationMin,
+          engine.playerNotes.slice(-20))   // observed facts keep the grading honest
+          .catch((e) => console.error('[perf] scoring failed:', e && e.message));
+        scheduleMatchBackfill(startedAt, endedAt, mctx);
       }
       // The match just played should show in stats right away, not after a
       // cache window; drop the caches so the next dashboard look refetches,
@@ -514,6 +520,7 @@ const controller = {
       topAgents: (stats && stats.topAgents) || [],
       sessions: perf.slice(-15).reverse(),   // newest first for the list
       sessionCount: perf.length,
+      grading: gradingState(),   // a pending row while the newest session scores
       matches,   // fetched in parallel with the tracker profile above
       riotId: (store.get('riotId') || '').trim(),
       riotConnected: (store.get('riotId') || '').includes('#'),
@@ -827,7 +834,9 @@ function appendPerf(rec) {
  * shown, and quietly changing a score the player has seen is worse than a
  * record whose scoreboard arrived late.
  */
-const MATCH_BACKFILL_DELAYS_MS = [100000, 240000];
+// First attempt is quick, in case the match is already published, then two
+// spaced retries for the usual few minute publishing delay.
+const MATCH_BACKFILL_DELAYS_MS = [4000, 100000, 240000];
 
 function scheduleMatchBackfill(startedAt, endedAt, mctx, attempt = 0) {
   const delay = MATCH_BACKFILL_DELAYS_MS[attempt];
@@ -963,9 +972,20 @@ function computeCategoryTrends(perf, stats, prevStats) {
 /** Have the server grade the finished session (0-100 per category plus
  *  strengths/weaknesses from the tips), then log it locally. Fire and forget:
  *  a failure just means this session shows no score card. */
+/**
+ * Grading takes 20 to 30 seconds of model time, and until now the session
+ * simply was not in the list while it ran, which is indistinguishable from it
+ * having failed. The stats view reads this to show a pending row instead.
+ * { at, map, agent } while a grade is in flight, null otherwise.
+ */
+let gradingNow = null;
+function gradingState() { return gradingNow; }
+
 async function logSessionPerformance(tips, mctx, durationMin, notes, match) {
   try {
     if (!Array.isArray(tips) || tips.length < 1) return;
+    gradingNow = { at: Date.now(), map: mctx.map || null, agent: mctx.agent || null };
+    registry.broadcast(C.PUSH_STATE, buildState());
     // The confirmed match, when we have one. Grading from tips alone means the
     // score reflects what the coach TALKED about; the scoreboard is what
     // actually happened, so a session where the player was told to fix their
@@ -997,7 +1017,14 @@ async function logSessionPerformance(tips, mctx, durationMin, notes, match) {
       practice:   data.practice   || '',   // concrete homework for the weakest habit
     });
     console.log('[perf] session scored and logged');
-  } catch (e) { console.error('[perf] scoring failed:', e.message); }
+  } catch (e) {
+    console.error('[perf] scoring failed:', e.message);
+  } finally {
+    // Cleared on every path, including the early returns above. A pending row
+    // that never resolves would be worse than no row at all.
+    gradingNow = null;
+    try { registry.broadcast(C.PUSH_STATE, buildState()); } catch {}
+  }
 }
 
 // Rank ladder + trend arrows live with the weekly report, which is their main

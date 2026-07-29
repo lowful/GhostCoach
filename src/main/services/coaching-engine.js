@@ -848,6 +848,12 @@ class CoachingEngine extends EventEmitter {
       }
     }
 
+    // Every enemy is down: the round is won and there is nothing to act on.
+    if (source !== 'system' && this.roundDecided()) {
+      noteReject('every enemy is dead, the round is already decided, staying quiet until the next one');
+      return false;
+    }
+
     const verified = verifyTip(text, source, this.matchContext);
     if (!verified) { noteReject(`failed the final verify gate (${source})`); return false; }
 
@@ -1068,6 +1074,25 @@ class CoachingEngine extends EventEmitter {
    * knows it, so it decides. Library tips have always used this window; the AI
    * path now uses the same one, which is why the two used to disagree.
    */
+  /**
+   * The round is already decided, so there is nothing left to coach.
+   *
+   * With every enemy dead nobody can punish a mistake, and a tip like "watch
+   * the cross while your teammate defuses" is noise over a round that is
+   * already won. Coaching resumes on its own next round, because the enemy
+   * count comes back up from the HUD read.
+   */
+  roundDecided() {
+    const foes = this.matchContext.enemiesAlive;
+    if (foes !== 0) return false;            // unknown, or someone is still alive
+    if (this.isSpectating()) return false;   // death silence owns this case already
+    // Attacking with the spike still in hand is NOT decided: failing to plant
+    // is the one way left to lose, so a plant call still deserves to land.
+    const attacking = /attack/i.test(String(this.matchContext.side || ''));
+    if (attacking && this.matchContext.spike !== 'planted') return false;
+    return true;
+  }
+
   inDeathWindow() {
     // BEING DEAD IS THE WHOLE TEST, and it ends the moment the player respawns.
     //

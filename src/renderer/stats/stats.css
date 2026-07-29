@@ -169,6 +169,27 @@ section h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; lette
 .detail .scores4 { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
 .detail .sc { font-size: 10.5px; color: var(--text-dim); background: rgba(0,0,0,0.26); border: 1px solid var(--glass-border); border-radius: 999px; padding: 3px 9px; }
 .detail .sc b { color: var(--text); }
+
+/* Session currently being graded. Muted and not expandable, so it never reads
+   as a finished result sitting at the top of the list. */
+.row.session.grading { cursor: default; opacity: 0.85; }
+.row.session.grading .place { color: var(--text-dim); }
+.grading-label {
+  font-size: 10.5px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase;
+  color: var(--cyan);
+}
+.grading-spin {
+  width: 11px; height: 11px; flex: none; margin-right: 8px;
+  border: 2px solid rgba(0, 240, 255, 0.22);
+  border-top-color: var(--cyan);
+  border-radius: 50%;
+  animation: gradingSpin 720ms linear infinite;
+}
+@keyframes gradingSpin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .grading-spin { animation: none; border-top-color: rgba(0, 240, 255, 0.22); }
+}
 /* The confirmed match scoreboard. Separated from the category chips by a rule
    so it reads as fact from the tracker rather than another graded number. */
 .detail .matchline { padding-bottom: 10px; border-bottom: 1px solid var(--glass-border); }
