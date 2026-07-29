@@ -1140,12 +1140,21 @@ router.post('/analyze', async (req, res) => {
       });
     }
     console.error('[coach] analyze error:', err.message, err.stack && err.stack.split('\n')[1]);
+    // Surface the PROVIDER's status code. Without it a revoked key (401), a
+    // rate limit (429) and a genuine provider outage (5xx) are indistinguishable
+    // from each other and from a bug in our own code, both to the client and to
+    // anyone debugging from outside Railway. The status only, never the body,
+    // which can echo request content.
     // A thrown analyze (AI provider rejected the request, a timeout, a parse
     // failure) is a real outage, NOT "no tip this frame". Returning a 200 here
     // made the client treat the empty body as a normal reply and sit silent,
     // with no coaching and no warning. A 5xx makes the client surface the
     // "coach's AI is temporarily down" notice and fall back to library tips.
-    res.status(503).json({ tip: '', context: {}, error: 'coach-unavailable' });
+    res.status(503).json({
+      tip: '', context: {}, error: 'coach-unavailable',
+      upstream: (err && err.status) || null,
+      detail: (err && err.message) || null,
+    });
   }
 });
 
@@ -2142,7 +2151,9 @@ Reply as Coach to the player's last message. Rules:
     res.json({ reply: reply.slice(0, 1500) });
   } catch (e) {
     console.error('[coach] chat error:', e.message);
-    res.status(500).json({ error: 'Chat failed' });
+    // Same reasoning as analyze: without the provider's status this is not
+    // diagnosable from outside Railway.
+    res.status(500).json({ error: 'Chat failed', upstream: (e && e.status) || null, detail: (e && e.message) || null });
   }
 });
 
