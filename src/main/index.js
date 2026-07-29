@@ -1374,24 +1374,31 @@ function launchMainApp() {
     console.log('[main] first run, waiting on onboarding before opening the app');
     return;
   }
-  // Launch animation while the surfaces come up. Opened BEFORE the work so it
-  // covers the real startup cost rather than adding to it, and closed once the
-  // panel is actually on screen. splash-window enforces its own minimum on
-  // screen time, so a fast start still gets the full animation instead of a
-  // flicker.
+  // THE LOADER OWNS THE SCREEN ALONE, then hands over to the app.
+  //
+  // The surfaces are still built immediately, because that is the startup cost
+  // the animation is there to cover, but the panel is created hidden and only
+  // revealed once the splash is gone. Building it first means the reveal is
+  // instant and the panel is never seen part way through rendering.
   splashWindow.open();
-  createAppSurfaces();
+  splashWindow.onTimeout(() => panelWindow.reveal());   // never strand a hidden panel
+  createAppSurfaces({ deferShow: true });
+
   const panel = panelWindow.get();
-  if (panel) panel.webContents.once('did-finish-load', () => splashWindow.close());
-  else splashWindow.close();
+  const handOver = () => splashWindow.close(() => panelWindow.reveal());
+  if (panel) panel.webContents.once('did-finish-load', handOver);
+  else handOver();
 }
 
-function createAppSurfaces() {
+function createAppSurfaces(opts) {
   if (surfacesUp) return;
   surfacesUp = true;
 
   overlayWindow.create();
-  panelWindow.create();
+  // deferShow keeps the panel hidden until the launch animation finishes. The
+  // overlay needs no such treatment: it is transparent, click through, and
+  // renders nothing until a tip arrives.
+  panelWindow.create({ deferShow: !!(opts && opts.deferShow) });
   tray.create(trayActions);
   hotkeys.register(hotkeyActions);
   updater.init();   // background update checks + in-app restart prompt

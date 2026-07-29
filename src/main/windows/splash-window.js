@@ -57,19 +57,25 @@ function open() {
     win.showInactive();       // visible, never focused
   });
 
-  hardTimer = setTimeout(close, MAX_MS);
+  hardTimer = setTimeout(() => close(onExpired), MAX_MS);
   registry.register('splash', win);
   return win;
 }
+
+// Run if the hard cap fires, so a startup that never finishes loading still
+// hands the screen over to the app rather than hiding it behind a dead splash.
+let onExpired = null;
+function onTimeout(fn) { onExpired = fn; }
 
 /**
  * Close it, but never before the animation has had its full run. Startup often
  * finishes in a few hundred milliseconds, and blinking the loader away that
  * fast reads as a glitch, so the remaining time is waited out.
  */
-function close() {
+function close(done) {
+  const finish = () => { if (typeof done === 'function') done(); };
   const win = registry.get('splash');
-  if (!win) return;
+  if (!win) { finish(); return; }
 
   const elapsed = Date.now() - shownAt;
   const wait = shownAt ? Math.max(0, MIN_MS - elapsed) : 0;
@@ -78,9 +84,13 @@ function close() {
     if (hardTimer) { clearTimeout(hardTimer); hardTimer = null; }
     const w = registry.get('splash');
     if (w && !w.isDestroyed()) w.close();
+    // The callback is what hands the screen over to the app, so it must run
+    // even if the window was already gone, otherwise a failed splash would
+    // leave the panel hidden forever.
+    finish();
   }, wait);
 }
 
 function get() { return registry.get('splash'); }
 
-module.exports = { open, close, get };
+module.exports = { open, close, get, onTimeout };

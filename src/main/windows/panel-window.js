@@ -13,7 +13,13 @@ const store = require('../services/store');
 const WIDTH = 360;
 const HEIGHT = 200; // initial only, the panel auto-resizes to its content (setContentHeight)
 
-function create() {
+/**
+ * @param opts.deferShow  build and load the panel but leave it hidden until
+ *   reveal() is called. Used at launch so the splash animation plays alone and
+ *   the app appears when it finishes, instead of the two overlapping on screen.
+ */
+function create(opts) {
+  const deferShow = !!(opts && opts.deferShow);
   const saved = store.get('panelBounds');
   const display = screen.getPrimaryDisplay();
   const { x: dx, y: dy, width: dw } = display.workArea;
@@ -46,7 +52,9 @@ function create() {
   win.setAlwaysOnTop(true, 'screen-saver');
   win.loadFile(path.join(__dirname, '../../renderer/panel/index.html'));
   // showInactive so appearing/refreshing never steals focus from the game.
-  win.once('ready-to-show', () => win.showInactive());
+  // When deferred, the window still loads fully in the background, so reveal()
+  // is instant and the panel is never seen mid render.
+  win.once('ready-to-show', () => { if (!deferShow) win.showInactive(); });
 
   // Persist position when the user drags the panel.
   const saveBounds = () => {
@@ -61,6 +69,13 @@ function create() {
 }
 
 function get() { return registry.get('panel'); }
+
+/** Show a panel that was created with deferShow. Safe to call more than once. */
+function reveal() {
+  const win = get();
+  if (!win || win.isDestroyed() || win.isVisible()) return;
+  win.showInactive();   // still never steals focus from the game
+}
 
 /** Resize the window to fit the panel's content height (keeps x/y/width). */
 function setContentHeight(h) {
@@ -96,4 +111,4 @@ function getDockAnchor(dockSize = 56) {
   return { x: b.x + b.width - dockSize, y: b.y };
 }
 
-module.exports = { create, get, setMinimized, toggleMinimized, isMinimized, getDockAnchor, setContentHeight };
+module.exports = { create, get, reveal, setMinimized, toggleMinimized, isMinimized, getDockAnchor, setContentHeight };
