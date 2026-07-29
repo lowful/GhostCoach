@@ -17,7 +17,7 @@ const say = (m) => { try { fs.appendFileSync(LOG, m + '\n'); } catch {} };
 
 // Frames across the sequence: ghost landing, scan sweeping, wordmark settling,
 // bar completing, fade out.
-const AT_MS = [260, 620, 900, 1200, 1500, 1750];
+const AT_MS = [420, 760, 1050, 1320, 1480, 1700];
 
 app.disableHardwareAcceleration();
 process.on('uncaughtException', (e) => { say('FATAL ' + (e && e.stack)); app.exit(1); });
