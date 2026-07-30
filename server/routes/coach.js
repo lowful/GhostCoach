@@ -7,6 +7,34 @@ const patchCtx  = require('../services/patch-context');
 const router = express.Router();
 
 // ─── Cost tracking (in-memory, resets on server restart) ──────────────────────
+/**
+ * Bounded cache write.
+ *
+ * Every cache in this file is keyed by Riot ID or match ID, so each one grows
+ * with the number of distinct players seen and never shrinks. On a long lived
+ * process that is a slow memory leak with exactly one ending: the container
+ * exceeds its limit and the platform restarts it, which looks like a random
+ * crash because nothing in the logs points at a cause.
+ *
+ * Map preserves insertion order, so the oldest keys are the front of the
+ * iterator. Trimming to a cap costs nothing and turns an unbounded structure
+ * into a bounded one, which is the whole point. Re-setting an existing key
+ * deletes it first so a refreshed entry counts as recently used rather than
+ * keeping its original position and being evicted while still hot.
+ */
+function cacheSet(map, key, value, max) {
+  if (map.has(key)) map.delete(key);
+  map.set(key, value);
+  if (map.size > max) {
+    const overflow = map.size - max;
+    let i = 0;
+    for (const k of map.keys()) {
+      if (i++ >= overflow) break;
+      map.delete(k);
+    }
+  }
+}
+
 const costStore   = new Map();
 const globalStats = { callsToday: 0, callsMonth: 0, costToday: 0, costMonth: 0, date: '' };
 const COST_PER_CALL = (2200 * 0.00000013) + (40 * 0.00000052); // Qwen3-VL, ~$0.0003
@@ -24,7 +52,7 @@ function trackCall(key, units = 1) {           // units: frame-memory calls send
   globalStats.costToday  += cost;
   globalStats.costMonth  += cost;
 
-  if (!costStore.has(key)) costStore.set(key, { callsToday: 0, callsMonth: 0, costToday: 0, costMonth: 0, date: '' });
+  if (!costStore.has(key)) cacheSet(costStore, key, { callsToday: 0, callsMonth: 0, costToday: 0, costMonth: 0, date: '' }, 5000);
   const e = costStore.get(key);
   if (e.date !== today) { e.callsToday = 0; e.costToday = 0; e.date = today; }
   e.callsToday++;
@@ -1483,7 +1511,7 @@ router.get('/rank-history', async (req, res) => {
       tier:   e.currenttierpatched || null,
     })).filter((p) => p.elo != null).reverse();
     const data = { points, current: points.length ? points[points.length - 1] : null };
-    rankHistoryCache.set(key, { at: Date.now(), data });
+    cacheSet(rankHistoryCache, key, { at: Date.now(), data }, 500);
     res.json(data);
   } catch (e) {
     console.error('[coach] rank-history error:', e.message);
@@ -1521,8 +1549,7 @@ async function mvpForMatch(region, matchId, name, tag) {
       won = !!(t && (t.has_won != null ? t.has_won : t.won));
     }
     const mvp = topOfTeam ? (won ? 'match' : 'team') : null;
-    if (matchMvpCache.size > 600) matchMvpCache.clear();
-    matchMvpCache.set(matchId, mvp);
+    cacheSet(matchMvpCache, matchId, mvp, 600);
     return mvp;
   } catch (e) {
     console.log('[coach] mvp lookup failed:', matchId, e.message);
@@ -1585,7 +1612,7 @@ router.get('/matches', async (req, res) => {
       if (arr) {
         const fresh = arr.filter((m) => m && m.stats);
         for (const m of fresh) { m._queue = q; rows.push(m); }
-        queueCache.set(qKey, { rows: fresh, at: now });
+        cacheSet(queueCache, qKey, { rows: fresh, at: now }, 800);
         continue;
       }
 
@@ -1669,7 +1696,7 @@ router.get('/matches', async (req, res) => {
       fetchedAt: degraded ? now - (MATCHES_TTL_MS - 30 * 1000) : now,
       lastManualRefresh: wantsRefresh ? now : (hit ? hit.lastManualRefresh : 0),
     };
-    matchesCache.set(key, entry);
+    cacheSet(matchesCache, key, entry, 500);
     res.json({ matches, fetchedAt: now, cached: false, partial: degraded || undefined });
   } catch (e) {
     console.error('[coach] matches error:', e.message);
