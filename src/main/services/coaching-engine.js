@@ -1902,6 +1902,24 @@ function namedSpots(text) {
 // PLAYER dying, so "trade your teammate when they die" is not caught.
 const DEATH_REVIEW_RE = /\byou (died|got (killed|traded|picked)|were (killed|traded|caught)|lost that (duel|fight))\b|\byour death\b|\bthat death\b/i;
 
+// A tip ASSERTING the player is not alive right now, which is a claim about the
+// world that the health number can settle. Split from DEATH_REVIEW_RE because
+// that one asks "is this reviewing a death" while this asks "is this telling the
+// player they are dead", and the second is checkable against the HUD.
+//
+// "you are spectating" belongs here: it is the same false claim wearing
+// different words, and it was shown to a player at full health.
+const CLAIMS_DEAD_RE = /\byou (died|are dead|were killed|got killed|got traded|got picked|were traded|were caught)\b|\byou'?re dead\b/i;
+const CLAIMS_SPECTATING_RE = /\byou (are|'?re) (spectating|watching (a|your) (teammate|killcam))\b|\byou are in the killcam\b/i;
+
+/** What the tip claims about the player's state, or null if it claims nothing. */
+function claimsNotAlive(text) {
+  const t = String(text || '');
+  if (CLAIMS_DEAD_RE.test(t)) return 'dead';
+  if (CLAIMS_SPECTATING_RE.test(t)) return 'spectating';
+  return null;
+}
+
 function isDeathReview(text, ctx) {
   if (!ctx) return false;
   // While the player is DEAD every location on screen is the spectated
@@ -2196,6 +2214,34 @@ function scenarioFits(text, source, ctx) {
       return false;
     }
 
+    // THE PLAYER IS ALIVE AND THE COACH IS REVIEWING THEIR DEATH.
+    //
+    // A living player at 100 HP was told "You died holding that tight angle
+    // alone", and it reached the overlay. So was one at 85 HP mid fight, and
+    // one at 100 HP was told "You are spectating Iso". In one session ten tips
+    // narrated a death that had not happened.
+    //
+    // The existing death checks all assumed the player really had died and only
+    // argued about WHERE, so when the model invented the death outright nothing
+    // was watching. This is the same rule as HP beats death, applied to the tip
+    // instead of the STATE: a readable health number above zero means alive, and
+    // no sentence gets to contradict it. Nothing is more corrosive to trust than
+    // being told you are dead while you are playing the round.
+    const notAlive = claimsNotAlive(l);
+    if (notAlive) {
+      const aliveEvidence = ctx.playerAlive === true
+        || (typeof ctx.playerHp === 'number' && ctx.playerHp > 0);
+      const justDied = ctx.lastDeathAt && Date.now() - ctx.lastDeathAt < DEATH_WINDOW_MS;
+      // Only reject on positive evidence of being alive. With no health read and
+      // no alive flag we genuinely do not know, and silencing a real death
+      // review is its own failure.
+      if (aliveEvidence && !justDied) {
+        noteReject(`said the player was ${notAlive} while they were alive`
+          + (typeof ctx.playerHp === 'number' ? ` at ${ctx.playerHp} HP` : ''));
+        return false;
+      }
+    }
+
     if (isDeathReview(l, ctx)) {
       const wrongSpot = wrongDeathSpot(l, ctx.deathSpot);
       if (wrongSpot) {
@@ -2240,4 +2286,4 @@ module.exports = CoachingEngine;
 // Exposed for tests. The death-location gate is the kind of rule that is easy
 // to get subtly wrong (gating a general tip, or letting the spectated location
 // through), so it is checked directly rather than only through a live session.
-module.exports.__test = { isDeathReview, wrongDeathSpot, namedCallouts, namedSpots, wrongSideHold, mapFromLabels };
+module.exports.__test = { isDeathReview, wrongDeathSpot, namedCallouts, namedSpots, wrongSideHold, mapFromLabels, claimsNotAlive, verifyTip };

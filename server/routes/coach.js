@@ -626,6 +626,25 @@ THE LOCATION LABEL ON THIS FRAME IS THE TEAMMATE'S LOCATION, NOT WHERE THE PLAYE
         : `THE DEATH LOCATION WAS NOT CAPTURED. Name NO location at all for this death, describe the mistake without a place. Guessing a callout here teaches the player to distrust every review you write.\n\n`)
     : '';
 
+  // THE COACH KEPT REVIEWING DEATHS THAT HAD NOT HAPPENED.
+  //
+  // In one session ten tips narrated a death while the player was alive, and
+  // several reached the overlay, including "You died holding that tight angle
+  // alone" at 100 HP and "You are spectating Iso" to someone playing the round.
+  // The prompt only ever spoke about deaths when one had just occurred, so
+  // nothing told the model NOT to invent one, and a killcam-looking frame or a
+  // dead teammate on screen was enough.
+  //
+  // The client now rejects these outright, but a rejected tip is silence, and
+  // silence is a cost too, so it is worth not generating them in the first
+  // place. Stated positively and with the number attached, because "the player
+  // is alive" is weaker than "the player is alive at 87 HP".
+  const aliveNow = ctx.playerAlive === true
+    || (typeof ctx.playerHp === 'number' && ctx.playerHp > 0);
+  const aliveLine = (aliveNow && !ctx.justDied)
+    ? `THE PLAYER IS ALIVE RIGHT NOW${typeof ctx.playerHp === 'number' ? `, at ${ctx.playerHp} HP` : ''}, and is playing this round. Do NOT review a death, do NOT tell them they died, and do NOT tell them they are spectating or watching a killcam. If a dead teammate, a kill feed entry or a death recap is on screen, that is somebody else. Coach the round they are actually in. A living player told they are dead stops believing everything else you say.\n\n`
+    : '';
+
   const deathLine = ctx.justDied
     ? 'THE PLAYER JUST DIED. If the frames, match memory, and state CLEARLY show why (a dry peek, no trade partner in range, repeeking the same angle, a bad position, fighting without util), make this tip the DEATH REVIEW: start line 1 with exactly "DEATH: " then name the cause and the exact fix in one sentence. This is also where held-back observations belong, if you noticed a mistake earlier, chose not to interrupt, and it just got them killed, say it now. Name the PLACE of the death only when the death frames or match memory actually show it, look back at what you were sent instead of assuming; a review that guesses the location teaches the player to distrust every review. But if the death looks unlucky, a fair duel simply lost, or you cannot actually see the cause, do NOT guess and do NOT invent a reason, coach something else or SKIP. A wrong death explanation is worse than none.\n\n'
     : '';
@@ -948,7 +967,7 @@ Reply with exactly SKIP only when you genuinely have nothing accurate and new: n
 ${ctx.deathReviewDone ? 'THE PLAYER IS DEAD AND THE DEATH REVIEW IS ALREADY DONE. They are spectating and cannot act on anything this round, so more tips are pure noise over someone watching a killcam. Reply with exactly SKIP (still report STATE so the app can see when they respawn). Do not explain the death again, do not offer things to watch for, do not coach the teammate they are spectating. Just SKIP until they are alive again.\n' : ''}BUY PHASE IS DIFFERENT: hold a HIGHER bar. During the buy phase (barriers up, pre-round) only speak when you have a genuinely high-level, SPECIFIC setup call worth making, tied to what you can actually read on the minimap or the buy: a real default or exec plan, a concrete crossfire or off-angle setup, a util line-up for this site, a clear economy read (force, save, half-buy mistake). If the only thing you would say is generic ("group up", "play as a team", "communicate", "get ready", "hold your angles"), SKIP instead. A player does not need a coach to tell them to group up in spawn. Generic buy-phase filler is worse than silence, so when the buy read is not sharp, say nothing and wait for the round to go live.
 If the screen is NOT live gameplay (main menu, lobby, agent select, loading screen, career or collection page, range with no match), reply with exactly LOBBY.
 
-${spectatorLine}${deathWhereLine}${deathLine}${roundLostLine}${enemyBlock}${memoryBlock}${transLine}${focusLine}CURRENT MATCH STATE (trust this, do not re-derive it every frame):
+${spectatorLine}${aliveLine}${deathWhereLine}${deathLine}${roundLostLine}${enemyBlock}${memoryBlock}${transLine}${focusLine}CURRENT MATCH STATE (trust this, do not re-derive it every frame):
 - Agent: ${ctx.agent || 'Unknown'} | Map: ${ctx.map || 'Unknown'} | Side: ${ctx.side || 'Unknown'}
 - Mode: ${modeLine}
 - Round: ${ctx.roundNumber || 'Unknown'} | Score: ${ctx.teamScore || 0}-${ctx.enemyScore || 0} | Phase: ${ctx.phase || 'Unknown'} | Clock: ${ctx.clock || 'read it from the timer'}

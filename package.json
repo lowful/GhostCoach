@@ -1,6 +1,6 @@
 {
   "name": "ghostcoach",
-  "version": "2.9.2",
+  "version": "2.9.3",
   "description": "Real-time Valorant AI coaching overlay",
   "main": "src/main/index.js",
   "scripts": {
@@ -19,7 +19,8 @@
     "test:habits": "node scripts/test-habits.js",
     "test:maps": "node scripts/test-map-labels.js",
     "check:server": "node scripts/check-server-boot.js",
-    "bench:models": "node scripts/bench-models.js"
+    "bench:models": "node scripts/bench-models.js",
+    "test:alive": "node scripts/test-alive-claims.js"
   },
   "build": {
     "appId": "com.ghostcoach.app2",
