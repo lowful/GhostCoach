@@ -745,6 +745,17 @@ Combine the minimap, the kill feed, MATCH MEMORY, and ENEMY PATTERNS to anticipa
   // and simply stop being informed by anything. Callouts stay in the game's own
   // language too, because that is what is printed on the player's screen and
   // what their team says out loud.
+  // SAYING IT ONCE AT THE TOP IS NOT ENOUGH.
+  //
+  // The instruction opened the prompt and then ~160 lines of English rules and
+  // English example tips followed, so a weaker instruction-follower drifts back
+  // to English by the time it writes line 1. Measured on the model that exposed
+  // this: 1 of 6 non-English requests complied, and the one that did mixed
+  // English words back in. So it is repeated in the OUTPUT block, where the
+  // model is actually deciding how to write the sentence.
+  const langReminder = (ctx.language && ctx.language !== 'en')
+    ? `LANGUAGE, THIS OVERRIDES THE WORDING OF EVERY EXAMPLE ABOVE: line 1 must be written in ${langPrompt(ctx.language)}, not English. Every example tip in this prompt is written in English only to show the SHAPE of a good tip, never the language to answer in. Map callouts stay exactly as the game prints them, and line 2 stays entirely English. Write line 1 in ${langPrompt(ctx.language)} now.`
+    : '';
   const langLine = (ctx.language && ctx.language !== 'en')
     ? `WRITE THE TIP IN ${langPrompt(ctx.language).toUpperCase()}. Line 1 must be natural, fluent ${langPrompt(ctx.language)} as a real teammate would speak it, not a stiff translation of an English sentence. TWO THINGS STAY EXACTLY AS THEY ARE: the map callouts (A Main, Hookah, Mid Top and so on), because that is what is written on the player's screen and what their team says out loud, and the entire STATE line on line 2, whose keys and values are machine read and must remain English. Never translate SKIP or LOBBY either.\n\n`
     : '';
@@ -915,6 +926,7 @@ Line 1 is the tip: one plain sentence, 8 to 22 words, ending with a period. Talk
 VARY THE COACHING. You lean on a few stock recommendations, above all "set up a crossfire", and re-serve them with new wording on a new site. A player who hears "hold a crossfire" every other round stops listening. Before you repeat a play you have already given, ask whether the frame actually calls for something else: crosshair placement, timing and tempo, util usage, trading, spacing, when to give ground, when to take space, economy, or a habit you can see them repeating. The recent tips are listed below, so treat their ADVICE, not just their wording, as used up.
 COACH LIKE AN ACTUAL COACH, NOT A HINT BOT. Every tip should teach something a Silver or Gold player would not already know, or catch a real mistake they are making right now. Give the REASON baked in, not just the instruction: "swing wide off Heaven so their close angle cannot trade you" beats "swing wide". Bad tips you must NOT give: vague filler anyone knows ("play smart", "aim better", "be careful", "watch your positioning", "communicate with your team"), and stating the obvious ("shoot the enemy", "you have the spike"). If your tip would make a Radiant nod because it is genuinely sharp, it is good; if it sounds like a loading-screen hint, it is filler, so SKIP instead. One specific, correct, reasoned tip per real moment beats a stream of generic ones.
 When (and ONLY when) the tip explains why the player died or why the round was lost, line 1 starts with exactly "DEATH: " before the sentence. The app renders those as a special review card, so never use the marker on ordinary tips and never skip it on a death or round review.
+${langReminder}
 
 Then, for any live-gameplay frame (including SKIP), add a second line reporting what the HUD actually shows, null for anything unreadable, never guess:
 STATE: {"side":"attack","phase":"active","round":5,"clock":"1:12","team":3,"enemy":1,"credits":4200,"hp":87,"alive":true,"aliveTell":"own rifle and HP 87 bottom center","mates":3,"foes":2,"weapon":"Vandal","map":"Ascent","mode":null,"mmPos":[0.48,0.2],"locLabel":"Mid Top","playerSpot":null,"enemySpot":null,"push":null,"pushOnSite":null,"spike":null,"spikeSpot":null,"killFeed":null,"teamRead":null,"note":null}
