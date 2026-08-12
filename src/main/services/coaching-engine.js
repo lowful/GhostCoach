@@ -1156,6 +1156,35 @@ class CoachingEngine extends EventEmitter {
     // and scores never fall. An implausible read is held as a challenge and only
     // accepted if the next read agrees, which is the same evidence bar the map
     // lock uses and still lets the app pick up a match it joined late.
+    // THE SCOREBOARD IS PRINTED, THE ROUND NUMBER IS NOT.
+    //
+    // Valorant's HUD shows two scores at the top. It does not show "round 6", so
+    // any round number is the model INFERRING one, and it infers badly: across a
+    // real session it sat on round 3 while the score climbed 2-1, 2-2, 3-2.
+    //
+    // That was expensive, because the invariant check below treats a round that
+    // disagrees with the scores as an implausible reading and throws away the
+    // WHOLE thing, both scores included. So a perfectly good scoreboard read
+    // kept being discarded on account of a number the model made up, and the
+    // tracked score went as long as 249 seconds without an update, roughly two
+    // and a half rounds blind.
+    //
+    // Valorant's own arithmetic settles it: round = your score + their score + 1.
+    // Two separately printed numbers beat one invented one, so the round is now
+    // derived whenever both scores are readable, and the checks below run on the
+    // corrected value. When the scores are missing there is nothing to derive
+    // from and the model's round stands, as before.
+    if (typeof updates.teamScore === 'number' && typeof updates.enemyScore === 'number') {
+      const derived = updates.teamScore + updates.enemyScore + 1;
+      if (updates.roundNumber !== derived) {
+        if (typeof updates.roundNumber === 'number') {
+          console.log(`[engine] round ${updates.roundNumber} does not match the scoreboard`
+            + ` ${updates.teamScore}-${updates.enemyScore}, using round ${derived}`);
+        }
+        updates.roundNumber = derived;
+      }
+    }
+
     if (!newMatch && typeof updates.roundNumber === 'number' && prevRound > 0) {
       const jump = updates.roundNumber - prevRound;
       const scoresFell =
