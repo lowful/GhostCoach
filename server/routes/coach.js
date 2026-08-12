@@ -303,6 +303,41 @@ function stripThinking(text) {
   return s.trim();
 }
 
+/**
+ * Model bake-off support: run ONE analyze call on a different vision model.
+ *
+ * Which model to run is the most consequential choice in this product and the
+ * only honest way to answer it is to put candidates in front of real frames and
+ * compare their HUD reads against a known-correct one. A spec sheet cannot tell
+ * you whether a model can read a two-digit health number at 854x480.
+ *
+ * This overrides the model for a single request, deliberately inside the real
+ * analyze route so the bake-off exercises the production prompt, budget, timeout
+ * and STATE parsing rather than an approximation of them.
+ *
+ * Safety: the allowlist is fixed and every entry costs no more per hour than the
+ * configured model, so a leaked license key cannot use this to run up a bill on
+ * an expensive model. Unknown values are ignored rather than rejected, so this
+ * can never break a normal client call.
+ */
+const BENCH_MODELS = new Set([
+  'google/gemini-3-flash-preview',        // the previous default, the read to beat
+  'google/gemini-3.1-flash-lite',
+  'google/gemini-3.5-flash-lite',
+  'google/gemini-2.5-flash',
+  'openai/gpt-5-mini',
+  'openai/gpt-4.1-mini',
+  'qwen/qwen3.7-flash',                   // current
+  'qwen/qwen3-vl-235b-a22b-instruct',     // what this app originally shipped on
+  'qwen/qwen3-vl-30b-a3b-instruct',
+  'z-ai/glm-4.6v',
+  'mistralai/mistral-small-3.1-24b-instruct',
+]);
+function benchModel(req) {
+  const m = String((req.body && req.body.benchModel) || '').trim();
+  return BENCH_MODELS.has(m) ? m : null;
+}
+
 // Unified entry points the routes call: dispatch to the configured provider.
 async function visionInfer(imageB64, prompt, maxTokens, jsonMode, model) {
   if (AI.provider === 'gemini') return geminiCall(imageB64, prompt, maxTokens, jsonMode);
@@ -1152,7 +1187,7 @@ router.post('/analyze', async (req, res) => {
     // map and side reads stay consistent across the phase boundary and the locks
     // actually settle. Audio already spent up to 3.5s, so trim for that.
     const buyPhase     = String(context.phase || '').toLowerCase() === 'buy';
-    const visionModel  = AI.visionModel;
+    const visionModel  = benchModel(req) || AI.visionModel;
     const answerBudget = buyPhase ? 300 : 220;
     const visionTimeout = (buyPhase ? (prevImage ? 17000 : 15000) : (prevImage ? 13000 : 11000)) - (audioBlock ? 2500 : 0);
     const raw = await Promise.race([
