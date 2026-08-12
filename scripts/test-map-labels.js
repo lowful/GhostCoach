@@ -76,6 +76,19 @@ check('  two exclusive labels from DIFFERENT maps lock neither',
 check('  an unknown label alone locks nothing', !mapFromLabels(['Nonexistent Place']).confident);
 check('  no labels yields no answer', mapFromLabels([]) === null);
 
+// Weighing exists to stop one bad label vetoing good ones, which needs good ones
+// to protect. On a handful of labels a single wrong-but-real callout can carry
+// the vote outright: a real 3-frame sample locked Haven on a Bind session.
+console.log('\ncontested labels need enough evidence before they are weighed:');
+check('  a wrong callout cannot carry a thin sample',
+  !mapFromLabels(['Attacker Side Spawn', 'A Tower', 'Garage']).confident,
+  'three labels, one of them wrong, must not decide the map');
+check('  clean labels still lock on a thin sample',
+  mapFromLabels(['Attacker Side Spawn', 'B Long']).confident === true,
+  'the strict path must not be held back, it only fires when labels agree');
+check('  the same contested set locks once evidence accumulates',
+  mapFromLabels(['Attacker Side Spawn', 'A Tower', 'Garage', 'B Long', 'B Window', 'Hookah']).map === 'Bind');
+
 function mapsOf(label) {
   return mapFromLabels([label]).candidates.length;
 }

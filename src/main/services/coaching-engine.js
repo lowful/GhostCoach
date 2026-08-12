@@ -2069,6 +2069,14 @@ function mapsWithLabel(l) {
  */
 const LABEL_EVIDENCE_MIN = 1.0;    // one map-exclusive label, or several near-exclusive ones
 const LABEL_EVIDENCE_EDGE = 2;     // and it must be twice the next best map
+// ...AND enough labels to be worth weighing at all. Weighing exists to stop one
+// bad label vetoing good ones, which only makes sense once there are good ones
+// to protect. On two or three labels a single wrong-but-real callout can carry
+// the vote outright, and a real 3-frame sample did exactly that, locking Haven
+// on a Bind session. Below this the strict path still locks whenever the labels
+// genuinely agree, so clean evidence is never held back; only the contested case
+// has to wait, which is the case that needs the evidence.
+const LABEL_VOTE_MIN = 4;
 
 function mapFromLabels(labels) {
   const seen = [...new Set((labels || []).map(normaliseLabel).filter(Boolean))];
@@ -2087,7 +2095,9 @@ function mapFromLabels(labels) {
   }
 
   // Contradictory labels. Weigh them by how much each one actually narrows the
-  // map rather than letting the weakest veto the strongest.
+  // map rather than letting the weakest veto the strongest, but only once there
+  // is enough of them that the weighing means something.
+  if (known.length < LABEL_VOTE_MIN) return { map: null, confident: false, candidates };
   const score = new Map();
   for (const [, maps] of known) {
     const w = 1 / maps.length;
