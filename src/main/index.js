@@ -42,6 +42,7 @@ const hotkeys  = require('./hotkeys');
 const registerIpc = require('./ipc/register-ipc');
 const licenseService = require('./services/license-service');
 const agentData = require('./services/agent-data');
+const { profileHabits } = require('./services/habits');
 const { assembleReport, weekKey, rankIndex, trendDirection } = require('./services/weekly-report');
 const updater  = require('./updater');
 const C = require('../shared/channels');
@@ -290,6 +291,11 @@ const controller = {
     // The coach also sees the player's coached-session trends (the dashboard
     // overview), so it knows which category is weakest and where it's heading.
     { const tp = guardedTrackerPair(); engine.setPerformanceSummary(computeCategoryTrends(loadPerf(), tp.stats, tp.prevStats)); }
+    // ...and the mistakes it has had to point out across the whole week. This
+    // was already computed for the weekly report and never shown to the live
+    // coach, so every session started over with no memory of the player. A
+    // habit is the one thing a coach should carry between games.
+    try { engine.setHabits(profileHabits(loadWeekArchives(), 3)); } catch {}
     // Start the hidden game-audio listener (session-scoped, RAM only).
     latestAudio = { b64: null, at: 0 };
     try { audioWindow.create(); } catch (e) { console.log('[audio] listener unavailable:', e.message); }

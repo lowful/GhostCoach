@@ -27,6 +27,7 @@ class CoachingEngine extends EventEmitter {
     // most recent ones are sent to the AI so it avoids similar advice.
     this.badTips = new Set(Array.isArray(opts.badTips) ? opts.badTips : []);
     this.playerStats = null;   // tracker profile (rank/KD/HS%), set async after start
+    this.habits = null;      // recurring mistakes from the week, carried between sessions
     this.perfSummary = null;   // coached-session category trends (dashboard overview)
     // Experimental settings, read live from the store so a settings flip
     // applies to the very next capture: { proPlaybook: 'off'|'on'|'hybrid' }.
@@ -492,7 +493,8 @@ class CoachingEngine extends EventEmitter {
       tipFeedback: (this.getFeedback() || []).slice(-6),
       matchMemory: this.matchMemory.slice(-10),
       playerStats: this.playerStats,
-      coachTrend:  this.perfSummary || null,   // dashboard category trends
+      coachTrend:  this.perfSummary || null,
+      habits:      this.habits || null,   // what this player keeps doing wrong   // dashboard category trends
       agentRole:    agentData.getRole(confirmedAgent),
       teammates:    this.matchContext.teammates || null, // passthrough if the server reports the comp
       // Death review: the player died moments ago, the server prompts for a
@@ -744,6 +746,24 @@ class CoachingEngine extends EventEmitter {
   setPlayerStats(stats) {
     this.playerStats = stats && !stats.error ? stats : null;
     if (this.playerStats) console.log('[engine] player stats loaded:', this.playerStats.rank || 'unknown rank');
+  }
+
+  /**
+   * The mistakes this coach has had to point out across the week.
+   *
+   * Already computed for the weekly report and never shown to the live coach,
+   * so every session started over knowing nothing about the player. A habit is
+   * exactly what a coach should carry between games: it is stable, it is about
+   * the PLAYER rather than the frame, and it cannot be read off a screenshot.
+   * That also makes it safe to send, unlike volatile state, which the model
+   * starts answering from instead of reading the picture.
+   */
+  setHabits(list) {
+    this.habits = Array.isArray(list) && list.length ? list.slice(0, 3) : null;
+    if (this.habits) {
+      console.log('[engine] player habits: '
+        + this.habits.map((h) => `${h.label} (${h.sessions} sessions)`).join(', '));
+    }
   }
 
   /** Coached-session category trends (the dashboard overview): the AI uses

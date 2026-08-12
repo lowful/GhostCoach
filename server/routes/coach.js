@@ -125,6 +125,61 @@ const AI = {
 // credits, quota or billing counts, whatever code it arrived under.
 const CREDITS_TEXT = /credit|quota|insufficient|billing|payment required|out of funds|top ?up/i;
 
+// ─── Agent knowledge ─────────────────────────────────────────────────────────
+// KNOWLEDGE THE MODEL CANNOT READ OFF THE SCREEN, which is the only kind worth
+// adding. Feeding it more of what it should be READING makes it worse: given a
+// rich context it starts answering from the context instead of the frame, and
+// it returned a 3-5 scoreline for a frame plainly showing 3-2. An agent's kit is
+// the opposite kind of fact. It never changes, it is not on screen, and getting
+// it wrong is invisible to the model.
+//
+// This replaces a hand-written roster that listed abilities as vague categories
+// ("Iso: shield, wall") and openly gave up on newer agents, telling the model to
+// guess for Vyse, Tejo and Waylay. Worse, the client's ability gate validates
+// against the REAL names from this same data file, so the prompt was teaching a
+// vocabulary the gate then rejected. One Iso session lost 7 tips that way.
+//
+// Generated from valorant-data.generated.json, so npm run sync:valorant keeps it
+// correct as agents are added or reworked, with no prompt edit.
+let AGENT_KIT = {};
+try {
+  AGENT_KIT = require('../valorant-data.generated.json').agents || {};
+} catch (e) {
+  console.log('[coach] agent kit data unavailable:', e.message);
+}
+
+// What each role is FOR, so the coaching fits the character being played rather
+// than being generic advice with an agent name attached. The client already
+// sends agentRole and the prompt never used it.
+const ROLE_BRIEF = {
+  Duelist:    'a Duelist, the one who takes space and opens sites. Coach entries, timing and trades, and hold them to using their kit to enter rather than to escape a fight they should not have taken.',
+  Controller: 'a Controller, who decides what the enemy can see. Coach smoke timing and placement, cutting rotates, and using vision denial to make a site takeable rather than smoking on reflex.',
+  Initiator:  'an Initiator, whose job is information and openings for others. Coach recon before contact, flashing for a teammate rather than themselves, and clearing an angle before the team commits.',
+  Sentinel:   'a Sentinel, who holds ground and watches flanks. Coach anchoring, using kit to buy time alone, covering the rotate path, and not chasing kills away from the space they are meant to hold.',
+};
+
+/**
+ * The player's actual kit, when their agent is confirmed.
+ *
+ * Deliberately narrow: only the agent being played. The old block listed all 24
+ * agents it knew, which cost tokens on 23 irrelevant kits and invited the model
+ * to reach for another agent's ability. When the agent is unknown the rule is
+ * already "name no abilities", so a roster serves no purpose there either.
+ */
+function agentKitBlock(agent) {
+  const name = String(agent || '').trim();
+  const info = name && AGENT_KIT[name];
+  if (!info) {
+    return 'THE AGENT IS NOT CONFIRMED, so name NO ability at all, not even a generic one like "your flash". Coach positioning, crosshair placement, timing, economy or map control instead, all of which are true whoever they are playing.';
+  }
+  const abilities = (info.abilities || []).map((a) => String(a)).filter(Boolean);
+  const role = ROLE_BRIEF[info.role] || `a ${info.role}`;
+  return `THE PLAYER'S KIT. ${name} is ${role}
+${name}'s abilities are exactly: ${abilities.join(', ')}. These are the ONLY ability names you may use. Any other ability name belongs to a different agent and instantly tells the player you are not really watching, so if the play you have in mind needs an ability ${name} does not have, coach something else.
+Plain descriptions of their own kit are fine when they are accurate ("your smoke", "your flash", "your wall"), but the real name is better because it is what the player sees on their own keys.
+BEFORE you name one, check the ability bar in THIS frame: bright means ready, dim or greyed means used or unbought, and on pistol rounds and ecos assume they are not bought unless you can see them lit.`;
+}
+
 // The model's own words for "I am looking at the spectator HUD". Matched against
 // aliveTell only, which exists to describe the evidence for being alive, so
 // these readings mean the opposite of what the health number says. Every pattern
@@ -683,6 +738,21 @@ ROTATE DISCIPLINE: a rotate call is only right on REAL info, the spike going dow
   // rather give general directions than a confident callout from the wrong map.
   const mapBlock = locator.minimapBrief(ctx.map);
 
+  // WHAT THIS PLAYER KEEPS DOING WRONG, counted across the week rather than
+  // guessed from one frame. The app already worked this out for the weekly
+  // report and never told the coach, so every session began with no memory of
+  // the person being coached and the same lesson had to be rediscovered from
+  // scratch. Phrased as something to WATCH FOR rather than to repeat, because
+  // the failure mode here is obvious: hand a coach a list of faults and it will
+  // read them back every round.
+  const habitBlock = (Array.isArray(ctx.habits) && ctx.habits.length)
+    ? 'WHAT THIS PLAYER KEEPS DOING WRONG (counted across their last week of coached games, so this is who they are, not a guess from this frame):\n'
+      + ctx.habits.slice(0, 3).map((h) => `- ${String(h.label || '').slice(0, 60)}`
+          + (h.sessions ? ` (seen in ${h.sessions} sessions)` : '')
+          + (h.fix ? `. The fix: ${String(h.fix).slice(0, 150)}` : '')).join('\n')
+      + '\nWatch for these specifically, and when you SEE one happening say so in the moment, that is when it lands. Do NOT recite them as a list, do not open with them, and never coach a habit the frame does not actually show: a coach who repeats last week\'s notes over a live round is not watching. If they are clearly avoiding one of these, say that instead, people repeat what gets noticed.\n\n'
+    : '';
+
   // What the live patch changed for THIS player's agent and gun, in Riot's own
   // words, so the coach never teaches a habit that was just nerfed.
   const patchBlock = patchCtx.patchBrief(ctx.agent, ctx.playerWeapon);
@@ -982,7 +1052,7 @@ ${spectatorLine}${aliveLine}${deathWhereLine}${deathLine}${roundLostLine}${enemy
 - Last kill feed read: ${ctx.killFeed || 'nothing noted'}
 - Player location (read from the minimap a few seconds ago): ${ctx.playerSpot || 'Unknown'}${ctx.playerSpotVerified ? ' (this one was resolved from the minimap coordinates, it is reliable)' : ''}
 - Credits: ${ctx.playerCredits == null ? 'Unknown' : ctx.playerCredits} | Alive: ${ctx.playerAlive === false ? 'No' : 'Yes'} | Deaths in a row: ${ctx.consecutiveDeaths || 0}${ctx.playerAlive === false ? '\n- THE PLAYER IS DEAD RIGHT NOW. They cannot move, peek, rotate, buy, or use util this round. The ONLY valid tips are why they died and what to change, or what to watch and learn while spectating. Any tip telling a dead player to act is automatically wrong.' : ''}
-- Teammates alive: ${ctx.teammatesAlive == null ? 'Unknown' : ctx.teammatesAlive} | Enemies alive: ${ctx.enemiesAlive == null ? 'Unknown' : ctx.enemiesAlive}${ctx.teammatesAlive === 0 && ctx.playerAlive !== false ? ' | THE PLAYER IS SOLO, this is a clutch' : ''}${spikeBlock}${scoreMood}${mapBlock}${patchBlock}${delayBlock}${locationGuard}${abilityGuard}${deathFacts}
+- Teammates alive: ${ctx.teammatesAlive == null ? 'Unknown' : ctx.teammatesAlive} | Enemies alive: ${ctx.enemiesAlive == null ? 'Unknown' : ctx.enemiesAlive}${ctx.teammatesAlive === 0 && ctx.playerAlive !== false ? ' | THE PLAYER IS SOLO, this is a clutch' : ''}${spikeBlock}${scoreMood}${mapBlock}${patchBlock}${habitBlock}${delayBlock}${locationGuard}${abilityGuard}${deathFacts}
 
 RECENT TIPS (do not repeat these word for word; if the SAME mistake is still happening and the advice matters, give it again in FRESH wording and mark the repetition, "still", "again", "third time now", important advice bears repeating, lazy copies do not):
 ${recent}
@@ -990,8 +1060,7 @@ ${lastShown ? 'NEVER REPEAT BACK TO BACK: the last tip shown ("' + lastShown + '
 ${Array.isArray(ctx.badTips) && ctx.badTips.length ? 'The player rejected these tips repeatedly (3 or more times), NEVER give this advice or anything close to it again:\n' + ctx.badTips.slice(0, 6).map((t) => '- ' + t).join('\n') + '\n' : ''}
 ${Array.isArray(ctx.tipFeedback) && ctx.tipFeedback.length ? 'PLAYER FEEDBACK on past tips, their own words on why a tip missed. Learn from these, the reasons matter more than the tips:\n' + ctx.tipFeedback.slice(-6).map((f) => '- "' + String(f.text || '').slice(0, 90) + '" the player said: "' + String(f.reason || '').slice(0, 150) + '"').join('\n') + '\n' : ''}Recent topics: ${topics}. Prefer covering a DIFFERENT one (positioning, utility, aim, rotation, spike, teamwork, mental) unless a repeated mistake demands a repeat.
 
-ABILITY REFERENCE (only ever suggest the player's own; plain words like smoke, flash, molly, wall, recon are fine):
-Jett: smokes, updraft, dash. Reyna: blind, heal, dismiss. Phoenix: flash, molly, wall. Raze: boombot, satchel, nade. Neon: walls, stun, sprint. Iso: shield, wall. Yoru: decoy, flash, teleport. Sova: drone, recon dart, shock. Breach: flash, stun, aftershock. Skye: flash, dog, heal. KAY/O: flash, suppress knife, molly. Fade: recon, tether, prowler. Gekko: flash, wingman, molly. Omen: smokes, flash, teleport. Brimstone: smokes, molly, stim. Viper: wall, smoke, molly. Astra: smokes, stun, wall. Harbor: walls, bubble. Clove: smokes, decay. Sage: wall, slow, heal. Killjoy: turret, molly, alarmbot. Cypher: tripwire, camera, cage. Chamber: trap, teleport, sheriff. Deadlock: wall, sensor, net. Vyse, Tejo, Waylay, and ANY newer agent not named above: only reference abilities you can actually SEE on screen, never guess an ability name for an agent you do not recognize.
+${agentKitBlock(ctx.agent)}
 
 OUTPUT
 Line 1 is the tip: one plain sentence, 8 to 22 words, ending with a period. Talk like a chill, sharp teammate in the player's ear, casual and clear, not stiff or formal, plain everyday words a Silver player gets instantly. Still say the PLACE and the ACTION ("hold the Hookah door and let them cross into you", never "play safer"), just say it like a person, not a textbook. No quotes, no "Tip:", no markdown, no preamble, no jargon the player would have to look up. Use commas and periods, never dashes. Always finish the sentence; never end on a preposition, article, conjunction, or possessive. If it is live gameplay with nothing new worth saying, line 1 is exactly SKIP. If it is not live gameplay at all, output ONLY the word LOBBY and nothing else.
