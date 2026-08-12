@@ -1634,16 +1634,35 @@ function overlapRatio(aWords, bWords) {
   return shared / Math.min(aWords.size, bWords.size);
 }
 
+/**
+ * Which subject a tip belongs to. Sent back as recentTopics so the model can
+ * see what it has already covered and pick something else.
+ *
+ * THE ORDER IS THE ALGORITHM, since the first match wins. That is what broke it:
+ * "economy" led the list and matched on bare weapon names, so "holding that
+ * angle alone with a pistol" was filed as economy advice. Four positioning tips
+ * in one session were reported to the model as economy, which told it to stop
+ * talking about the buy (it never had) and left it free to repeat the
+ * positioning advice it actually had given, four times.
+ *
+ * So the incidental nouns are gone from economy, which now needs real economy
+ * words, and the behaviour categories are tested first because they describe
+ * what the tip is ASKING FOR rather than what it happens to mention.
+ */
 function topicOf(text) {
   const l = (text || '').toLowerCase();
-  if (/buy|credit|economy|save|spectre|vandal|phantom|shield|pistol|eco|force/.test(l)) return 'economy';
-  if (/peek|wide|jiggle|swing|reposition|off.angle/.test(l)) return 'peeking';
-  if (/flash|smoke|drone|molly|util/.test(l)) return 'utility';
-  if (/crosshair|aim|head|tap|spray|strafe/.test(l)) return 'aim';
-  if (/rotate|rotation|lurk|minimap/.test(l)) return 'rotation';
   if (/spike|plant|defus|retake|post.plant/.test(l)) return 'spike';
-  if (/team|trade|comm|callout/.test(l)) return 'teamwork';
-  if (/tilt|mental|focus|breath|calm|reset/.test(l)) return 'mental';
+  if (/flash|smoke|drone|molly|util|wall|dash|ability/.test(l)) return 'utility';
+  if (/crosshair|head height|spray|tap|strafe|\baim/.test(l)) return 'aim';
+  if (/peek|wide|jiggle|swing|reposition|off.angle/.test(l)) return 'peeking';
+  // The single most common shape of advice this coach gives, and until now it
+  // had no name at all, so every instance was filed under whatever noun it
+  // happened to contain.
+  if (/stay (tight|low|back)|hold (tight|that angle|the angle|your angle)|tight to|behind (the |that |your )?(wall|corner|cover|box|ledge|crate)|exposed/.test(l)) return 'positioning';
+  if (/rotate|rotation|lurk|minimap|flank/.test(l)) return 'rotation';
+  if (/team|trade|comm|callout|group|alone|solo/.test(l)) return 'teamwork';
+  if (/\b(buy|buying|credits?|eco|force.?buy|full buy|half.?buy|save (this|the) round|save for)\b/.test(l)) return 'economy';
+  if (/tilt|mental|focus|breath|calm/.test(l)) return 'mental';
   if (/dead|died|death|spectat/.test(l)) return 'death';
   return 'general';
 }
@@ -2137,9 +2156,16 @@ const PLAY_PATTERNS = [
   ['crossfire',  /\bcross ?fire\b/i],
   ['off-angle',  /\boff.?angle\b/i],
   ['fall-back',  /\bfall back\b|\bplay for the retake\b|\bback to site\b/i],
-  ['group-up',   /\bgroup (?:up|with)\b|\bstick with your team\b|\bwith your teammates?\b/i],
+  ['group-up',   /\bgroup (?:up|with)\b|\bstick with your team\b|\bwith your teammates?\b|\bstay (?:with|near) the group\b/i],
   ['reposition', /\breposition\b|\bdo not (?:re)?hold the same\b|\bmove after (?:the|your) kill\b/i],
   ['trade',      /\btrade (?:your|the|them)\b|\btrade partner\b/i],
+  // THE ADVICE THIS COACH ACTUALLY REPEATS, which had no entry here at all.
+  // Measured on a real session: 14 of 23 tips the player saw were some version
+  // of "stay tight and wait for your team", two of them almost word for word,
+  // and 10 of 11 were invisible to this list. The guard was working perfectly on
+  // the plays the model rarely reaches for while its favourite went uncounted.
+  ['hold-tight', /\b(?:stay|hold|sit|keep)\s+(?:tight|low|back)\b|\btight (?:to|against|behind)\b|\bhold (?:that|the|your) angle\b/i],
+  ['wait-out',   /\bwait for (?:your |the )?(?:team|teammates|entry|them)\b|\buntil (?:your |the )?team (?:clears|commits|arrives)\b|\bbefore you peek out\b|\bwait for them to clear\b/i],
 ];
 function playPatternIn(text) {
   const t = String(text || '');
