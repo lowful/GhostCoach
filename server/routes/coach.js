@@ -5,7 +5,7 @@ const knowledge = require('../services/knowledge');
 // The language list is shared with the client so both agree on what is
 // supported, and so the prompt always names the language in English (a model
 // follows "write in German" far more reliably than "write in Deutsch").
-const { promptName: langPrompt } = require('../../src/shared/i18n');
+const { promptName: langPrompt } = require('../services/languages');
 const locator   = require('../services/callout-locator');
 const patchCtx  = require('../services/patch-context');
 const router = express.Router();

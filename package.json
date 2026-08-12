@@ -16,7 +16,8 @@
     "publish:download": "node scripts/publish-download.js",
     "check:playbook": "node scripts/check-playbook.js",
     "test:deathspot": "node scripts/test-death-spot.js",
-    "test:habits": "node scripts/test-habits.js"
+    "test:habits": "node scripts/test-habits.js",
+    "check:server": "node scripts/check-server-boot.js"
   },
   "build": {
     "appId": "com.ghostcoach.app2",
