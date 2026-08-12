@@ -2003,17 +2003,101 @@ const MAP_LABEL_INDEX = (() => {
   }
 })();
 
-/** Narrow the map by intersecting every printed label seen so far. */
-function mapFromLabels(labels) {
-  const seen = [...new Set((labels || []).map((l) => String(l || '').toLowerCase().trim()).filter(Boolean))];
-  if (!seen.length) return null;
-  const candidates = [];
+/**
+ * A printed label as the index stores it.
+ *
+ * The model sometimes qualifies what the game prints, "B Site (Attacker Side)"
+ * for "B Site". The qualifier is commentary, not part of the name, and keeping
+ * it turns a perfectly good label into an unknown one.
+ */
+function normaliseLabel(l) {
+  return String(l || '')
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Narrow the map by intersecting every printed label seen so far.
+ *
+ * ONE UNKNOWN LABEL USED TO DISABLE THIS FOR THE ENTIRE SESSION. The test was
+ * that EVERY label seen so far belongs to the candidate map, so a single name
+ * the index did not carry ("Fountain", which is a real Bind callout the game
+ * data does not list) emptied the candidate set and it never refilled. No error,
+ * no log line: the map lock, and the callout gate that depends on it, simply
+ * stopped existing, which is the failure this guard was written to prevent.
+ *
+ * It survived a long time because it needs a model that phrases labels slightly
+ * differently to trigger it. Across three sessions on the previous model there
+ * was not one unrecognised label; the first session on a new one produced two in
+ * the first four frames and the map never locked again.
+ *
+ * A label no map has ever printed cannot tell two maps apart, so it is now
+ * ignored rather than allowed to poison the set. The strictness that matters is
+ * kept exactly as it was: every label that IS recognised must still agree on one
+ * map, so a real callout from the wrong map still blocks the lock.
+ */
+function mapsWithLabel(l) {
+  const hits = [];
   for (const [map, names] of Object.entries(MAP_LABEL_INDEX)) {
-    if (seen.every((l) => names.has(l))) candidates.push(map);
+    // The game prints "B Fountain"; a model reasonably writes "Fountain". Accept
+    // the bare name when the site letter is the only thing missing, otherwise a
+    // map-exclusive callout is thrown away as unrecognised.
+    if (names.has(l) || names.has(`a ${l}`) || names.has(`b ${l}`) || names.has(`c ${l}`)) hits.push(map);
   }
+  return hits;
+}
+
+/**
+ * Narrow the map by intersecting the printed labels seen so far, then, if that
+ * is inconclusive, by weighing them.
+ *
+ * NOT ALL LABELS ARE WORTH THE SAME, and treating them as equal is what broke
+ * this. "B Long" exists on exactly one map, so seeing it IS the answer. "A Site"
+ * exists on all thirteen and carries no information whatsoever. Under a plain
+ * intersection a single wrong generic label ("B Main", real, on nine maps, not
+ * one of them Bind) silently vetoes a label that identified the map outright,
+ * and the lock never engages for the rest of the session.
+ *
+ * So a label now counts for 1/(number of maps that have it): exclusive callouts
+ * dominate, generic ones barely register, and one misread cannot cancel real
+ * evidence. Locking still demands a lot, because a WRONG lock is worse than
+ * none: the model can no longer correct it, and the callout gate starts
+ * rejecting valid callouts. It needs a full exclusive-label's worth of evidence
+ * and to beat the runner up by double.
+ */
+const LABEL_EVIDENCE_MIN = 1.0;    // one map-exclusive label, or several near-exclusive ones
+const LABEL_EVIDENCE_EDGE = 2;     // and it must be twice the next best map
+
+function mapFromLabels(labels) {
+  const seen = [...new Set((labels || []).map(normaliseLabel).filter(Boolean))];
+  if (!seen.length) return null;
+  const known = seen.map((l) => [l, mapsWithLabel(l)]).filter(([, m]) => m.length);
+  if (!known.length) return { map: null, confident: false, candidates: [] };
+
+  const title = (n) => n.charAt(0).toUpperCase() + n.slice(1);
+
+  // Clean agreement: every recognised label fits one map and only one. This is
+  // the original rule and it still decides the common case.
+  const candidates = Object.keys(MAP_LABEL_INDEX)
+    .filter((map) => known.every(([, maps]) => maps.includes(map)));
   if (candidates.length === 1) {
-    const n = candidates[0];
-    return { map: n.charAt(0).toUpperCase() + n.slice(1), confident: true, candidates };
+    return { map: title(candidates[0]), confident: true, candidates };
+  }
+
+  // Contradictory labels. Weigh them by how much each one actually narrows the
+  // map rather than letting the weakest veto the strongest.
+  const score = new Map();
+  for (const [, maps] of known) {
+    const w = 1 / maps.length;
+    for (const m of maps) score.set(m, (score.get(m) || 0) + w);
+  }
+  const ranked = [...score.entries()].sort((a, b) => b[1] - a[1]);
+  const [best, bestScore] = ranked[0] || [null, 0];
+  const runnerUp = ranked[1] ? ranked[1][1] : 0;
+  if (best && bestScore >= LABEL_EVIDENCE_MIN && bestScore >= runnerUp * LABEL_EVIDENCE_EDGE) {
+    return { map: title(best), confident: true, candidates: [best] };
   }
   return { map: null, confident: false, candidates };
 }
@@ -2146,4 +2230,4 @@ module.exports = CoachingEngine;
 // Exposed for tests. The death-location gate is the kind of rule that is easy
 // to get subtly wrong (gating a general tip, or letting the spectated location
 // through), so it is checked directly rather than only through a live session.
-module.exports.__test = { isDeathReview, wrongDeathSpot, namedCallouts, namedSpots, wrongSideHold };
+module.exports.__test = { isDeathReview, wrongDeathSpot, namedCallouts, namedSpots, wrongSideHold, mapFromLabels };

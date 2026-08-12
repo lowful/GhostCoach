@@ -17,6 +17,7 @@
     "check:playbook": "node scripts/check-playbook.js",
     "test:deathspot": "node scripts/test-death-spot.js",
     "test:habits": "node scripts/test-habits.js",
+    "test:maps": "node scripts/test-map-labels.js",
     "check:server": "node scripts/check-server-boot.js"
   },
   "build": {
