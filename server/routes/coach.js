@@ -125,6 +125,12 @@ const AI = {
 // credits, quota or billing counts, whatever code it arrived under.
 const CREDITS_TEXT = /credit|quota|insufficient|billing|payment required|out of funds|top ?up/i;
 
+// The model's own words for "I am looking at the spectator HUD". Matched against
+// aliveTell only, which exists to describe the evidence for being alive, so
+// these readings mean the opposite of what the health number says. Every pattern
+// below is a phrasing taken from a real logged session.
+const SPECTATE_TELL = /\bspectat(e|es|ing|or)\b|\bswitch player\b|\bkill ?cam\b|\bteammate\b[^.]{0,24}\bhp\b|\bwatching (a |your )?teammate\b/i;
+
 // A RATE LIMIT IS NOT AN EMPTY WALLET, and it says so in words that overlap.
 // Rate-limit bodies routinely mention "quota", which the wording test above
 // treats as a money problem, so a burst of requests could trip the breaker, shut
@@ -1009,6 +1015,8 @@ STATE: {"side":"attack","phase":"active","round":5,"clock":"1:12","team":3,"enem
   NO  -> the player is DEAD and spectating a teammate -> alive: false, aliveTell: the dead tell you saw.
   THE HP NUMBER DECIDES IT. If you reported an hp number above, the player is ALIVE, full stop, so alive must be true. Never report alive:false in the same breath as a readable health number, that combination is self contradictory and it is how a living player gets coached as a corpse. Only report alive:false when there is NO own-health number on screen AND you can name a real dead tell.
   The dead tells, any ONE of these is enough, you do not need two: a teammate's NAME shown at the bottom-left instead of your own loadout, the word "Spectating" anywhere, a death recap or killcam, the greyed-out observer HUD, a "You died" or respawn banner, or simply no HP number at the bottom-center at all.
+  READ THESE EXACT STRINGS, THEY ARE THE MOST COMMON MISS. If the bottom-left shows a player PORTRAIT and NAME above the words "SWITCH PLAYER", the player is DEAD and spectating that person. If a panel in the upper right says "KILLED BY" above an agent name, they are DEAD. A "COMBAT REPORT" panel with an incoming damage total is the same story.
+  WHEN SPECTATING, THE HEALTH NUMBER AT THE BOTTOM IS NOT THEIRS, it belongs to the teammate being watched, so a healthy-looking 100 there proves nothing. Report hp: null and alive: false, and say in aliveTell who is being spectated. Reporting a spectated teammate's health as the player's own is the single most damaging mistake in this whole format, because it makes a real death look like it never happened.
   aliveTell must be a SHORT phrase naming the actual evidence, never a guess and never empty. Writing the evidence down is what makes this read accurate, so always fill it in.
   NOT death, do not be fooled: a flashbang whiteout, a smoke, a dark corner, a scoped-in view, or a blurry frame. In those the HP number is usually still there. If the frame is truly unreadable, repeat the previous frame's value and say so in aliveTell ("unreadable, kept previous").
   This is the single most important field in the whole report. A dead player cannot peek, rotate, buy, or use util, so every tip built on a wrong alive read is nonsense the player will notice immediately.
@@ -1090,6 +1098,32 @@ function mapState(s) {
   // teammate's name bottom-left, a killcam) is strong enough for the client to
   // register the death from ONE frame instead of waiting for a second one.
   if (str(s.aliveTell)) out.aliveTell = String(s.aliveTell).trim().slice(0, 60);
+
+  // THE HEALTH NUMBER ON SCREEN IS NOT ALWAYS THE PLAYER'S OWN.
+  //
+  // "A readable health number means alive" holds right up until the player dies,
+  // because the spectator HUD then shows the SPECTATED teammate's health in the
+  // same place. The model reported alive:true with hp:100 while its own
+  // aliveTell read "Spectating player candy with Ghost bottom left", and the
+  // whole pipeline believed the number over the sentence.
+  //
+  // The damage was not a wrong field, it was that every genuine death review got
+  // treated as a fabrication: the coach correctly said "you died", the state
+  // said the player was at full health, and the tip looked like a hallucination
+  // to everything downstream. Two sessions of real deaths were misfiled that way.
+  //
+  // So when the tell says spectating, the tell wins and the health number is
+  // DROPPED rather than reassigned, because it belongs to somebody else and a
+  // teammate's health passed off as the player's is worse than no reading.
+  if (out.aliveTell && SPECTATE_TELL.test(out.aliveTell)) {
+    if (out.playerAlive !== false || out.playerHp != null) {
+      console.log(`[coach] spectator tell beats the health number: "${out.aliveTell}"`
+        + ` (reported alive:${out.playerAlive} hp:${out.playerHp})`);
+    }
+    out.playerAlive = false;
+    delete out.playerHp;          // that number is the spectated player's
+    delete out.aliveContradiction;
+  }
   if (num(s.mates) != null && s.mates >= 0 && s.mates <= 4) out.teammatesAlive = Math.round(s.mates);
   if (num(s.foes)  != null && s.foes  >= 0 && s.foes  <= 5) out.enemiesAlive   = Math.round(s.foes);
   if (str(s.weapon))    out.playerWeapon = str(s.weapon);
@@ -1898,8 +1932,9 @@ router.post('/score-session', async (req, res) => {
 FINAL SCOREBOARD for this exact match (verified as the coached game, this is hard evidence and outranks everything else for the aim and impact scores):
 - Result: ${String(m.result || '?').slice(0, 12)} ${String(m.score || '').slice(0, 10)}
 - K/D/A: ${m.kills | 0}/${m.deaths | 0}/${m.assists | 0} (K/D ${Number(m.kd) || 0})
-- ACS ${m.acs | 0}, ADR ${m.adr | 0}, headshot ${m.headshotPct | 0}%
-Use these numbers. A strong scoreboard means the aim and impact scores should be high even if the coaching corrected a lot, and a weak one means they should be low even if the session was quiet. Never restate the raw numbers back to the player in summary, strengths, weaknesses, or practice; they can already see their own scoreboard. Let the numbers set the SCORES and describe the habit behind them in words.
+- ACS ${m.acs | 0}, ADR ${m.adr | 0}, headshot ${m.headshotPct | 0}%${m.grade ? `\n- Tracker grade for this match: ${String(m.grade).slice(0, 3)}` : ''}
+CALIBRATE AGAINST REAL VALORANT NUMBERS, because "strong" means nothing without a scale and these were being read as ordinary. ACS: under 150 is poor, 200 is average, 250 is good, 300 is excellent, 350 and above is exceptional and belongs in the 90s. K/D: 0.8 is losing the duels, 1.0 is even, 1.3 is good, 1.8 and above is dominant. ADR: 120 is low, 160 is solid, 200 and above is carrying. Headshot: 15% is low, 25% is average, 30% and above is strong aim. A tracker grade of S or A is a standout performance.
+Use these numbers. A strong scoreboard means the aim and impact scores should be high even if the coaching corrected a lot, and a weak one means they should be low even if the session was quiet. A player who topped the scoreboard does not get a mediocre aim or impact score because the coach found positioning habits to fix: score the CATEGORY, not the amount of advice given. Positioning and utility are where the corrections belong. Never restate the raw numbers back to the player in summary, strengths, weaknesses, or practice; they can already see their own scoreboard. Let the numbers set the SCORES and describe the habit behind them in words.
 ` : '';
 
     const prompt = `A Valorant player finished a coached session${ctx.map ? ' on ' + String(ctx.map).slice(0, 20) : ''}${ctx.agent ? ' playing ' + String(ctx.agent).slice(0, 16) : ''}${ctx.durationMin ? ', about ' + Math.round(ctx.durationMin) + ' minutes long' : ''}. These coaching tips were shown during it:\n${tips.join('\n')}\n${notesBlock}${matchBlock}\nReturn ONLY valid JSON, no markdown:\n{"impact":82,"positioning":54,"utility":61,"aim":77,"summary":"...","strengths":"...","weaknesses":"...","practice":"..."}\nThe four numbers above are FORMATTING ONLY, they are not this player's scores and copying them is a failure. Score each category independently, 0-100, and expect them to differ from each other: a session where every category lands on the same number almost never happens, so if you are about to return four identical scores, look again at which category the evidence actually separates. Use the range: 30s and 40s for a category that clearly cost them the game, 50s and 60s for below par, 70s for solid, 80s and 90s for genuinely strong. impact means round influence: opening picks, entries that created space, clutch attempts, multikills, and being part of the plays that decided rounds; a quiet passenger scores low even with a clean K/D. When OBSERVED FACTS are provided they are the primary evidence, they describe what the player actually did; the tips only show what the coaching focused on and do NOT prove the player did or failed anything. Many corrections in a category still suggests a lower score there, but never state the player did something unless an observed fact shows it. No signal for a category means a neutral 70-75, but a category with real evidence must move away from neutral in whichever direction the evidence points.

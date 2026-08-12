@@ -2214,33 +2214,23 @@ function scenarioFits(text, source, ctx) {
       return false;
     }
 
-    // THE PLAYER IS ALIVE AND THE COACH IS REVIEWING THEIR DEATH.
+    // NOTE, AND DO NOT REINTRODUCE THIS.
     //
-    // A living player at 100 HP was told "You died holding that tight angle
-    // alone", and it reached the overlay. So was one at 85 HP mid fight, and
-    // one at 100 HP was told "You are spectating Iso". In one session ten tips
-    // narrated a death that had not happened.
+    // A guard used to live here rejecting any tip that said "you died" while the
+    // health number was above zero, on the reasoning that HP beats death. It was
+    // removed because the premise is false at exactly the moment it matters: the
+    // instant a player dies the HUD starts showing the SPECTATED teammate's
+    // health in the same place, so "hp 100" is routine while genuinely dead.
     //
-    // The existing death checks all assumed the player really had died and only
-    // argued about WHERE, so when the model invented the death outright nothing
-    // was watching. This is the same rule as HP beats death, applied to the tip
-    // instead of the STATE: a readable health number above zero means alive, and
-    // no sentence gets to contradict it. Nothing is more corrosive to trust than
-    // being told you are dead while you are playing the round.
-    const notAlive = claimsNotAlive(l);
-    if (notAlive) {
-      const aliveEvidence = ctx.playerAlive === true
-        || (typeof ctx.playerHp === 'number' && ctx.playerHp > 0);
-      const justDied = ctx.lastDeathAt && Date.now() - ctx.lastDeathAt < DEATH_WINDOW_MS;
-      // Only reject on positive evidence of being alive. With no health read and
-      // no alive flag we genuinely do not know, and silencing a real death
-      // review is its own failure.
-      if (aliveEvidence && !justDied) {
-        noteReject(`said the player was ${notAlive} while they were alive`
-          + (typeof ctx.playerHp === 'number' ? ` at ${ctx.playerHp} HP` : ''));
-        return false;
-      }
-    }
+    // The guard therefore suppressed real death reviews, which is the opposite
+    // of its intent, and it looked like it was working because the tips it threw
+    // away did read like hallucinations. Two sessions of correct coaching were
+    // misfiled as fabrication before anyone opened the screenshots.
+    //
+    // The contradiction is now settled server side, where the evidence lives:
+    // when the model's own aliveTell says it is looking at a spectator HUD, the
+    // tell wins and the health number is dropped. See SPECTATE_TELL in
+    // server/routes/coach.js.
 
     if (isDeathReview(l, ctx)) {
       const wrongSpot = wrongDeathSpot(l, ctx.deathSpot);

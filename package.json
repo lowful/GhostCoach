@@ -20,7 +20,8 @@
     "test:maps": "node scripts/test-map-labels.js",
     "check:server": "node scripts/check-server-boot.js",
     "bench:models": "node scripts/bench-models.js",
-    "test:alive": "node scripts/test-alive-claims.js"
+    "test:alive": "node scripts/test-alive-claims.js",
+    "test:matchlink": "node scripts/test-match-link.js"
   },
   "build": {
     "appId": "com.ghostcoach.app2",

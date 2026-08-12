@@ -1,24 +1,37 @@
 'use strict';
 
 /**
- * The coach must not tell a living player they are dead.
+ * A spectated teammate's health is not the player's health.
  *
- * Every REAL case below is verbatim from one session, with the health number
- * the HUD was showing at that moment. Ten tips in that session narrated a death
- * that had not happened and several reached the overlay, including one at 100 HP
- * and one at 85 HP mid fight, plus "You are spectating Iso" to a player who was
- * alive and playing.
+ * The moment a player dies, Valorant shows the SPECTATED teammate's health in
+ * the same bottom-center slot, so "hp 100" is completely routine while dead.
+ * The model read this correctly and still reported alive:true, with its own
+ * aliveTell saying "Spectating player candy with Ghost bottom left".
  *
- * The existing death guards all assumed a death had really happened and only
- * argued about WHERE it was, so an invented death had nothing watching it. This
- * is HP beats death applied to the tip text: a readable health number above zero
- * means alive, and no sentence gets to contradict it.
+ * That single contradiction made every genuine death review look like a
+ * hallucination: the coach correctly said "you died", the state said full
+ * health, and downstream logic concluded the model was inventing deaths. A
+ * client guard was then built on that conclusion and started suppressing
+ * correct coaching. Both sessions of "fabricated" deaths turned out to be real
+ * deaths, visible in the screenshots as a SWITCH PLAYER prompt and a KILLED BY
+ * panel.
+ *
+ * So the rule is: when the tell says spectating, the tell beats the number, and
+ * the number is DROPPED rather than kept, because it belongs to somebody else.
+ *
+ * Every aliveTell below is verbatim from a logged session.
  *
  * Run: npm run test:alive
  */
 const path = require('path');
-const { __test } = require(path.join(__dirname, '..', 'src', 'main', 'services', 'coaching-engine.js'));
-const { claimsNotAlive, verifyTip } = __test;
+
+// The route module builds a Supabase client at import time and throws without
+// these. mapState is pure and never touches it, so placeholders are enough to
+// let the module load. Set BEFORE the require.
+process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'http://localhost:54321';
+process.env.SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || 'test-key-not-used';
+
+const { mapState } = require(path.join(__dirname, '..', 'server', 'routes', 'coach.js'));
 
 let pass = 0, fail = 0;
 const check = (name, ok, detail) => {
@@ -26,56 +39,51 @@ const check = (name, ok, detail) => {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok || !detail ? '' : `\n        ${detail}`}`);
 };
 
-// Verbatim from the session, with the HP the HUD showed.
-const SHOWN_WHILE_ALIVE = [
-  [100, 'You died holding that tight angle alone because your team is dead top side.'],
-  [85,  'You died holding A Short alone with a pistol because you were caught out.'],
-  [100, 'You are spectating Iso holding A Tower, so stop dry peeking that choke.'],
-  [100, 'You died holding A Bath alone against a Sage, so next round hold tighter.'],
-  [30,  'You died holding B Short wide without a trade partner, so reset next time.'],
+// Real readings where the model claimed the player was alive at full health
+// while simultaneously describing a spectator HUD.
+const SPECTATING = [
+  ['Spectating player candy with Ghost bottom left', 100],
+  ['Spectating Iso with 100 HP and Marshal bottom center', 100],
+  ['Spectating Turbo with Jett loadout bottom center', 100],
+  ['teammate Iso HP 100 and Vandal bottom center', 100],
+  ['switch player prompt bottom left, killcam playing', 75],
 ];
 
-// The map is set on every context below so the callout gate is satisfied and
-// the guard under test is the one that actually decides.
-console.log('a tip claiming death must not survive a living player:');
-for (const [hp, tip] of SHOWN_WHILE_ALIVE) {
-  const ctx = { playerAlive: true, playerHp: hp, phase: 'active', agentConfirmed: false, map: 'Bind' };
-  const out = verifyTip(tip, 'ai', ctx);
-  check(`  at ${hp} HP: ${tip.slice(0, 46)}...`, out === false || out === null,
-    `verifyTip let it through: ${JSON.stringify(out)}`);
+console.log('a spectator tell beats the health number:');
+for (const [tell, hp] of SPECTATING) {
+  const out = mapState({ alive: true, hp, aliveTell: tell });
+  check(`  "${tell.slice(0, 46)}"`,
+    out.playerAlive === false && out.playerHp == null,
+    `got alive:${out.playerAlive} hp:${out.playerHp}, both must indicate dead with no health`);
 }
 
-// A real review names where the player actually died, which the engine pinned at
-// the time, so deathSpot is set exactly as it would be in a live session.
-console.log('\na REAL death review must still get through:');
-const realDeath = [
-  [{ playerAlive: false, phase: 'dead', playerHp: null, deathSpot: 'A Main' },
-    'You died holding A Main alone without a flash or a trade partner.'],
-  [{ playerAlive: true, playerHp: 100, phase: 'active', lastDeathAt: Date.now() - 3000, deathSpot: 'A Tower' },
-    'You died dry peeking A Tower alone, flash the angle first next time.'],
+console.log('\na genuine own-health reading is untouched:');
+const ALIVE = [
+  ['own HP 100 and Ghost bottom center', 100],
+  ['own HP 75 and Sheriff bottom center', 75],
+  ['own rifle and HP 87 bottom center', 87],
+  ['own HP 100 and knife bottom center', 100],
 ];
-for (const [ctx, tip] of realDeath) {
-  const label = ctx.phase === 'dead' ? 'while dead' : 'just respawned, inside the death window';
-  const out = verifyTip(tip, 'ai', { agentConfirmed: false, map: 'Bind', ...ctx });
-  check(`  ${label}`, out !== false && out !== null, 'a genuine death review was suppressed');
+for (const [tell, hp] of ALIVE) {
+  const out = mapState({ alive: true, hp, aliveTell: tell });
+  check(`  "${tell.slice(0, 46)}"`,
+    out.playerAlive === true && out.playerHp === hp,
+    `got alive:${out.playerAlive} hp:${out.playerHp}`);
 }
 
-console.log('\nno health read means no verdict, so nothing is suppressed on a guess:');
-const unknown = verifyTip('You died holding B Site alone without a trade.', 'ai',
-  { playerHp: null, playerAlive: null, phase: null, agentConfirmed: false });
-check('  unknown state lets the tip stand', unknown !== false && unknown !== null);
+console.log('\nthe original contradiction still resolves the original way:');
+// alive:false with a readable OWN health number was the first bug ever fixed
+// here, the model announcing deaths that had not happened. Health still wins
+// when nothing says spectating.
+const contradiction = mapState({ alive: false, hp: 87, aliveTell: 'own HP 87 and Vandal bottom center' });
+check('  alive:false with own HP 87 is treated as alive',
+  contradiction.playerAlive === true && contradiction.playerHp === 87,
+  `got alive:${contradiction.playerAlive} hp:${contradiction.playerHp}`);
 
-console.log('\nthe detector is narrow, ordinary advice is untouched:');
-const INNOCENT = [
-  'Trade your teammate when they die instead of pushing past the body.',
-  'Hold A Site tight and let them walk into your crosshair.',
-  'They died to a wide swing, so hold that angle tighter.',
-  'Watch your teammate on the minimap before you rotate.',
-];
-for (const tip of INNOCENT) {
-  check(`  "${tip.slice(0, 44)}..."`, claimsNotAlive(tip) === null,
-    `wrongly flagged as claiming death: ${claimsNotAlive(tip)}`);
-}
+// A death with no health number at all: nothing to contradict, stays dead.
+const plainDeath = mapState({ alive: false, hp: null, aliveTell: 'no HP number, death recap on screen' });
+check('  a plain death with no health number stays dead',
+  plainDeath.playerAlive === false && plainDeath.playerHp == null);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

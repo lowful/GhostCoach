@@ -15,8 +15,36 @@
 const MATCH_LINK_LEAD_MS  = 20 * 60 * 1000;
 const MATCH_LINK_TRAIL_MS = 10 * 60 * 1000;
 
+// Roughly how long a round takes including the buy phase. Only used to work out
+// whether a match was still being played when coaching started, so it wants to
+// be about right rather than exact.
+const ROUND_MS = 100 * 1000;
+
 function sameName(a, b) {
   return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+}
+
+/** Total rounds played, read off the "5-2" scoreline the tracker already sends. */
+function roundsPlayed(lm) {
+  const m = /^\s*(\d+)\s*-\s*(\d+)\s*$/.exec(String((lm && lm.score) || ''));
+  return m ? (Number(m[1]) + Number(m[2])) : 0;
+}
+
+/**
+ * When the match finished, estimated from its length.
+ *
+ * The tracker reports when a match STARTED and never when it ended, which made
+ * the start time the only thing available to compare against, and that is the
+ * wrong question. A 45 minute competitive match that began 25 minutes before the
+ * player hit Start was still very much in progress, and it was refused for
+ * "starting before the session" while being the only match they played.
+ * Returns null when the scoreline is unreadable, so the caller can fall back.
+ */
+function matchEndEstimate(lm) {
+  if (!lm || !lm.startedAt) return null;
+  if (lm.endedAt) return lm.endedAt;          // if a future payload provides it, prefer it
+  const rounds = roundsPlayed(lm);
+  return rounds ? lm.startedAt + rounds * ROUND_MS : null;
 }
 
 /**
@@ -34,8 +62,20 @@ function sameName(a, b) {
 function verifyCoachedMatch(lm, startedAt, endedAt, mctx) {
   if (!lm || !lm.startedAt) return { ok: false, why: 'no match start time' };
 
-  if (lm.startedAt < startedAt - MATCH_LINK_LEAD_MS) return { ok: false, why: 'match started before the session' };
   if (lm.startedAt > endedAt + MATCH_LINK_TRAIL_MS)  return { ok: false, why: 'match started after the session' };
+
+  // OVERLAP, NOT START TIME. What makes a match the coached one is that it was
+  // being played while the coach was watching. Testing the start time instead
+  // threw away a real match for "starting before the session" when the player
+  // simply began coaching partway through a long game, which is the normal way
+  // this app gets used. Falls back to the old lead window only when the
+  // scoreline cannot be read, since then there is nothing to estimate from.
+  const end = matchEndEstimate(lm);
+  if (end != null) {
+    if (end < startedAt) return { ok: false, why: 'match had already finished before coaching started' };
+  } else if (lm.startedAt < startedAt - MATCH_LINK_LEAD_MS) {
+    return { ok: false, why: 'match started before the session and its length is unknown' };
+  }
 
   const ourMap   = mctx && mctx.map;
   const ourAgent = mctx && mctx.agent;
@@ -65,5 +105,6 @@ function matchSummary(m) {
 
 module.exports = {
   verifyCoachedMatch, matchSummary, sameName,
-  MATCH_LINK_LEAD_MS, MATCH_LINK_TRAIL_MS,
+  matchEndEstimate, roundsPlayed,
+  MATCH_LINK_LEAD_MS, MATCH_LINK_TRAIL_MS, ROUND_MS,
 };
