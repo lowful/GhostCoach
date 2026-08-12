@@ -90,20 +90,20 @@ const AI = {
   // the phase boundary and the lock would never settle or would settle wrong.
   // The thinking model also spends its budget reasoning and can return a
   // truncated STATE. All-thinking was already too slow (it timed out on live
-  // tips), so one fast model used consistently is the right call. Default
-  // upgraded 2026-07-24 to Gemini 3 Flash: it benchmarks ahead of Qwen3-VL on
-  // vision (HUD and minimap reading is exactly where the misreads were) and is
-  // comparably fast and priced. Qwen instruct stays a known-good fallback via
-  // the env var. NOTE: a value set in Railway (AI_VISION_MODEL) OVERRIDES this
-  // default, so switching the live model also requires updating that env var.
+  // tips), so one fast model used consistently is the right call.
+  //
+  // NOTE: a value set in Railway (AI_VISION_MODEL) OVERRIDES this default, so
+  // this line does not tell you what is live. Ask /health, which reports the
+  // models actually in use. Whatever is chosen must be a VISION model and must
+  // answer without reasoning first, see chatCall.
   visionModel: process.env.AI_VISION_MODEL || 'google/gemini-3-flash-preview',
-  // Text tasks (grading, chat, reviews) also default to Gemini 3 Flash. Besides
-  // being the stronger writer, it is NOT a <think>-wrapper model, so it avoids
-  // the reasoning-truncation that made Qwen thinking return an empty answer and
-  // broke Ask Coach and session grading. The self-healing fallback in textInfer
-  // only triggers for a "thinking" model, so it stays dormant here (a safety net
-  // if text is ever pointed back at a thinking model). A Railway-set
-  // AI_TEXT_MODEL overrides this default.
+  // Text tasks (grading, chat, reviews) also default to Gemini 3 Flash, which is
+  // the stronger writer and answers directly rather than reasoning first.
+  //
+  // WHATEVER IS SET HERE OR IN RAILWAY, ASSUME IT MIGHT REASON. Reasoning is now
+  // switched off per request in chatCall and textInfer retries any empty reply on
+  // a different model, because the previous safety net keyed on the model NAME
+  // containing "thinking" and therefore missed qwen3.7-flash entirely.
   textModel:   process.env.AI_TEXT_MODEL || 'google/gemini-3-flash-preview',
   // Unused by the live analyze loop; kept for anything that explicitly opts into
   // a deep-reasoning image read. Defaults to the same vision model so an unset
@@ -182,6 +182,20 @@ async function chatCall({ prompt, imageB64, maxTokens, temperature, model: pinne
   // budget would truncate before any tip appears. Give reasoning headroom on
   // top of the caller's budget, bounded so total generation lands inside the
   // timeouts. A no-op for instruct models (headroom 0), safe either way.
+  //
+  // "Is this a thinking model" USED TO BE ANSWERED BY THE NAME ALONE, and that
+  // was wrong in the one way that matters: silently. Pointing the coach at
+  // qwen/qwen3.7-flash, a reasoning model with no "thinking" in its name, made
+  // every single call return an empty string. Not an error, not a degraded tip,
+  // nothing: the model reasoned through the whole answer budget and the overlay
+  // simply stopped speaking. Measured at 0 tips and 0 STATE lines across 10 real
+  // frames, which also kills the feedback loop, because a STATE that never
+  // arrives is indistinguishable from a quiet round.
+  //
+  // So reasoning is now switched OFF explicitly rather than assumed absent. A
+  // live tip is latency bound and has nothing to reason about beyond what is on
+  // screen, so this is what we want anyway. Models that cannot disable it are
+  // caught below by the response itself.
   const isThinking = /thinking/i.test(model);
   // Reasoning happens BEFORE the answer and comes out of the same budget, so a
   // thinking model that reasons past the cap returns a truncated <think> block
@@ -191,7 +205,7 @@ async function chatCall({ prompt, imageB64, maxTokens, temperature, model: pinne
   const headroom = isThinking ? (images.length ? 700 : 2200) : 0;
   const budget = (maxTokens || 100) + headroom;
 
-  const resp = await fetch(`${AI.baseUrl}/chat/completions`, {
+  const send = (maxT, thinkOn) => fetch(`${AI.baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type':  'application/json',
@@ -202,10 +216,15 @@ async function chatCall({ prompt, imageB64, maxTokens, temperature, model: pinne
     body: JSON.stringify({
       model,
       messages:    [{ role: 'user', content }],
-      max_tokens:  budget,
+      max_tokens:  maxT,
       temperature: temperature == null ? 0.7 : temperature,
+      // OpenRouter's unified switch. Hybrid reasoners answer directly instead of
+      // thinking first; providers that do not support it ignore the field.
+      reasoning:   thinkOn ? undefined : { enabled: false },
     }),
   });
+
+  let resp = await send(budget, isThinking);
 
   if (!resp.ok) {
     const text = await resp.text();
@@ -228,9 +247,48 @@ async function chatCall({ prompt, imageB64, maxTokens, temperature, model: pinne
     throw err;
   }
   clearCreditsFlag();   // a successful call proves credits are available again
-  const data = await resp.json();
-  const raw = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+  let data = await resp.json();
+  let raw = answerOf(data);
+
+  // ALWAYS-ON REASONERS: the switch above is a request, not a guarantee. Some
+  // models reason regardless, and when they do it comes out of the same budget,
+  // so the answer is empty for a reason the caller cannot see. Ask the RESPONSE
+  // rather than the model name: an empty answer plus evidence of reasoning is
+  // the signature, and it is worth exactly one retry with real headroom. An
+  // empty answer with no reasoning is a genuine "nothing to say" and is left
+  // alone, because on the vision path that is a legitimate SKIP.
+  if (!raw && burnedBudgetThinking(data)) {
+    console.warn(`[coach] ${model} reasoned past its answer budget, retrying with headroom`);
+    const retry = await send(budget + (images.length ? 700 : 2200), true);
+    if (retry.ok) {
+      data = await retry.json();
+      raw = answerOf(data);
+    }
+  }
   return stripThinking(raw);
+}
+
+/** The assistant's actual answer, independent of provider quirks. */
+function answerOf(data) {
+  const msg = (data && data.choices && data.choices[0] && data.choices[0].message) || {};
+  return msg.content || '';
+}
+
+/**
+ * Did this response spend its whole budget reasoning instead of answering?
+ *
+ * OpenRouter reports reasoning separately from content, so the tell is direct:
+ * reasoning came back, the answer did not, and generation stopped because it hit
+ * the cap. Keyed on the reply rather than the model id so a newly configured
+ * model cannot silently reintroduce the empty-tip outage.
+ */
+function burnedBudgetThinking(data) {
+  const choice = (data && data.choices && data.choices[0]) || {};
+  const msg = choice.message || {};
+  const usage = (data && data.usage) || {};
+  const details = usage.completion_tokens_details || {};
+  const reasoned = !!(msg.reasoning || msg.reasoning_content || details.reasoning_tokens > 0);
+  return reasoned || choice.finish_reason === 'length';
 }
 
 // Thinking models wrap their reasoning in <think>...</think> before the answer.
@@ -266,15 +324,22 @@ async function visionInfer(imageB64, prompt, maxTokens, jsonMode, model) {
  */
 let thinkingTextStrikes = 0;
 const THINKING_TEXT_LIMIT = 1;   // one failure is enough, do not keep paying for it
-function instructFallbackModel() {
-  return process.env.AI_TEXT_MODEL_FALLBACK
+
+// The fallback has to be a DIFFERENT model, which used to be assumed rather than
+// checked. It derived from the vision model, and once vision and text were both
+// pointed at the same model the "fallback" retried the exact call that had just
+// returned nothing. A known instruct model is the backstop, because the point of
+// this path is to answer the player, not to be frugal about a call that is only
+// made when a feature would otherwise be broken.
+const TEXT_BACKSTOP = 'google/gemini-3-flash-preview';
+function instructFallbackModel(failed) {
+  const pick = process.env.AI_TEXT_MODEL_FALLBACK
     || (/thinking/i.test(AI.visionModel) ? 'qwen/qwen3-vl-235b-a22b-instruct' : AI.visionModel);
+  return pick && pick !== failed ? pick : TEXT_BACKSTOP;
 }
 function textModelNow() {
   const configured = AI.textModel;
-  if (/thinking/i.test(configured) && thinkingTextStrikes >= THINKING_TEXT_LIMIT) {
-    return instructFallbackModel();
-  }
+  if (thinkingTextStrikes >= THINKING_TEXT_LIMIT) return instructFallbackModel(configured);
   return configured;
 }
 
@@ -292,26 +357,32 @@ async function textInfer(prompt, maxTokens, opts) {
   };
 
   const model = textModelNow();
-  const thinking = /thinking/i.test(model);
+  const fallback = instructFallbackModel(model);
+  // THE SYMPTOM IS THE EMPTY REPLY, NOT THE MODEL'S NAME.
+  //
+  // This recovery used to run only when the model id matched /thinking/, which
+  // meant it sat dormant through the exact outage it was written to prevent:
+  // qwen3.7-flash reasons but is not called "thinking", so Ask Coach served its
+  // canned "ask me about a round" line and grading served filler, both looking
+  // like working features. Any empty reply now earns the retry.
   let out = '';
   let failure = null;
   try {
     out = await run(model);
   } catch (e) {
-    if (!thinking) throw e;       // instruct already failed, that is a real error
+    if (model === fallback) throw e;   // nothing left to try, that is a real error
     failure = e.message;
   }
   if (out && out.trim()) return finish(out);
+  if (model === fallback) return finish(out);
 
-  // Either nothing came back or it timed out, both meaning the reasoning ate
-  // the budget. Record the strike so later calls skip straight to instruct.
-  if (thinking) {
-    thinkingTextStrikes++;
-    console.warn(`[coach] thinking model unusable for text (${failure || 'empty reply'}), `
-      + `strike ${thinkingTextStrikes}/${THINKING_TEXT_LIMIT}, retrying on instruct`);
-    return finish(await run(instructFallbackModel()));
-  }
-  return finish(out);
+  // Nothing came back, or it timed out. Either way this model is not answering
+  // text right now, so record the strike and let later calls skip straight past
+  // it rather than paying for the same silence every time.
+  thinkingTextStrikes++;
+  console.warn(`[coach] ${model} unusable for text (${failure || 'empty reply'}), `
+    + `strike ${thinkingTextStrikes}/${THINKING_TEXT_LIMIT}, retrying on ${fallback}`);
+  return finish(await run(fallback));
 }
 
 // Strict schema for /analyze responses, Gemini requires UPPERCASE type names
