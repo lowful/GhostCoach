@@ -127,6 +127,48 @@ function render(r) {
   renderCategories(r);
   renderNotes('well', 'well-section', r.doingWell);
   renderNotes('fix',  'fix-section',  r.toImprove);
+  renderHabits(r.habits);
+}
+
+/**
+ * The recurring mistakes, each with the fix.
+ *
+ * Shows how often it came up and across how many sessions, because "3 of 4
+ * sessions" is what turns a complaint into evidence. The fix carries equal
+ * weight to the mistake: naming a habit without saying what to do about it is
+ * the failure mode of every stats product.
+ */
+function renderHabits(habits) {
+  const section = $('habits-section');
+  const list = $('habits');
+  if (!Array.isArray(habits) || !habits.length) { section.hidden = true; return; }
+
+  list.replaceChildren();
+  for (const h of habits) {
+    const li = document.createElement('li');
+    li.className = 'habit';
+
+    const head = document.createElement('div');
+    head.className = 'habit-head';
+    const name = document.createElement('b');
+    name.textContent = h.label;
+    const freq = document.createElement('span');
+    freq.className = 'habit-freq';
+    freq.textContent = h.sessions > 1 ? `${h.sessions} sessions` : `${h.count}x`;
+    head.append(name, freq);
+
+    const blurb = document.createElement('p');
+    blurb.className = 'habit-blurb';
+    blurb.textContent = h.blurb;
+
+    const fix = document.createElement('p');
+    fix.className = 'habit-fix';
+    fix.textContent = h.fix;
+
+    li.append(head, blurb, fix);
+    list.appendChild(li);
+  }
+  section.hidden = false;
 }
 
 $('close').addEventListener('click', () => window.ghost.close());

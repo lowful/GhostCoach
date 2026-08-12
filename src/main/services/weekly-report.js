@@ -64,6 +64,8 @@ const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
  * anything honest, because a report of blanks and invented praise is worse than
  * not opening at all.
  */
+const { profileHabits } = require('./habits');
+
 function assembleReport(input) {
   const { riotId = '', stats = null, base = null, snapshotAt = null, categories = {} } = input || {};
   const now  = input && input.now ? input.now : Date.now();
@@ -110,6 +112,12 @@ function assembleReport(input) {
   const doingWell = uniq(week.map((r) => r.strengths));
   const toImprove = uniq(week.map((r) => r.weaknesses));
 
+  // The recurring mistakes, counted from the tips the coach actually gave
+  // across this week's sessions. Unlike toImprove (which is the grader's
+  // prose from the latest sessions) this describes the PLAYER rather than a
+  // session, because it only surfaces what keeps coming back.
+  const habits = profileHabits(Array.isArray(input && input.archives) ? input.archives : [], 3);
+
   const avgOverall = week.length
     ? Math.round(week.reduce((s, r) => s + (r.overall || 0), 0) / week.length) : null;
 
@@ -128,6 +136,7 @@ function assembleReport(input) {
     worst,
     doingWell,
     toImprove,
+    habits,
     // With no baseline we say so, rather than showing flat arrows that read as
     // "no progress" when they really mean "nothing to compare against".
     firstWeek: !base,

@@ -193,3 +193,41 @@ h3 {
 
 /* The window settles in rather than snapping on. */
 .sheet { animation: sheetIn 420ms var(--ease-expo) both; }
+
+/* Recurring mistakes. The fix is styled as prominently as the mistake, because
+   naming a habit without saying what to do about it is the failure mode of
+   every stats product. */
+.habits-lede {
+  margin: -4px 0 10px;
+  color: var(--text-mute);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.habits { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.habit {
+  padding: 11px 13px;
+  border: 1px solid var(--glass-border);
+  border-left: 2px solid var(--red);
+  border-radius: var(--r-md);
+  background: rgba(255, 70, 85, 0.05);
+}
+.habit-head { display: flex; align-items: baseline; gap: 8px; }
+.habit-head b { color: var(--text); font-size: 13px; font-weight: 700; }
+.habit-freq {
+  margin-left: auto;
+  color: var(--text-mute);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.habit-blurb { margin: 5px 0 0; color: var(--text-dim); font-size: 11.5px; line-height: 1.5; }
+.habit-fix {
+  margin: 7px 0 0;
+  padding-top: 7px;
+  border-top: 1px solid var(--glass-border);
+  color: var(--cyan);
+  font-size: 11.5px;
+  line-height: 1.5;
+}

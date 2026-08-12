@@ -992,6 +992,32 @@ function trackerCategoryScores(st) {
  * snapshot from the SAME account can serve as the baseline, otherwise a
  * switched Riot ID would show as a dramatic week of "improvement".
  */
+/**
+ * This week's session archives, which carry the actual coaching tips.
+ *
+ * Read from disk rather than kept in memory because the archive is the only
+ * place tips survive a restart, and the habit profile is about the whole week
+ * rather than the current run. Capped so a heavy week cannot turn opening the
+ * weekly report into a long synchronous read.
+ */
+function loadWeekArchives(maxFiles = 40) {
+  const out = [];
+  try {
+    const dir = sessionsDir();
+    if (!fs.existsSync(dir)) return out;
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const files = fs.readdirSync(dir).filter((f) => SESSION_FILE_RE.test(f)).sort().reverse();
+    for (const f of files.slice(0, maxFiles)) {
+      try {
+        const j = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+        if (!j || (j.endedAt || 0) < cutoff) continue;
+        out.push({ at: j.endedAt, tips: Array.isArray(j.tips) ? j.tips : [] });
+      } catch {}
+    }
+  } catch (e) { console.error('[weekly] could not read archives:', e.message); }
+  return out;
+}
+
 function buildWeeklyReport() {
   const riotId   = (store.get('riotId') || '').trim();
   const snapshot = store.get('weeklySnapshot');
@@ -1006,6 +1032,9 @@ function buildWeeklyReport() {
     base,
     snapshotAt: snapshot ? snapshot.at : null,
     perf,
+    // The habit profile counts the tips themselves, which live in the session
+    // archives rather than the perf records.
+    archives: loadWeekArchives(),
     categories: computeCategoryTrends(perf, tp.stats, tp.prevStats),
   });
 }
