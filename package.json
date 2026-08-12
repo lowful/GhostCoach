@@ -18,7 +18,8 @@
     "test:deathspot": "node scripts/test-death-spot.js",
     "test:habits": "node scripts/test-habits.js",
     "test:maps": "node scripts/test-map-labels.js",
-    "check:server": "node scripts/check-server-boot.js"
+    "check:server": "node scripts/check-server-boot.js",
+    "bench:models": "node scripts/bench-models.js"
   },
   "build": {
     "appId": "com.ghostcoach.app2",
