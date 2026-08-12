@@ -2,6 +2,7 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 const C = require('../shared/channels');
+const I18N = require('../shared/i18n');
 
 /**
  * History bridge, pull the current tip list and stay live as new tips arrive.
@@ -13,6 +14,15 @@ function subscribe(channel, cb) {
 }
 
 contextBridge.exposeInMainWorld('ghost', {
+  // i18n: the catalogue is required here (preloads have Node) and handed to the
+  // renderer as a plain translator, so no surface needs Node access to be
+  // translated. Read at call time, so a language change repaints correctly.
+  i18n: {
+    languages: () => I18N.LANGUAGES,
+    t: (code, key) => I18N.t(code, key),
+    hasUi: (code) => I18N.hasUi(code),
+  },
+
   getState:     () => ipcRenderer.invoke(C.STATE_GET),
   listSessions: () => ipcRenderer.invoke(C.SESSIONS_LIST),
   getSession:   (file) => ipcRenderer.invoke(C.SESSION_GET, file),

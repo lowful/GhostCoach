@@ -70,7 +70,7 @@
 
     <div class="controls">
       <button id="toggle" class="btn btn-primary toggle">
-        <span class="t-ico">▶</span><span class="t-label">Start Coaching</span>
+        <span class="t-ico">▶</span><span class="t-label" data-i18n="panel.start">Start Coaching</span>
       </button>
       <button id="pause" class="icon-btn lg" title="Pause / Resume (Ctrl+Shift+P)" disabled>⏸</button>
     </div>
@@ -86,10 +86,11 @@
 
     <button class="last-tip no-drag" id="last-tip" title="Open tip history">
       <span class="lt-dot"></span>
-      <span class="lt-text">No tips yet, start coaching.</span>
+      <span class="lt-text" data-i18n="panel.noTips">No tips yet, start coaching.</span>
     </button>
   </div>
 
+  <script src="../shared/i18n-apply.js"></script>
   <script src="panel.js"></script>
 </body>
 </html>

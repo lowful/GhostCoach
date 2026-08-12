@@ -161,3 +161,26 @@ kbd { font-family: 'Consolas', monospace; font-size: 10.5px; background: rgba(0,
 
 /* The ghost mark gets a gentle settle on top of its float. */
 .hero .ghost { animation: float 4.5s ease-in-out infinite, countIn 520ms var(--ease-expo) both; }
+
+/* Language picker on the first page. Sits under the hero so it is the first
+   real choice, before any of the copy it changes. */
+.ob-lang {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 2px auto 18px;
+  max-width: 320px;
+  text-align: left;
+}
+.ob-lang label {
+  color: var(--text-dim);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+.ob-lang-note {
+  margin: 0;
+  color: var(--text-mute);
+  font-size: 10.5px;
+  line-height: 1.45;
+}

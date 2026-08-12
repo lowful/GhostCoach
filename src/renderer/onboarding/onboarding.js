@@ -101,5 +101,44 @@ window.ghost.getConfig().then((cfg) => {
   }
 }).catch(() => {});
 
+
+// ── Language ────────────────────────────────────────────────────────────────
+// Chosen on page one, so the rest of onboarding and every coaching tip that
+// follows arrive in the player's language rather than being switched later.
+const obLang = document.getElementById('ob-language');
+const obLangNote = document.getElementById('ob-language-note');
+
+function obShowNote(code) {
+  if (!obLangNote || !window.ghost.i18n) return;
+  const translated = window.ghost.i18n.hasUi(code);
+  obLangNote.hidden = translated;
+  if (!translated) {
+    obLangNote.textContent =
+      'Coaching tips will be in this language. The app’s own buttons stay English for now.';
+  }
+}
+
+if (obLang && window.ghost.i18n) {
+  window.ghost.getConfig().then((cfg) => {
+    const current = (cfg && cfg.language) || 'en';
+    for (const l of window.ghost.i18n.languages()) {
+      const o = document.createElement('option');
+      o.value = l.code;
+      o.textContent = l.name;
+      if (l.code === current) o.selected = true;
+      obLang.appendChild(o);
+    }
+    obShowNote(current);
+  }).catch(() => {});
+
+  obLang.addEventListener('change', async () => {
+    await window.ghost.setConfig({ language: obLang.value });
+    obShowNote(obLang.value);
+    if (window.initI18n) window.initI18n();
+  });
+}
+
+if (window.initI18n) window.initI18n().catch(() => {});
+
 go(0);
 console.log('[onboarding] ready');

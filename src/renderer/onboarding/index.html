@@ -20,6 +20,14 @@
         <h1>You're in.</h1>
         <p class="sub">Four quick things, then you're playing.</p>
       </div>
+      <!-- Language first, before anything else is read. Setting it here means
+           the rest of onboarding and every tip that follows arrive in the
+           player's own language rather than being switched afterwards. -->
+      <div class="ob-lang">
+        <label for="ob-language" data-i18n="onboarding.chooseLanguage">Choose your language</label>
+        <select id="ob-language" class="select"></select>
+        <p class="ob-lang-note" id="ob-language-note" hidden></p>
+      </div>
       <ol class="steps">
         <li><span class="n">1</span><div><b>Start coaching</b><span>Set Valorant to Windowed Fullscreen, then hit the red button on the panel once you're in a match.</span></div></li>
         <li><span class="n">2</span><div><b>Confirm your agent</b><span>A bubble asks who you're playing. Tap ✓, or pick one of your mains. Until you do, you only get general tips and no ability advice.</span></div></li>
@@ -91,6 +99,7 @@
     </div>
   </main>
 
+  <script src="../shared/i18n-apply.js"></script>
   <script src="onboarding.js"></script>
 </body>
 </html>

@@ -510,6 +510,9 @@ class CoachingEngine extends EventEmitter {
       focus:        this.nextFocus(),
       // Experimental: playbook mode ('off' | 'on' | 'hybrid') for the server.
       proPlaybook:  this.experiments().proPlaybook || 'off',
+      // The language the tip should be written in. Read live, so switching it in
+      // Settings applies to the very next frame rather than the next session.
+      language:     this.experiments().language || 'en',
       // Tell the coach how we want advice phrased / scoped. Greyed-out (unbought
       // or on-cooldown) abilities show dimmed in-game; only the AI vision can read
       // that, so we ask it to respect it and to keep ability talk generic.

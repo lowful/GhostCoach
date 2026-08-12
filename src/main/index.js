@@ -21,6 +21,7 @@ const store    = require('./services/store');
 const capture  = require('./services/capture');
 const CoachingEngine = require('./services/coaching-engine');
 const { verifyCoachedMatch, matchSummary } = require('./services/match-link');
+const { normalize: normalizeLang } = require('../shared/i18n');
 const registry = require('./windows/registry');
 const overlayWindow    = require('./windows/overlay-window');
 const panelWindow      = require('./windows/panel-window');
@@ -197,6 +198,7 @@ const controller = {
       // to the very next capture without restarting the session.
       experiments: () => ({
         proPlaybook:  playbookMode(),
+        language:     normalizeLang(store.get('language')),
         // Beginner tips (the curated library): off means the automatic stream
         // never includes them; a manual force press may still fall back to one.
         beginnerTips: store.get('beginnerTips') !== false,

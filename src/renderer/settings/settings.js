@@ -217,10 +217,55 @@ async function refreshLicense() {
 }
 
 // Load current config + license.
+// ── Language ────────────────────────────────────────────────────────────────
+const langEl  = document.getElementById('language');
+const langNote = document.getElementById('language-note');
+
+/**
+ * Fill the picker and explain, honestly, what the choice actually changes.
+ *
+ * Coaching tips are written by the model, so every language here is native
+ * quality. The interface is hand translated, so some languages get English
+ * chrome for now. Saying so up front is better than a player picking Japanese,
+ * seeing English buttons, and assuming the feature is broken.
+ */
+function buildLanguagePicker(current) {
+  if (!langEl || !window.ghost.i18n) return;
+  langEl.replaceChildren();
+  for (const l of window.ghost.i18n.languages()) {
+    const o = document.createElement('option');
+    o.value = l.code;
+    o.textContent = l.name;
+    if (l.code === current) o.selected = true;
+    langEl.appendChild(o);
+  }
+  showLanguageNote(current);
+}
+
+function showLanguageNote(code) {
+  if (!langNote || !window.ghost.i18n) return;
+  const translated = window.ghost.i18n.hasUi(code);
+  langNote.hidden = translated;
+  if (!translated) {
+    langNote.textContent =
+      'Your coaching tips will be in this language. The app’s own buttons and labels are still English for now.';
+  }
+}
+
+if (langEl) {
+  langEl.addEventListener('change', async () => {
+    await window.ghost.setConfig({ language: langEl.value });
+    showLanguageNote(langEl.value);
+    // Repaint this window immediately; the config push handles the others.
+    if (window.initI18n) window.initI18n();
+  });
+}
+
 async function load() {
   try {
     const cfg = await window.ghost.getConfig();
     if (cfg) {
+      buildLanguagePicker(cfg.language || 'en');
       const fi = FREQ_ORDER.indexOf(cfg.performanceMode);
       freqEl.value = String(fi >= 0 ? fi : 1);
       freqLabel.textContent = FREQ_LABELS[fi >= 0 ? fi : 1];
@@ -301,4 +346,5 @@ if (emailEl) {
 }
 
 load();
+if (window.initI18n) window.initI18n();
 console.log('[settings] ready');

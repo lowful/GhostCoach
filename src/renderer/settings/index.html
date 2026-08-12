@@ -20,8 +20,18 @@
     </header>
 
     <div class="body">
+      <!-- Language sits first: it changes every other label on this page, so a
+           player looking for it should not have to scroll past the settings it
+           is about to rewrite. -->
       <section>
-        <h3>Tip frequency</h3>
+        <h3 data-i18n="common.language">Language</h3>
+        <p class="hint" data-i18n="common.languageHint">Coaching tips and the app appear in this language.</p>
+        <select id="language" class="select"></select>
+        <p class="hint" id="language-note" hidden></p>
+      </section>
+
+      <section>
+        <h3 data-i18n="settings.tipFrequency">Tip frequency</h3>
         <p class="hint">How many tips your coach gives. More tips means more screenshots behind the scenes, and every tip still passes the same quality gates, so more never means worse. No effect on game FPS.</p>
         <div class="scale-row">
           <input id="tipfreq" type="range" min="0" max="5" step="1" value="2" />
@@ -182,6 +192,7 @@
     </footer>
   </div>
 
+  <script src="../shared/i18n-apply.js"></script>
   <script src="settings.js"></script>
 </body>
 </html>

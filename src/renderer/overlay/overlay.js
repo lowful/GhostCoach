@@ -1,5 +1,14 @@
 'use strict';
 
+// Overlay labels come from JS, so they need a translator. Defaults to English
+// until i18n resolves, which matters here because the overlay can show a tip
+// within a second of launch.
+let ovLang = 'en';
+function ovT(key) {
+  try { return window.ghost.i18n.t(ovLang, key); } catch { return key === 'overlay.deathReview' ? 'Death Review' : key; }
+}
+
+
 const tipsEl   = document.getElementById('tips');
 const reviewEl = document.getElementById('review');
 
@@ -28,7 +37,7 @@ function addTip(tip) {
   const meta = document.createElement('div');
   meta.className = 'meta';
   meta.innerHTML = tip.death ? '<span class="src-skull">💀</span>' : '<span class="src-dot"></span>';
-  meta.append(tip.death ? 'Death Review' : sourceLabel(tip.source));
+  meta.append(tip.death ? ovT('overlay.deathReview') : sourceLabel(tip.source));
   const text = document.createElement('div');
   text.className = 'text';
   text.textContent = tip.text;
@@ -239,3 +248,11 @@ window.ghost.onVisibility(({ visible }) => {
 });
 
 console.log('[overlay] ready');
+
+if (window.ghost && window.ghost.getConfig) {
+  const syncLang = () => window.ghost.getConfig()
+    .then((c) => { ovLang = (c && c.language) || 'en'; })
+    .catch(() => {});
+  syncLang();
+  if (typeof window.ghost.onState === 'function') window.ghost.onState(syncLang);
+}

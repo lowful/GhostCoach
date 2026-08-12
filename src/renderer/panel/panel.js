@@ -1,5 +1,10 @@
 'use strict';
 
+// Translator for the labels this surface rewrites at runtime. Starts as an
+// identity-ish fallback so the panel renders correctly even if i18n has not
+// resolved yet, then initI18n swaps in the real one and repaints.
+let tr = (k) => ({ 'panel.start': 'Start Coaching', 'panel.stop': 'Stop Coaching' }[k] || k);
+
 const toggleBtn = document.getElementById('toggle');
 const toggleIco = toggleBtn.querySelector('.t-ico');
 const toggleLbl = toggleBtn.querySelector('.t-label');
@@ -57,7 +62,7 @@ function render() {
   statusEl.textContent = STATUS_LABEL[status];
   tipCountEl.textContent = `${tipCount} ${tipCount === 1 ? 'tip' : 'tips'}`;
 
-  toggleLbl.textContent = isCoaching ? 'Stop Coaching' : 'Start Coaching';
+  toggleLbl.textContent = tr(isCoaching ? 'panel.stop' : 'panel.start');
   toggleIco.textContent = isCoaching ? '■' : '▶';
   toggleBtn.classList.toggle('active', isCoaching);
   pauseBtn.disabled = !isCoaching;

@@ -2,6 +2,10 @@
 const express  = require('express');
 const supabase = require('../db/supabase');
 const knowledge = require('../services/knowledge');
+// The language list is shared with the client so both agree on what is
+// supported, and so the prompt always names the language in English (a model
+// follows "write in German" far more reliably than "write in Deutsch").
+const { promptName: langPrompt } = require('../../src/shared/i18n');
 const locator   = require('../services/callout-locator');
 const patchCtx  = require('../services/patch-context');
 const router = express.Router();
@@ -663,7 +667,18 @@ Combine the minimap, the kill feed, MATCH MEMORY, and ENEMY PATTERNS to anticipa
 `
     : '';
 
-  return `You are a Radiant and professional level Valorant coach watching a live match through the player's screen. Give ONE short, specific, high-value tip, or the single word SKIP. Nothing else.
+  // THE TIP IS WRITTEN IN THE PLAYER'S LANGUAGE, the STATE line never is.
+  //
+  // STATE is parsed by mapState() against fixed English keys and values, so a
+  // translated one would break the feedback loop silently: tips keep appearing
+  // and simply stop being informed by anything. Callouts stay in the game's own
+  // language too, because that is what is printed on the player's screen and
+  // what their team says out loud.
+  const langLine = (ctx.language && ctx.language !== 'en')
+    ? `WRITE THE TIP IN ${langPrompt(ctx.language).toUpperCase()}. Line 1 must be natural, fluent ${langPrompt(ctx.language)} as a real teammate would speak it, not a stiff translation of an English sentence. TWO THINGS STAY EXACTLY AS THEY ARE: the map callouts (A Main, Hookah, Mid Top and so on), because that is what is written on the player's screen and what their team says out loud, and the entire STATE line on line 2, whose keys and values are machine read and must remain English. Never translate SKIP or LOBBY either.\n\n`
+    : '';
+
+  return `${langLine}You are a Radiant and professional level Valorant coach watching a live match through the player's screen. Give ONE short, specific, high-value tip, or the single word SKIP. Nothing else.
 
 WHO THE PLAYER IS
 The player is whoever the first-person view belongs to. Their agent is the one whose 4 ability icons sit at the BOTTOM-CENTER, just above the HP and shield bar. Never guess the player's agent from the scoreboard (top), the kill feed (top-right), or the minimap (top-left); those show all ten players. If the player is dead or spectating, coach what THEY did wrong before dying, not the spectated player.

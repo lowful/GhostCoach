@@ -110,6 +110,10 @@ const STORE_DEFAULTS = {
   tipStyle:        'glass',      // glass | solid | minimal | neon, the tip card look
   tipOpacity:      0.9,          // tip card background opacity, 0.25 to 1
   showTips:        true,         // false = tips hidden on the overlay but still recorded
+  // Interface and coaching language. Tips are written in this language by the
+  // model, which costs nothing extra; the UI follows for languages that have a
+  // catalogue in src/shared/i18n.js and stays English otherwise.
+  language:        'en',         // see LANGUAGES in src/shared/i18n.js
   // (The pro playbook runs permanently in hybrid mode; frame memory is always
   // on and session-scoped. Neither is a setting anymore.)
   beginnerTips:    true,         // curated library tips in the stream (25-35% of tips); off = AI only
