@@ -20,16 +20,6 @@
     </header>
 
     <div class="body">
-      <!-- Language sits first: it changes every other label on this page, so a
-           player looking for it should not have to scroll past the settings it
-           is about to rewrite. -->
-      <section>
-        <h3 data-i18n="common.language">Language</h3>
-        <p class="hint" data-i18n="common.languageHint">Coaching tips and the app appear in this language.</p>
-        <select id="language" class="select"></select>
-        <p class="hint" id="language-note" hidden></p>
-      </section>
-
       <section>
         <h3 data-i18n="settings.tipFrequency">Tip frequency</h3>
         <p class="hint">How many tips your coach gives. More tips means more screenshots behind the scenes, and every tip still passes the same quality gates, so more never means worse. No effect on game FPS.</p>
@@ -161,6 +151,16 @@
         <div class="kv"><span>Status</span><span id="lic-status" class="badge">·</span></div>
         <div class="kv"><span>Expires</span><b id="lic-expiry">·</b></div>
         <p id="lic-ended" class="lic-ended" hidden></p>
+      </section>
+
+      <!-- Language lives at the bottom, with the other set-once settings. It is
+           changed rarely, so it does not earn a spot above the controls players
+           actually tune between matches. -->
+      <section>
+        <h3 data-i18n="common.language">Language</h3>
+        <p class="hint" data-i18n="common.languageHint">Coaching tips and the app appear in this language.</p>
+        <select id="language" class="select"></select>
+        <p class="hint" id="language-note" hidden></p>
       </section>
 
       <section>
