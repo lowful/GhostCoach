@@ -125,11 +125,22 @@ const AI = {
 // credits, quota or billing counts, whatever code it arrived under.
 const CREDITS_TEXT = /credit|quota|insufficient|billing|payment required|out of funds|top ?up/i;
 
+// A RATE LIMIT IS NOT AN EMPTY WALLET, and it says so in words that overlap.
+// Rate-limit bodies routinely mention "quota", which the wording test above
+// treats as a money problem, so a burst of requests could trip the breaker, shut
+// the coach down for five minutes, and tell the player to go top up an account
+// that had money in it. That happened: a rapid benchmark sweep produced exactly
+// this, and the balance was never the problem. Transience is the distinguishing
+// feature, so it is checked FIRST and wins.
+const RATE_LIMIT_TEXT = /rate.?limit|too many requests|slow down|requests per|retry after|temporarily/i;
+
 /** Is this provider refusal actually "the account has no money"? */
 function looksLikeCreditsFailure(status, body) {
   if (status === 402) return true;                       // the documented case
   if (status !== 403 && status !== 429) return false;    // anything else is a real error
-  return CREDITS_TEXT.test(String(body || ''));
+  const text = String(body || '');
+  if (RATE_LIMIT_TEXT.test(text)) return false;          // throttled, not broke
+  return CREDITS_TEXT.test(text);
 }
 
 // When the AI account runs dry every request 402s. The coaching loop fires
@@ -2388,3 +2399,12 @@ module.exports.costStore   = costStore;
 module.exports.globalStats = globalStats;
 module.exports.mapState    = mapState;             // exported for tests
 module.exports.buildContextPrompt = buildContextPrompt;
+// The models actually in use, so /health reports THIS rather than keeping its
+// own copy of the defaults. It kept a separate copy and they drifted, which
+// turned the one endpoint whose job is answering "what is live" into a thing
+// that stated a model no code path could reach.
+module.exports.liveModels = () => ({
+  provider:    AI.provider,
+  visionModel: AI.visionModel,
+  textModel:   AI.textModel,
+});

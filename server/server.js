@@ -111,13 +111,16 @@ app.use('/api/admin',    adminRoutes);
 // ─── Health checks ────────────────────────────────────────────────────────────
 // Reports the live AI model config (public model slugs only, never the key) so
 // a model/env mismatch is observable instead of guessed from response latency.
+// Asks the coach router what it is actually using rather than re-deriving it
+// from the environment. This endpoint used to keep its own copy of the defaults
+// and they drifted: with no env var set it named three models, none of which any
+// code path could reach, and it reported a "deep" model that nothing has ever
+// called. A diagnostic that answers "what is live" with a guess is worse than
+// having no diagnostic, because it gets believed.
 const healthInfo = () => ({
   status: 'ok',
   timestamp: new Date().toISOString(),
-  provider: process.env.AI_API_KEY ? 'openai' : 'gemini',
-  visionModel:     process.env.AI_VISION_MODEL      || 'qwen/qwen3-vl-235b-a22b-instruct',   // live action
-  visionDeepModel: process.env.AI_VISION_MODEL_DEEP || 'qwen/qwen3-vl-235b-a22b-thinking',   // buy phase
-  textModel:       process.env.AI_TEXT_MODEL        || 'qwen/qwen3-vl-235b-a22b-thinking',
+  ...coachRoutes.liveModels(),
 });
 app.get('/health',     (_, res) => res.json(healthInfo()));
 app.get('/api/health', (_, res) => res.json(healthInfo()));
