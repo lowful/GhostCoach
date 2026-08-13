@@ -879,7 +879,18 @@ class CoachingEngine extends EventEmitter {
     }
 
     const verified = verifyTip(text, source, this.matchContext);
-    if (!verified) { noteReject(`failed the final verify gate (${source})`); return false; }
+    if (!verified) {
+      // DO NOT CLOBBER THE REAL REASON. verifyTip records a specific one for
+      // most of its refusals (wrong death spot, an ability the agent lacks, a
+      // callout from another map, holding while a push lands elsewhere), and
+      // this line used to overwrite every one of them with "failed the final
+      // verify gate", because noteReject just assigns. A fifth of all rejected
+      // tips were logged as unexplained while the explanation had been computed
+      // and thrown away one line earlier. The reject reasons are the main tool
+      // for diagnosing a session, so this was costing more than it looked.
+      if (!lastRejectReason) noteReject(`failed the final verify gate (${source})`);
+      return false;
+    }
 
     const tip = { text: verified, source, time: Date.now() };
     if (extra && extra.death) tip.death = true;   // death review: white skull card
@@ -1723,7 +1734,13 @@ const PREAMBLE = [
 const TRUNCATION = [
   // dangling connectives / articles / prepositions
   /\band\.?$/i, /\bor\.?$/i, /\bbut\.?$/i, /\bto\.?$/i, /\bwith\.?$/i, /\bfor\.?$/i,
-  /\bthe\.?$/i, /\ba\.?$/i, /\ban\.?$/i, /\bof\.?$/i, /\bin\.?$/i, /\bat\.?$/i,
+  /\bthe\.?$/i, /\ban\.?$/i, /\bof\.?$/i, /\bin\.?$/i, /\bat\.?$/i,
+  // "a" is checked lowercase ONLY, because "A" is a SITE. Case-insensitively
+  // this threw away every tip that ended on the A site, which is a completely
+  // ordinary way to finish a sentence here: "do not step out alone since your
+  // team is grouped on A." was rejected as cut off mid sentence. Three good
+  // tips went in the bin in one day over a capital letter.
+  /\ba\.?$/,
   /\bon\.?$/i, /\byour\.?$/i, /\bmy\.?$/i, /'s\.?$/i, /,\s*$/,
   // transitive verbs that normally need an object: as the LAST word they mean
   // the model got cut off ("...health, play." / "...so you can take.")
