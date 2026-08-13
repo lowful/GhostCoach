@@ -1,6 +1,6 @@
 {
   "name": "ghostcoach",
-  "version": "2.9.8",
+  "version": "2.9.9",
   "description": "Real-time Valorant AI coaching overlay",
   "main": "src/main/index.js",
   "scripts": {
@@ -25,11 +25,12 @@
     "test:variety": "node scripts/test-variety.js",
     "test:scoreboard": "node scripts/test-scoreboard.js",
     "test:agentkit": "node scripts/test-agent-kit.js",
-    "test:rejects": "node scripts/test-reject-reasons.js"
+    "test:rejects": "node scripts/test-reject-reasons.js",
+    "test:telemetry": "node scripts/test-telemetry.js"
   },
   "build": {
     "appId": "com.ghostcoach.app2",
-    "productName": "GhostCoach 2.0",
+    "productName": "GhostCoach",
     "artifactName": "GhostCoach 2.0 Setup.${ext}",
     "copyright": "Copyright © 2025 GhostCoach",
     "files": [
@@ -73,8 +74,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "GhostCoach 2.0",
-      "uninstallDisplayName": "GhostCoach 2.0",
+      "shortcutName": "GhostCoach",
+      "uninstallDisplayName": "GhostCoach",
       "include": "build/uninstaller.nsh"
     },
     "directories": {

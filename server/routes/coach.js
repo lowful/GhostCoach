@@ -8,6 +8,8 @@ const knowledge = require('../services/knowledge');
 const { promptName: langPrompt } = require('../services/languages');
 const locator   = require('../services/callout-locator');
 const patchCtx  = require('../services/patch-context');
+const telemetry = require('../services/telemetry');
+const crypto    = require('crypto');
 const router = express.Router();
 
 // ─── Cost tracking (in-memory, resets on server restart) ──────────────────────
@@ -1977,6 +1979,29 @@ router.get('/matches', async (req, res) => {
 // Grades a finished coached session across four categories (0-100) and writes
 // short strengths/weaknesses text, all grounded ONLY in that session's tips.
 // The app stores the result locally; nothing is kept server-side.
+// POST /api/coach/session-report
+// COUNTS ONLY, NEVER CONTENT. How many tips a session produced, how many
+// survived the gates, and which KIND of gate stopped the rest. That histogram is
+// what exposed the repetition problem, the ability-vocabulary mismatch and the
+// truncation false positive, and none of it needs a pixel or a word of what the
+// player saw. Frames stay on the player's own machine, which is the whole point.
+//
+// The license key is hashed to 8 characters before it is stored, so repeat
+// sessions can be told apart without keeping anything that identifies anyone.
+// Failures here are silent by design: telemetry must never cost a player a tip.
+router.post('/session-report', async (req, res) => {
+  try {
+    const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
+    if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+    const hash = crypto.createHash('sha256').update(licenseKey).digest('hex').slice(0, 8);
+    telemetry.record(req.body || {}, hash);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[telemetry] report failed:', e.message);
+    res.json({ ok: false });
+  }
+});
+
 router.post('/score-session', async (req, res) => {
   try {
     const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
@@ -2527,6 +2552,7 @@ module.exports.buildContextPrompt = buildContextPrompt;
 // own copy of the defaults. It kept a separate copy and they drifted, which
 // turned the one endpoint whose job is answering "what is live" into a thing
 // that stated a model no code path could reach.
+module.exports.telemetry  = telemetry;
 module.exports.liveModels = () => ({
   provider:    AI.provider,
   visionModel: AI.visionModel,

@@ -2,6 +2,35 @@
 const express = require('express');
 const router  = express.Router();
 
+/**
+ * GET /api/admin/coaching
+ *
+ * How the coach is performing across everyone using it, in counts only.
+ *
+ * The question this answers is "is a release making the coaching better or
+ * worse", which until now could only be answered from one machine: the AI
+ * decision log lives on the player's own PC and never leaves it. That stays
+ * true. What comes back here is how many tips were shown, how many the model
+ * wrote, and which KIND of gate stopped the rest. No frames, no tip text, no
+ * map, no agent, no identity beyond an 8 character hash of the licence.
+ *
+ * The reject histogram is the valuable part: repetition being 74% of all
+ * rejections is the sort of thing that is obvious in aggregate and invisible in
+ * any single session.
+ */
+router.get('/coaching', (req, res) => {
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  const provided = req.headers['x-admin-password'] || req.query.password;
+  if (!adminPassword || provided !== adminPassword) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  try {
+    res.json(require('./coach').telemetry.summary());
+  } catch (e) {
+    res.status(500).json({ error: 'Telemetry unavailable' });
+  }
+});
+
 // GET /api/admin/costs
 // Protected by ADMIN_PASSWORD env var
 // Returns cost tracking data from the coach module

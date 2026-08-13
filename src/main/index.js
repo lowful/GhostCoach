@@ -5,11 +5,18 @@ const path = require('path');
 const fs   = require('fs');
 
 // ── Distinct app identity (GhostCoach 2.0) ───────────────────────────────────
-// MUST run before electron-store / the logger are required below, so config and
-// debug.log live in their own %APPDATA%\GhostCoach 2.0 folder and never mix with
-// the original GhostCoach install's data. Same machine = same deviceId, so the
-// license just needs activating once in this build.
-app.setName('GhostCoach 2.0');
+// The product is called GhostCoach. The "2.0" was a build-generation marker
+// that leaked into the name users see, so the installer read "GhostCoach 2.0
+// 2.9.8", which names the generation twice and the release once.
+app.setName('GhostCoach');
+// THE FOLDER NAME STAYS "GhostCoach 2.0" EVEN THOUGH THE APP NO LONGER DOES.
+// It is pinned to a literal rather than derived from the app name, which is the
+// only reason renaming the product is safe: every existing install keeps its
+// licence, settings, session history and AI logs exactly where they are.
+// Deriving this from setName would have pointed a renamed build at an empty
+// directory, and to the player that looks like the app wiped their account.
+// Renaming it would need a migration, and it is not worth one for a folder.
+//
 // GHOST_DEV_USERDATA is a dev-only escape hatch: it runs this build against a
 // throwaway profile, so a smoke test can boot alongside an installed copy
 // without touching its config, license, or session history.
@@ -300,6 +307,7 @@ const controller = {
     latestAudio = { b64: null, at: 0 };
     try { audioWindow.create(); } catch (e) { console.log('[audio] listener unavailable:', e.message); }
     startAiLog();   // fresh AI decision-log folder for this session
+    resetSessionCounts();
     setStatus('coaching');
     console.log('[coach] started');
   },
@@ -332,6 +340,7 @@ const controller = {
         logSessionPerformance(sessionTips, mctx, durationMin,
           engine.playerNotes.slice(-20))   // observed facts keep the grading honest
           .catch((e) => console.error('[perf] scoring failed:', e && e.message));
+        sendSessionReport(durationMin);
         scheduleMatchBackfill(startedAt, endedAt, mctx);
       }
       // The match just played should show in stats right away, not after a
@@ -1107,6 +1116,35 @@ function computeCategoryTrends(perf, stats, prevStats) {
 let gradingNow = null;
 function gradingState() { return gradingNow; }
 
+/**
+ * Send the aggregate coaching counts for the session that just ended.
+ *
+ * COUNTS ONLY. How many tips the model wrote, how many reached the player, and
+ * which kind of gate stopped the rest. The frames and the tip text stay on this
+ * machine, where the AI decision log has always lived, because a frame is a
+ * photograph of somebody's screen and that is not ours to collect.
+ *
+ * Why bother: the reject histogram is what exposed the repetition problem, the
+ * ability-vocabulary mismatch and the truncation false positive. Those are
+ * obvious in aggregate and invisible in any single session, and right now they
+ * can only be seen on the one machine whose logs we can read.
+ *
+ * Fire and forget, and silent on failure. Telemetry must never cost a player a
+ * tip or hold up shutting down.
+ */
+function sendSessionReport(durationMin) {
+  try {
+    if (!sessionCounts.tipsGenerated && !sessionCounts.tipsShown) return;
+    api.post('/api/coach/session-report', {
+      version: app.getVersion(),
+      durationMin: Math.round(durationMin || 0),
+      tipsShown: sessionCounts.tipsShown,
+      tipsGenerated: sessionCounts.tipsGenerated,
+      rejects: sessionCounts.rejects,
+    }, store.get('licenseKey'), 8000).catch(() => {});
+  } catch { /* never interrupt a session ending */ }
+}
+
 async function logSessionPerformance(tips, mctx, durationMin, notes, match) {
   try {
     if (!Array.isArray(tips) || tips.length < 1) return;
@@ -1284,6 +1322,10 @@ const AI_LOG_MAX_FRAMES   = 240;   // ~40 min at a 10s loop; older frames roll o
 const AI_LOG_KEEP_SESSIONS = 5;    // only the most recent sessions survive
 let aiLogDir = null;               // current session's folder
 let aiLogRecords = [];             // in-memory index, flushed to log.json
+// Counts for the aggregate coaching report, reset at the start of every session.
+// Deliberately separate from the AI log so they survive it being turned off.
+let sessionCounts = { tipsShown: 0, tipsGenerated: 0, rejects: {} };
+function resetSessionCounts() { sessionCounts = { tipsShown: 0, tipsGenerated: 0, rejects: {} }; }
 
 function aiLogRoot() { return path.join(app.getPath('userData'), 'ai-log'); }
 
@@ -1304,6 +1346,16 @@ function startAiLog() {
 
 /** Sink handed to the engine: write the frame, append the record, cap size. */
 function recordAiFrame(d) {
+  // Counted BEFORE the AI-log gate below, because these numbers are worth
+  // having even when the player has the frame log switched off. They are counts
+  // only: how many tips the model wrote, how many survived, and what stopped
+  // the rest. No text, no frames, nothing about what was on screen.
+  if (d) {
+    if (d.aiTip && d.aiTip !== 'SKIP') sessionCounts.tipsGenerated++;
+    if (d.shown) sessionCounts.tipsShown++;
+    if (d.reject) sessionCounts.rejects[d.reject] = (sessionCounts.rejects[d.reject] || 0) + 1;
+  }
+
   if (!aiLogDir || !d || !d.image) return;
   try {
     const n = aiLogRecords.length;
