@@ -81,5 +81,26 @@ for (const f of files) {
   }
 }
 
+// 4. Picking a language must visibly change the app.
+//
+// The point of the setting, and the thing a user actually judges it by. It is
+// asserted per surface because the failure that prompted this was invisible in
+// aggregate: the language saved, the tips translated, and the interface did not
+// move, so the Save button looked broken.
+console.log('\nwhat a German user would see change, per surface:');
+let anyChanges = 0;
+const bySurface = new Map();
+for (const [key, where] of keys) {
+  const surface = where.split(/[\\/]/)[1] || where;
+  if (!bySurface.has(surface)) bySurface.set(surface, { total: 0, changed: 0 });
+  const s = bySurface.get(surface);
+  s.total++;
+  if (I18N.t('de', key) !== I18N.t(EN, key)) { s.changed++; anyChanges++; }
+}
+for (const [surface, s] of bySurface) {
+  console.log(`  ${surface.padEnd(12)} ${s.changed}/${s.total} elements change`);
+}
+if (!anyChanges) note('NOTHING CHANGES: no wired key differs in German, the setting would look broken');
+
 console.log(problems ? `\nFAIL: ${problems} problem(s)` : '\nPASS: every key resolves and t() is called correctly');
 process.exit(problems ? 1 : 0);

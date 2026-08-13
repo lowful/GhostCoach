@@ -77,7 +77,13 @@ async function initI18n(onChange) {
 
   // Follow later changes. onState fires on every config push, so this keeps
   // open windows in step without each surface polling.
-  if (window.ghost && typeof window.ghost.onState === 'function') {
+  //
+  // SUBSCRIBE ONCE PER SURFACE. Calling initI18n again (Settings does exactly
+  // that after saving a language, to repaint itself immediately) used to add
+  // another listener every time, so each save left one more live subscription
+  // repainting the page on every state push for the rest of the session.
+  if (!window.__i18nSubscribed && window.ghost && typeof window.ghost.onState === 'function') {
+    window.__i18nSubscribed = true;
     window.ghost.onState(async () => {
       if (await refresh()) {
         applyI18n(t);

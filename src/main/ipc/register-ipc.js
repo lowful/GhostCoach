@@ -103,6 +103,19 @@ function snapshotConfig() {
     voiceStyle:      store.get('voiceStyle'),
     voiceVolume:     store.get('voiceVolume'),
     panelMinimized:  store.get('panelMinimized'),
+    // WRITTEN BUT NEVER READ BACK, which is why the language would not stick.
+    //
+    // setConfig persists any key, so choosing a language saved correctly and the
+    // coaching tips followed it immediately, because the engine reads
+    // store.get('language') directly. This snapshot is the renderer's ONLY view
+    // of the config though, and language was missing from the list, so:
+    //   - Settings read cfg.language as undefined and reset the picker to
+    //     English every time it opened, making a saved choice look discarded
+    //   - initI18n resolved the language to English on every refresh, so no
+    //     window ever repainted, in any language
+    // The result was an app that coached in German and looked entirely English,
+    // and a Save button that appeared to do nothing. One missing line.
+    language:        store.get('language'),
   };
 }
 
