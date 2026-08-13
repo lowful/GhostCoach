@@ -14,7 +14,7 @@
     <header class="drag">
       <div class="h-brand">
         <img src="../../../assets/logo-ghost.svg" alt="" width="16" height="19" />
-        <h2>Settings</h2>
+        <h2 data-i18n="settings.title">Settings</h2>
       </div>
       <button id="close" class="icon-btn no-drag" title="Close">✕</button>
     </header>
@@ -27,22 +27,22 @@
           <input id="tipfreq" type="range" min="0" max="5" step="1" value="2" />
           <b id="tipfreq-label" class="scale-label">Default</b>
         </div>
-        <div class="freq-ends"><span>Minimal</span><span>Max</span></div>
+        <div class="freq-ends"><span data-i18n="settings.minimal">Minimal</span><span data-i18n="settings.max">Max</span></div>
       </section>
 
       <section>
-        <h3>Riot ID</h3>
+        <h3 data-i18n="settings.riotId">Riot ID</h3>
         <p class="hint">Name#TAG. Lets your coach use tracker stats (rank, K/D, headshot %) in live tips and chat.</p>
         <div class="riot-row">
           <input id="riotid" class="input riot-input" type="text" placeholder="PlayerName#TAG"
                  maxlength="40" autocomplete="off" spellcheck="false" />
-          <button id="trk-connect" class="btn trk-btn">Connect</button>
+          <button id="trk-connect" class="btn trk-btn" data-i18n="settings.connect">Connect</button>
         </div>
         <p id="trk-status" class="trk-status" hidden></p>
       </section>
 
       <section>
-        <h3>Show tips</h3>
+        <h3 data-i18n="settings.showTips">Show tips</h3>
         <p class="hint">When off, tips stay hidden in-game but are still recorded in your history and session archive, so you can review them after the match.</p>
         <div class="seg" id="showtips">
           <button data-val="on">On</button>
@@ -63,7 +63,7 @@
       </section>
 
       <section>
-        <h3>Tip style</h3>
+        <h3 data-i18n="settings.tipStyle">Tip style</h3>
         <p class="hint">How the coaching cards look. Solid is the easiest to read over a busy screen, Minimal is the least distracting.</p>
         <div class="style-grid" id="tipstyle">
           <button data-val="glass" class="style-opt">
@@ -159,8 +159,12 @@
       <section>
         <h3 data-i18n="common.language">Language</h3>
         <p class="hint" data-i18n="common.languageHint">Coaching tips and the app appear in this language.</p>
-        <select id="language" class="select"></select>
+        <div class="riot-row">
+          <select id="language" class="select lang-select"></select>
+          <button id="lang-save" class="btn trk-btn" data-i18n="common.save" disabled>Save</button>
+        </div>
         <p class="hint" id="language-note" hidden></p>
+        <p id="lang-status" class="trk-status" hidden></p>
       </section>
 
       <section>
@@ -184,9 +188,9 @@
     </div>
 
     <footer>
-      <button id="purchase" class="btn btn-ghost full">Manage subscription</button>
+      <button id="purchase" class="btn btn-ghost full" data-i18n="settings.manageSub">Manage subscription</button>
       <div class="footer-actions">
-        <button id="logout" class="btn btn-danger">Log out</button>
+        <button id="logout" class="btn btn-danger" data-i18n="settings.logOut">Log out</button>
         <button id="quit" class="btn">Quit</button>
       </div>
     </footer>

@@ -56,6 +56,8 @@ const STRINGS = {
     'common.on': 'On',
     'common.off': 'Off',
     'common.language': 'Language',
+    'common.save': 'Save',
+    'common.languageSaved': 'Language saved.',
     'common.languageHint': 'Coaching tips and the app appear in this language.',
 
     'panel.start': 'Start Coaching',
@@ -103,6 +105,8 @@ const STRINGS = {
     'common.on': 'An',
     'common.off': 'Aus',
     'common.language': 'Sprache',
+    'common.save': 'Speichern',
+    'common.languageSaved': 'Sprache gespeichert.',
     'common.languageHint': 'Coaching-Tipps und die App erscheinen in dieser Sprache.',
 
     'panel.start': 'Coaching starten',
@@ -150,6 +154,8 @@ const STRINGS = {
     'common.on': 'Sí',
     'common.off': 'No',
     'common.language': 'Idioma',
+    'common.save': 'Guardar',
+    'common.languageSaved': 'Idioma guardado.',
     'common.languageHint': 'Los consejos y la app aparecen en este idioma.',
 
     'panel.start': 'Iniciar coaching',
@@ -197,6 +203,8 @@ const STRINGS = {
     'common.on': 'Sim',
     'common.off': 'Não',
     'common.language': 'Idioma',
+    'common.save': 'Salvar',
+    'common.languageSaved': 'Idioma salvo.',
     'common.languageHint': 'As dicas e o app aparecem neste idioma.',
 
     'panel.start': 'Iniciar coaching',
@@ -244,6 +252,8 @@ const STRINGS = {
     'common.on': 'Oui',
     'common.off': 'Non',
     'common.language': 'Langue',
+    'common.save': 'Enregistrer',
+    'common.languageSaved': 'Langue enregistrée.',
     'common.languageHint': 'Les conseils et l’application apparaissent dans cette langue.',
 
     'panel.start': 'Démarrer le coaching',

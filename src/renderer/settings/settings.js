@@ -252,12 +252,68 @@ function showLanguageNote(code) {
   }
 }
 
+/**
+ * Language is applied on SAVE, not on selection.
+ *
+ * It used to switch the moment the dropdown changed, which meant scrolling the
+ * list with a keyboard or a mouse wheel re-rendered the whole app on every
+ * option it passed through, and there was no way to look at the list without
+ * committing to whatever you landed on. Every other setting here is a toggle
+ * whose effect is obvious; a language change repaints everything, so it earns a
+ * deliberate press.
+ *
+ * The button is dead until the choice actually differs from what is saved, so
+ * the control itself says whether there is anything to apply.
+ */
+const langSaveEl = document.getElementById('lang-save');
+const langStatusEl = document.getElementById('lang-status');
+let savedLang = 'en';
+
+function syncLangSave() {
+  if (!langSaveEl || !langEl) return;
+  langSaveEl.disabled = langEl.value === savedLang;
+}
+
 if (langEl) {
-  langEl.addEventListener('change', async () => {
-    await window.ghost.setConfig({ language: langEl.value });
+  langEl.addEventListener('change', () => {
+    // Preview only: the note describes the language being CONSIDERED, so the
+    // caveat about English chrome is visible before committing rather than
+    // after.
     showLanguageNote(langEl.value);
-    // Repaint this window immediately; the config push handles the others.
-    if (window.initI18n) window.initI18n();
+    if (langStatusEl) langStatusEl.hidden = true;
+    syncLangSave();
+  });
+}
+
+if (langSaveEl) {
+  langSaveEl.addEventListener('click', async () => {
+    const pick = langEl.value;
+    langSaveEl.classList.add('busy');
+    try {
+      await window.ghost.setConfig({ language: pick });
+      savedLang = pick;
+      // Repaint this window immediately; the config push handles the others.
+      if (window.initI18n) window.initI18n();
+      if (langStatusEl) {
+        // t takes (code, key). Passing the key alone reads it as a language
+        // code and returns undefined, which renders as the word "undefined".
+        // Confirm in the language just chosen, not the one being left.
+        const say = (window.ghost.i18n && window.ghost.i18n.t
+          && window.ghost.i18n.t(pick, 'common.languageSaved')) || 'Language saved.';
+        langStatusEl.textContent = say;
+        langStatusEl.className = 'trk-status ok';
+        langStatusEl.hidden = false;
+      }
+    } catch (e) {
+      if (langStatusEl) {
+        langStatusEl.textContent = 'Could not save the language, try again.';
+        langStatusEl.className = 'trk-status err';
+        langStatusEl.hidden = false;
+      }
+    } finally {
+      langSaveEl.classList.remove('busy');
+      syncLangSave();
+    }
   });
 }
 
@@ -265,7 +321,9 @@ async function load() {
   try {
     const cfg = await window.ghost.getConfig();
     if (cfg) {
-      buildLanguagePicker(cfg.language || 'en');
+      savedLang = cfg.language || 'en';
+      buildLanguagePicker(savedLang);
+      syncLangSave();   // nothing to apply yet, so Save starts dead
       const fi = FREQ_ORDER.indexOf(cfg.performanceMode);
       freqEl.value = String(fi >= 0 ? fi : 1);
       freqLabel.textContent = FREQ_LABELS[fi >= 0 ? fi : 1];

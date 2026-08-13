@@ -63,6 +63,10 @@ input[type="range"]::-webkit-slider-thumb {
 .riot-input { flex: 1; min-width: 0; font-size: 13px; letter-spacing: 0.4px; padding: 10px 12px; text-align: left; }
 .trk-btn { flex: none; padding: 0 16px; font-weight: 700; }
 .trk-btn.busy { opacity: 0.6; pointer-events: none; }
+/* Save sits beside the picker and is dead until the choice actually changes, so
+   the button itself says whether there is anything to apply. */
+.trk-btn:disabled { opacity: 0.4; pointer-events: none; }
+.lang-select { flex: 1; min-width: 0; }
 .trk-status { margin-top: 9px; font-size: 12px; line-height: 1.45; border-radius: 9px; padding: 8px 11px; }
 .trk-status.ok  { color: #4fd394; background: rgba(79,211,148,0.10); border: 1px solid rgba(79,211,148,0.3); }
 .trk-status.err { color: #ff9aa3; background: rgba(255,70,85,0.10);  border: 1px solid rgba(255,70,85,0.28); }
