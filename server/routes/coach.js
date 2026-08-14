@@ -1882,6 +1882,22 @@ async function matchDetail(region, matchId, name, tag, rounds = 0) {
     // player: "the Sova" means nothing three games later, "Fade#EUW" does.
     // The player themselves is marked rather than removed, so the roster reads
     // like the in-game scoreboard.
+    // Rounds played, taken from THIS payload rather than threaded in from the
+    // caller. The scoreline was being passed down and arriving as 0, and rather
+    // than chase why through two layers, the number is derived where the data
+    // already is. ACS is combat score per round, so without it every player
+    // reads null and the scoreboard ordering below silently flattens.
+    const teamsArr = Array.isArray(d.teams) ? d.teams
+      : (d.teams && typeof d.teams === 'object' ? Object.values(d.teams) : []);
+    let played = 0;
+    for (const t of teamsArr) {
+      const won = (t && t.rounds && (t.rounds.won != null ? t.rounds.won : t.rounds.win));
+      const alt = t && (t.rounds_won != null ? t.rounds_won : t.won_rounds);
+      const n = won != null ? won : alt;
+      if (typeof n === 'number') played += n;
+    }
+    if (!played) played = rounds;   // scoreline from the caller, if it had one
+
     const team = players
       .filter((p) => teamOf(p) === teamOf(me))
       .map((p) => ({
