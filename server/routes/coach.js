@@ -1899,6 +1899,7 @@ async function matchDetail(region, matchId, name, tag, rounds = 0) {
           ? Math.round((p.stats.score | 0) / rounds)
           : null,
         me: p === me,
+        _dbg: Object.keys((p && p.stats) || {}).join(','),
       }))
       // Scoreboard order: best combat score first, as the game shows it.
       .sort((a, b) => (b.acs || 0) - (a.acs || 0));
