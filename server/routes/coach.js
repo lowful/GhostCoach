@@ -1836,18 +1836,23 @@ router.get('/rank-history', async (req, res) => {
 // queues to vanish from the stats view.
 const matchMvpCache = new Map();   // matchId -> { mvp, team } | null
 
-async function mvpForMatch(region, matchId, name, tag) {
-  const d = await matchDetail(region, matchId, name, tag);
-  return d ? d.mvp : null;
+/** Total rounds from a "13-10" scoreline; ACS is per round. */
+function roundsOf(score) {
+  const m = /^s*(d+)s*-s*(d+)s*$/.exec(String(score || ''));
+  return m ? Number(m[1]) + Number(m[2]) : 0;
 }
 
-/** The player's own team for this match: who they played with, and on what. */
-async function teamForMatch(region, matchId, name, tag) {
-  const d = await matchDetail(region, matchId, name, tag);
-  return d ? d.team : null;
-}
-
-async function matchDetail(region, matchId, name, tag) {
+/**
+ * One match-detail call, serving both the MVP badge and the team roster.
+ *
+ * Callers go through this directly. Convenience wrappers for "just the mvp" and
+ * "just the team" existed briefly and were a trap rather than a courtesy: they
+ * called this WITHOUT the round count, and since the result is cached per match
+ * id, whichever wrapper ran first would have frozen an ACS of null into the
+ * cache for the other. Deleted before that could happen. Rounds come from the
+ * scoreline the match list already parsed.
+ */
+async function matchDetail(region, matchId, name, tag, rounds = 0) {
   if (!matchId) return null;
   if (matchMvpCache.has(matchId)) return matchMvpCache.get(matchId);
   try {
@@ -1885,8 +1890,13 @@ async function matchDetail(region, matchId, name, tag) {
         kills: (p.stats && p.stats.kills) | 0,
         deaths: (p.stats && p.stats.deaths) | 0,
         assists: (p.stats && p.stats.assists) | 0,
-        acs: (p.stats && p.stats.score) != null && d.metadata && (d.metadata.rounds_played || d.metadata.rounds)
-          ? Math.round((p.stats.score | 0) / (d.metadata.rounds_played || d.metadata.rounds))
+        // ACS is combat score per ROUND, and the round count is not in this
+        // payload under any name I could rely on, so it is passed in from the
+        // match list where it is already derived from the scoreline. Guessing a
+        // field name here produced a null for every player, which also silently
+        // flattened the scoreboard ordering below.
+        acs: rounds > 0 && p.stats && p.stats.score != null
+          ? Math.round((p.stats.score | 0) / rounds)
           : null,
         me: p === me,
       }))
@@ -2033,7 +2043,7 @@ router.get('/matches', async (req, res) => {
     // Both come from ONE detail call per match, so adding the roster costs no
     // extra upstream requests against a rate limit that has bitten before.
     await Promise.all(matches.map(async (m) => {
-      const d = await matchDetail(region, m.id, name, tag);
+      const d = await matchDetail(region, m.id, name, tag, roundsOf(m.score));
       m.mvp  = d ? d.mvp : null;
       m.team = d ? d.team : null;
     }));
