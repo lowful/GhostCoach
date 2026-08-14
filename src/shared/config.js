@@ -29,14 +29,26 @@ const BRAND = {
 // high sends a sharper frame (bigger upload + more image tokens per call, so
 // slightly slower replies, but zero effect on game FPS since capture runs in
 // a worker thread).
+// THE COACH READS SMALL TEXT, so the frame has to carry it. Health, the round
+// timer, the scoreline and the printed location label are only a few pixels tall
+// at 480p, and those four fields are what every guard in the engine is built on.
+// 720p is the point where they are comfortably legible; going beyond that buys
+// nothing a HUD reader needs and costs upload time and image tokens on every
+// frame, so "standard" stops there rather than chasing resolution.
+//
+// "performance" is the old 480p profile, kept as an explicit choice for players
+// on weaker machines or thin connections. It is a real trade: the coach reads
+// the HUD less reliably, and the setting says so.
 const CAPTURE = {
-  targetW: 854,
-  targetH: 480,
-  jpegQuality: 50,
+  targetW: 1280,
+  targetH: 720,
+  jpegQuality: 70,
   timeoutMs: 6000,
   profiles: {
-    standard: { targetW: 854,  targetH: 480, jpegQuality: 50 },
-    high:     { targetW: 1280, targetH: 720, jpegQuality: 70 },
+    standard:    { targetW: 1280, targetH: 720, jpegQuality: 70 },
+    performance: { targetW: 854,  targetH: 480, jpegQuality: 50 },
+    // Kept so an explicit 'high' request still resolves; same as standard now.
+    high:        { targetW: 1280, targetH: 720, jpegQuality: 70 },
   },
 };
 
@@ -110,6 +122,12 @@ const STORE_DEFAULTS = {
   tipStyle:        'glass',      // glass | solid | minimal | neon, the tip card look
   tipOpacity:      0.9,          // tip card background opacity, 0.25 to 1
   showTips:        true,         // false = tips hidden on the overlay but still recorded
+  // Screenshot quality. 'standard' is 720p, chosen because health, the round
+  // timer, the scoreline and the printed location label are what the guards run
+  // on and they are only a few pixels tall below it. 'performance' is the older
+  // 480p frame for weaker machines, and it genuinely costs read accuracy.
+  // NOTE: distinct from performanceMode above, which is tip FREQUENCY.
+  captureQuality:  'standard',   // standard | performance
   // Interface and coaching language. Tips are written in this language by the
   // model, which costs nothing extra; the UI follows for languages that have a
   // catalogue in src/shared/i18n.js and stays English otherwise.

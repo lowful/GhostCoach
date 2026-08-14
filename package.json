@@ -29,7 +29,8 @@
     "test:telemetry": "node scripts/test-telemetry.js",
     "check:i18n": "node scripts/check-i18n.js",
     "check:dom": "node scripts/check-dom-ids.js",
-    "check:config": "node scripts/check-config-bridge.js"
+    "check:config": "node scripts/check-config-bridge.js",
+    "test:contradiction": "node scripts/test-contradiction.js"
   },
   "build": {
     "appId": "com.ghostcoach.app2",

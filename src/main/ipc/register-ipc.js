@@ -116,6 +116,7 @@ function snapshotConfig() {
     // The result was an app that coached in German and looked entirely English,
     // and a Save button that appeared to do nothing. One missing line.
     language:        store.get('language'),
+    captureQuality:  store.get('captureQuality'),
   };
 }
 

@@ -878,6 +878,17 @@ class CoachingEngine extends EventEmitter {
       return false;
     }
 
+    // Never blame the player for a play this coach just recommended. Checked
+    // here rather than inside verifyTip because it needs the tip HISTORY, which
+    // is session state rather than frame state.
+    if (source === 'ai') {
+      const owned = blamesOwnAdvice(text, this.tipHistory.map((t) => t.text));
+      if (owned) {
+        noteReject(`blamed the player for the "${owned}" play this coach just recommended`);
+        return false;
+      }
+    }
+
     const verified = verifyTip(text, source, this.matchContext);
     if (!verified) {
       // DO NOT CLOBBER THE REAL REASON. verifyTip records a specific one for
@@ -2239,6 +2250,42 @@ function playPatternIn(text) {
   return null;
 }
 
+/**
+ * The coach blaming the player for a play it just told them to make.
+ *
+ * From a real session, twenty seconds apart:
+ *   SHOWN  "You have the dash ready, so take an aggressive off-angle on B Main
+ *           to catch their defuse attempt."
+ *   THEN   "You died to Viper because you took an aggressive off-angle on B
+ *           Main alone without a teammate to trade the kill."
+ *
+ * The player did exactly what they were told, it did not work, and the coach
+ * turned round and called it their mistake. Nothing destroys trust faster, and
+ * no amount of prompt wording reliably prevents it, because from the model's
+ * point of view each sentence is independently true.
+ *
+ * Narrow on purpose. It only fires on a DEATH REVIEW that faults the same PLAY
+ * the coach recommended in its last two tips. A review of something the coach
+ * never suggested is honest coaching and passes untouched, and so does advice
+ * that merely repeats a play without blaming anyone.
+ *
+ * @returns the play name when the tip contradicts recent advice, else null
+ */
+function blamesOwnAdvice(text, tipHistory) {
+  const t = String(text || '');
+  if (!DEATH_REVIEW_RE.test(t)) return null;   // only a review assigns fault
+  const play = playPatternIn(t);
+  if (!play) return null;
+  const recent = (tipHistory || []).slice(-2);
+  for (const prev of recent) {
+    const prevText = typeof prev === 'string' ? prev : (prev && prev.text) || '';
+    // The coach's own advice, not an earlier review of the same mistake.
+    if (DEATH_REVIEW_RE.test(prevText)) continue;
+    if (playPatternIn(prevText) === play) return play;
+  }
+  return null;
+}
+
 // High-confidence situational guards only, never reject on a guess.
 function scenarioFits(text, source, ctx) {
   if (!ctx) return true;
@@ -2368,4 +2415,4 @@ module.exports = CoachingEngine;
 // Exposed for tests. The death-location gate is the kind of rule that is easy
 // to get subtly wrong (gating a general tip, or letting the spectated location
 // through), so it is checked directly rather than only through a live session.
-module.exports.__test = { isDeathReview, wrongDeathSpot, namedCallouts, namedSpots, wrongSideHold, mapFromLabels, claimsNotAlive, verifyTip };
+module.exports.__test = { blamesOwnAdvice, isDeathReview, wrongDeathSpot, namedCallouts, namedSpots, wrongSideHold, mapFromLabels, claimsNotAlive, verifyTip };

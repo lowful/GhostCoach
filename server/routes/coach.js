@@ -830,9 +830,46 @@ THE PLAYER IS WELL BEHIND (${teamSc}-${enemySc}). Keep it steady and practical. 
 Per-round reads: KPR 0.8+ is strong fragging, under 0.6 is low impact, coach them into more fights WITH a trade partner. DPR 0.85+ means overexposure, coach positioning and patience. ADR under 120 means low damage output, coach taking more efficient fights and finishing chip damage. High assists with low kills means they support well but never convert, coach follow-up aggression.
 `
     : '';
+  /**
+   * How this player performs ON THE AGENT THEY ARE PLAYING RIGHT NOW.
+   *
+   * The tracker already returns a per-agent breakdown and the prompt used only
+   * the top agent's NAME, throwing away the numbers. That is the difference
+   * between "your K/D is 1.05" and "your K/D is 1.27 on Iso and 0.69 on Jett,
+   * and you are on Jett", which is the kind of thing a coach who actually knows
+   * you would open with.
+   *
+   * Career shape, not frame state, so it is safe to send: it cannot pull the
+   * model away from reading the screenshot the way volatile numbers do.
+   */
+  const agentForm = (() => {
+    const list = (s && Array.isArray(s.topAgents)) ? s.topAgents : [];
+    if (!ctx.agent || !list.length) return '';
+    const norm = (n) => String(n || '').trim().toLowerCase();
+    const mine = list.find((a) => norm(a.name) === norm(ctx.agent));
+    const best = list.slice().sort((a, b) => (b.kd || 0) - (a.kd || 0))[0];
+    if (!mine || (mine.matches || 0) < 2) {
+      // Too few games to say anything honest about, and saying it anyway would
+      // be inventing a trend from one match.
+      return best && norm(best.name) !== norm(ctx.agent)
+        ? `THIS AGENT IS NOT ONE OF THEIR REGULARS. They have barely played ${ctx.agent} recently, so expect rusty mechanics and unfamiliar util timings, and coach the basics of the kit rather than fine detail. Their most productive agent lately is ${best.name} (K/D ${best.kd}).\n\n`
+        : '';
+    }
+    const bits = [`K/D ${mine.kd}`];
+    if (mine.acs) bits.push(`ACS ${mine.acs}`);
+    if (mine.winRate != null) bits.push(`${mine.winRate}% win rate`);
+    let line = `ON THIS AGENT SPECIFICALLY: over their last ${mine.matches} games as ${mine.name} they average ${bits.join(', ')}.`;
+    if (best && norm(best.name) !== norm(mine.name) && (best.kd || 0) > (mine.kd || 0) + 0.25) {
+      line += ` They are noticeably better on ${best.name} (K/D ${best.kd}), so this is not their strongest pick and the gap is usually habits rather than aim: unfamiliar util, worse spacing, hesitant entries.`;
+    } else if ((mine.kd || 0) >= 1.2) {
+      line += ` This is one of their strongest picks, so coach for impact and round-winning plays rather than survival.`;
+    }
+    return line + ' Use this to pitch the tip, never to excuse a mistake, and never quote the numbers back at them.\n\n';
+  })();
+
   const profileBlock = s && !s.error
     ? `PLAYER PROFILE (tracker stats over recent competitive matches): rank ${s.rank || 'unknown'}${s.peakRank ? ' (peak ' + s.peakRank + ')' : ''}, K/D ${s.kd || '?'}, headshot ${s.headshotPct || '?'}%, win rate ${s.winRate || '?'}%, top agent ${s.topAgent || 'unknown'}.
-${extLine}Use these stats to decide WHAT to prioritise, then combine that with what the screenshot actually shows this frame. The strongest tip is a career weakness that also shows up on screen right now. Never give a stat-based tip the frame does not support.
+${extLine}${agentForm}Use these stats to decide WHAT to prioritise, then combine that with what the screenshot actually shows this frame. The strongest tip is a career weakness that also shows up on screen right now. Never give a stat-based tip the frame does not support.
 Aim read: 20% headshots and up is good, do not nitpick it; below 20% means aim needs work, so when you see whiffs, low crosshair, or spraying at range, coach crosshair placement and aim.
 K/D read: under 1.0 means they trade themselves too often, favor positioning, patience, and trading; 1.3 and up means they frag well, push impact, round wins, and playing for the team.
 Rank read: lower ranks (Iron to Gold) want fundamentals; higher ranks (Plat and up) want utility timing, off-angles, tempo, and info. A peak rank above current rank means the skill is there, coach consistency and mental.
@@ -1058,6 +1095,7 @@ ${spectatorLine}${aliveLine}${deathWhereLine}${deathLine}${roundLostLine}${enemy
 
 RECENT TIPS (do not repeat these word for word; if the SAME mistake is still happening and the advice matters, give it again in FRESH wording and mark the repetition, "still", "again", "third time now", important advice bears repeating, lazy copies do not):
 ${recent}
+THESE ARE YOUR OWN WORDS, SO STAND BEHIND THEM. If the player did what you just told them to do and it went badly, that is YOUR call to own, never their mistake to be scolded for. In a real session this coach said "take an aggressive off-angle on B Main", the player took it, died, and was then told they died "because you took an aggressive off-angle" — the player followed instructions and got blamed for it, and nothing destroys trust faster. When a play you recommended fails, say so plainly and adjust: "that off-angle got read, they were already holding it, so next round take it later or from the other side". If you cannot own it and give the adjustment in one sentence, coach something else entirely.
 ${lastShown ? 'NEVER REPEAT BACK TO BACK: the last tip shown ("' + lastShown + '") is still on the player\'s screen. Your next tip must either make a DIFFERENT point entirely, or, only if the same mistake is genuinely still happening and urgent, say it in completely fresh words with escalation ("still", "again", "third time now"). A tip that echoes the previous tip\'s advice or wording gets dropped by the app and wastes the slot, so when the only honest tip would be that repeat, prefer SKIP.\n' : ''}
 ${Array.isArray(ctx.badTips) && ctx.badTips.length ? 'The player rejected these tips repeatedly (3 or more times), NEVER give this advice or anything close to it again:\n' + ctx.badTips.slice(0, 6).map((t) => '- ' + t).join('\n') + '\n' : ''}
 ${Array.isArray(ctx.tipFeedback) && ctx.tipFeedback.length ? 'PLAYER FEEDBACK on past tips, their own words on why a tip missed. Learn from these, the reasons matter more than the tips:\n' + ctx.tipFeedback.slice(-6).map((f) => '- "' + String(f.text || '').slice(0, 90) + '" the player said: "' + String(f.reason || '').slice(0, 150) + '"').join('\n') + '\n' : ''}Recent topics: ${topics}. Prefer covering a DIFFERENT one (positioning, utility, aim, rotation, spike, teamwork, mental) unless a repeated mistake demands a repeat.
@@ -1792,9 +1830,24 @@ router.get('/rank-history', async (req, res) => {
 // the losing team). stored-matches only carries the player's own stats, so
 // resolve MVP from the full match detail once and keep it forever, a finished
 // match never changes. Failures are not cached so a later refresh retries.
-const matchMvpCache = new Map();   // matchId -> 'match' | 'team' | null
+// One cache entry now carries BOTH the badge and the roster, because they come
+// from the same match-detail call. Fetching that detail twice for two features
+// would double the upstream calls against a rate limit that has already caused
+// queues to vanish from the stats view.
+const matchMvpCache = new Map();   // matchId -> { mvp, team } | null
 
 async function mvpForMatch(region, matchId, name, tag) {
+  const d = await matchDetail(region, matchId, name, tag);
+  return d ? d.mvp : null;
+}
+
+/** The player's own team for this match: who they played with, and on what. */
+async function teamForMatch(region, matchId, name, tag) {
+  const d = await matchDetail(region, matchId, name, tag);
+  return d ? d.team : null;
+}
+
+async function matchDetail(region, matchId, name, tag) {
   if (!matchId) return null;
   if (matchMvpCache.has(matchId)) return matchMvpCache.get(matchId);
   try {
@@ -1818,10 +1871,33 @@ async function mvpForMatch(region, matchId, name, tag) {
       won = !!(t && (t.has_won != null ? t.has_won : t.won));
     }
     const mvp = topOfTeam ? (won ? 'match' : 'team') : null;
-    cacheSet(matchMvpCache, matchId, mvp, 600);
-    return mvp;
+
+    // The player's own side, so the stats view can show who they actually
+    // played with. Riot ID and agent are what identifies a teammate to a
+    // player: "the Sova" means nothing three games later, "Fade#EUW" does.
+    // The player themselves is marked rather than removed, so the roster reads
+    // like the in-game scoreboard.
+    const team = players
+      .filter((p) => teamOf(p) === teamOf(me))
+      .map((p) => ({
+        name:  [p.name, p.tag].filter(Boolean).join('#') || 'Unknown',
+        agent: (p.agent && p.agent.name) || p.character || (p.character && p.character.name) || null,
+        kills: (p.stats && p.stats.kills) | 0,
+        deaths: (p.stats && p.stats.deaths) | 0,
+        assists: (p.stats && p.stats.assists) | 0,
+        acs: (p.stats && p.stats.score) != null && d.metadata && (d.metadata.rounds_played || d.metadata.rounds)
+          ? Math.round((p.stats.score | 0) / (d.metadata.rounds_played || d.metadata.rounds))
+          : null,
+        me: p === me,
+      }))
+      // Scoreboard order: best combat score first, as the game shows it.
+      .sort((a, b) => (b.acs || 0) - (a.acs || 0));
+
+    const detail = { mvp, team };
+    cacheSet(matchMvpCache, matchId, detail, 600);
+    return detail;
   } catch (e) {
-    console.log('[coach] mvp lookup failed:', matchId, e.message);
+    console.log('[coach] match detail lookup failed:', matchId, e.message);
     return null;
   }
 }
@@ -1952,9 +2028,15 @@ router.get('/matches', async (req, res) => {
         startedAt: m.meta?.started_at ? Date.parse(m.meta.started_at) : null,
       });
     }
-    // MVP badges resolve in parallel from the (permanent) detail cache; a
-    // missing one is just null and fills in on a later refresh.
-    await Promise.all(matches.map(async (m) => { m.mvp = await mvpForMatch(region, m.id, name, tag); }));
+    // MVP badges and the team roster resolve in parallel from the (permanent)
+    // detail cache; a missing one is just null and fills in on a later refresh.
+    // Both come from ONE detail call per match, so adding the roster costs no
+    // extra upstream requests against a rate limit that has bitten before.
+    await Promise.all(matches.map(async (m) => {
+      const d = await matchDetail(region, m.id, name, tag);
+      m.mvp  = d ? d.mvp : null;
+      m.team = d ? d.team : null;
+    }));
 
     // A result built while a queue was failing is degraded, so it is not worth
     // the full TTL. Backdating fetchedAt lets the next poll retry almost
@@ -2455,7 +2537,8 @@ Reading the numbers: 20%+ headshots is good aim. KPR 0.8+ is strong fragging, un
     const matchesBlock = Array.isArray(ctx.recentMatches) && ctx.recentMatches.length
       ? 'Their recent matches (newest first, rating is 0-100):\n'
         + ctx.recentMatches.slice(0, 5).map((m) =>
-            `- ${m.map || '?'} (${m.agent || '?'}): ${m.result || '?'} ${m.score || ''}, ${m.kills}/${m.deaths}/${m.assists}, ACS ${m.acs}, ADR ${m.adr}, HS ${m.headshotPct}%, rating ${m.rating}`).join('\n')
+            `- ${m.when ? m.when + ', ' : ''}${m.map || '?'} (${m.agent || '?'}${m.queue ? ', ' + m.queue : ''}): ${m.result || '?'} ${m.score || ''}, ${m.kills}/${m.deaths}/${m.assists}, ACS ${m.acs}, ADR ${m.adr}, HS ${m.headshotPct}%, rating ${m.rating}`).join('\n')
+        + '\nALWAYS SAY WHICH MATCH YOU MEAN. When you refer to one of these games, name it: the map, the agent, and the result, for example "your Sunset loss on Jett" or "the 13-9 win on Bind this afternoon". "Your last game" and "that match" are useless to someone who has played five, and if two share a map the agent or the time tells them apart. If you are talking about a pattern ACROSS matches, say that explicitly instead ("across your last five, on defence you...").\n'
       : '';
     const sessionsBlock = Array.isArray(ctx.recentSessions) && ctx.recentSessions.length
       ? 'Their recent coached sessions (scored 0-100 per category):\n'

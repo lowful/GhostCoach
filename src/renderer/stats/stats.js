@@ -326,6 +326,36 @@ function matchRow(m) {
     statTile('Assists/Rd', m.apr,         grade('apr', m.apr)),
     statTile('Dmg +/- Rd', dmgVal,        grade('dmg', m.dmgDelta)),
   );
+  // WHO THEY PLAYED WITH. A match is remembered by its people as much as its
+  // score, and "the Sova" means nothing three games later while a Riot ID does.
+  // Ordered by combat score like the in-game scoreboard, with the player marked
+  // rather than removed so the row they are looking for is where they expect it.
+  let teamEl = null;
+  if (Array.isArray(m.team) && m.team.length) {
+    const team = document.createElement('div');
+    team.className = 'team-list';
+    const head = document.createElement('div');
+    head.className = 'team-head';
+    head.textContent = 'Your team';
+    team.append(head);
+    for (const p of m.team) {
+      const row = document.createElement('div');
+      row.className = 'team-row' + (p.me ? ' me' : '');
+      const who = document.createElement('span');
+      who.className = 'team-name';
+      who.textContent = p.name;
+      const agent = document.createElement('span');
+      agent.className = 'team-agent';
+      agent.textContent = p.agent || '';
+      const line = document.createElement('span');
+      line.className = 'team-line';
+      line.textContent = `${p.kills}/${p.deaths}/${p.assists}${p.acs != null ? '  ACS ' + p.acs : ''}`;
+      row.append(who, agent, line);
+      team.append(row);
+    }
+    teamEl = team;
+  }
+
   const share = document.createElement('div');
   share.className = 'share-row';
   const gen = document.createElement('button');
@@ -369,7 +399,9 @@ function matchRow(m) {
     share.append(saveBtn, copyBtn);
   });
   share.append(gen);
-  detail.append(tiles, share);
+  detail.append(tiles);
+  if (teamEl) detail.append(teamEl);
+  detail.append(share);
   row.append(top, detail);
   row.addEventListener('click', () => row.classList.toggle('open'));
   return row;

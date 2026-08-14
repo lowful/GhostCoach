@@ -198,7 +198,7 @@ const controller = {
 
     engine = new CoachingEngine({
       licenseKey:      store.get('licenseKey'),
-      captureFunction: () => capture.captureScreenshot('standard'),
+      captureFunction: () => capture.captureScreenshot(store.get('captureQuality') === 'performance' ? 'performance' : 'standard'),
       performanceMode: store.get('performanceMode'),
       badTips:         blockedBadTips(),   // only 3-strike tips are blocked
       getFeedback:     () => store.get('tipFeedback') || [],
@@ -609,6 +609,14 @@ const controller = {
         map: m.map, agent: m.agent, result: m.result, score: m.score,
         kills: m.kills, deaths: m.deaths, assists: m.assists,
         kd: m.kd, acs: m.acs, adr: m.adr, headshotPct: m.headshotPct, rating: m.rating,
+        // WHEN it was played, so the coach can name the match it is talking
+        // about instead of saying "your last game". With five matches in the
+        // list and two of them on the same map, the map alone does not identify
+        // one, and the player cannot tell which game is being discussed.
+        queue: m.queue,
+        when: m.startedAt
+          ? new Date(m.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+          : null,
       })),
       recentSessions: loadPerf().slice(-3).reverse().map((s) => ({
         date: new Date(s.at).toLocaleDateString([], { month: 'short', day: 'numeric' }),

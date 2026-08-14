@@ -57,6 +57,7 @@ const STRINGS = {
     'common.off': 'Off',
     'common.language': 'Language',
     'common.save': 'Save',
+    'settings.performance': 'Performance',
     'common.languageSaved': 'Language saved.',
     'common.languageHint': 'Coaching tips and the app appear in this language.',
 
@@ -106,6 +107,7 @@ const STRINGS = {
     'common.off': 'Aus',
     'common.language': 'Sprache',
     'common.save': 'Speichern',
+    'settings.performance': 'Leistung',
     'common.languageSaved': 'Sprache gespeichert.',
     'common.languageHint': 'Coaching-Tipps und die App erscheinen in dieser Sprache.',
 
@@ -155,6 +157,7 @@ const STRINGS = {
     'common.off': 'No',
     'common.language': 'Idioma',
     'common.save': 'Guardar',
+    'settings.performance': 'Rendimiento',
     'common.languageSaved': 'Idioma guardado.',
     'common.languageHint': 'Los consejos y la app aparecen en este idioma.',
 
@@ -204,6 +207,7 @@ const STRINGS = {
     'common.off': 'Não',
     'common.language': 'Idioma',
     'common.save': 'Salvar',
+    'settings.performance': 'Desempenho',
     'common.languageSaved': 'Idioma salvo.',
     'common.languageHint': 'As dicas e o app aparecem neste idioma.',
 
@@ -253,6 +257,7 @@ const STRINGS = {
     'common.off': 'Non',
     'common.language': 'Langue',
     'common.save': 'Enregistrer',
+    'settings.performance': 'Performances',
     'common.languageSaved': 'Langue enregistrée.',
     'common.languageHint': 'Les conseils et l’application apparaissent dans cette langue.',
 

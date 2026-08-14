@@ -79,6 +79,11 @@ function wireBoolSeg(id, key) {
 const showTipsSeg = wireBoolSeg('showtips', 'showTips');
 const beginnerSeg = wireBoolSeg('beginner', 'beginnerTips');
 const aiLogSeg    = wireBoolSeg('ailog', 'aiLog');
+// Capture quality is a VALUE segment, not a boolean: 'standard' or
+// 'performance'. Naming the values rather than on/off keeps the meaning in the
+// stored config, where a future third profile would slot in without a migration.
+const captureSeg  = document.getElementById('capturequality');
+wireSeg(captureSeg, 'captureQuality');
 
 // ── Version + update state ──────────────────────────────────────────────────
 // So it is obvious which build is running and whether an update already landed,
@@ -328,6 +333,7 @@ async function load() {
       freqEl.value = String(fi >= 0 ? fi : 1);
       freqLabel.textContent = FREQ_LABELS[fi >= 0 ? fi : 1];
       markSeg(tipposSeg, cfg.tipPosition);
+      markSeg(captureSeg, cfg.captureQuality || 'standard');
       markSeg(styleSegEl, cfg.tipStyle || 'glass');
       syncOpacityAvailability(cfg.tipStyle || 'glass');
       const op = Math.round((cfg.tipOpacity != null ? cfg.tipOpacity : 0.9) * 100);

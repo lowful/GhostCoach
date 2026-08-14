@@ -242,3 +242,28 @@ section h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; lette
 
 /* The window settles in rather than snapping on. */
 .sheet { animation: sheetIn 420ms var(--ease-expo) both; }
+
+/* Your team for a match. Ordered by combat score like the in-game scoreboard,
+   with the player's own row marked rather than removed, so the row they are
+   looking for sits where they expect it. */
+.team-list { margin-top: 10px; }
+.team-head {
+  font-size: 10px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 1px; color: var(--text-mute); margin-bottom: 6px;
+}
+.team-row {
+  display: grid; grid-template-columns: 1fr auto auto; gap: 10px;
+  align-items: baseline; padding: 5px 8px; border-radius: 7px;
+  font-size: 12px; color: var(--text-dim);
+}
+.team-row + .team-row { margin-top: 2px; }
+.team-row.me {
+  background: rgba(0,240,255,0.08);
+  border: 1px solid rgba(0,240,255,0.22);
+  color: var(--text);
+}
+.team-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.team-row.me .team-name { font-weight: 700; }
+.team-agent { color: var(--text-mute); font-size: 11px; }
+.team-row.me .team-agent { color: var(--cyan); }
+.team-line { font-variant-numeric: tabular-nums; color: var(--text-mute); }
