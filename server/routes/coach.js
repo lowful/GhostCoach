@@ -1906,16 +1906,14 @@ async function matchDetail(region, matchId, name, tag, rounds = 0) {
         kills: (p.stats && p.stats.kills) | 0,
         deaths: (p.stats && p.stats.deaths) | 0,
         assists: (p.stats && p.stats.assists) | 0,
-        // ACS is combat score per ROUND, and the round count is not in this
-        // payload under any name I could rely on, so it is passed in from the
-        // match list where it is already derived from the scoreline. Guessing a
-        // field name here produced a null for every player, which also silently
-        // flattened the scoreboard ordering below.
-        acs: rounds > 0 && p.stats && p.stats.score != null
-          ? Math.round((p.stats.score | 0) / rounds)
+        // ACS is combat score per ROUND, using the count derived above from
+        // this payload. It was threaded in from the caller first and arrived as
+        // 0 every time, which read as "the API has no score" when the score was
+        // there all along, so it is now taken from where the data already is.
+        acs: played > 0 && p.stats && p.stats.score != null
+          ? Math.round((p.stats.score | 0) / played)
           : null,
         me: p === me,
-        _dbg: `rounds=${rounds} score=${JSON.stringify(p && p.stats && p.stats.score)}`,
       }))
       // Scoreboard order: best combat score first, as the game shows it.
       .sort((a, b) => (b.acs || 0) - (a.acs || 0));
