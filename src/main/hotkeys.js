@@ -11,6 +11,11 @@ const BINDINGS = {
   'CommandOrControl+Shift+P': 'pauseResume',
   'CommandOrControl+Shift+M': 'minimizePanel',
   'CommandOrControl+Shift+S': 'openSettings',
+  // Developer joke tip. The key is always bound, but the action does nothing
+  // unless devJokeTips is set in the config, which has no Settings UI. Binding
+  // it unconditionally keeps this file a plain list rather than something that
+  // has to read config to know what it registers.
+  'CommandOrControl+Shift+J': 'jokeTip',
 };
 
 function register(actions) {

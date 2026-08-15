@@ -128,6 +128,13 @@ const STORE_DEFAULTS = {
   // 480p frame for weaker machines, and it genuinely costs read accuracy.
   // NOTE: distinct from performanceMode above, which is tip FREQUENCY.
   captureQuality:  'standard',   // standard | performance
+  // DEVELOPER ONLY, and deliberately absent from Settings. Ctrl+Shift+J fires a
+  // fake tip on the overlay for a laugh. It is broadcast straight to the overlay
+  // and never enters state.tips, so it cannot reach the session archive, the
+  // grade, the habit profile, the weekly report or the AI log. devJokeTipList
+  // overrides the built-in lines.
+  devJokeTips:     false,
+  devJokeTipList:  null,
   // Interface and coaching language. Tips are written in this language by the
   // model, which costs nothing extra; the UI follows for languages that have a
   // catalogue in src/shared/i18n.js and stays English otherwise.

@@ -50,6 +50,7 @@ const registerIpc = require('./ipc/register-ipc');
 const licenseService = require('./services/license-service');
 const agentData = require('./services/agent-data');
 const { profileHabits } = require('./services/habits');
+const jokeTips = require('./services/joke-tips');
 const { assembleReport, weekKey, rankIndex, trendDirection } = require('./services/weekly-report');
 const updater  = require('./updater');
 const C = require('../shared/channels');
@@ -388,6 +389,30 @@ const controller = {
   listSessions() { return listSessions(); },
   getSession(file) { return getSession(file); },
   toggleOverlay() { overlayWindow.toggleVisible(); },
+
+  /**
+   * Fire a fake coaching tip on the overlay. Ctrl+Shift+J, developer only.
+   *
+   * Does nothing unless devJokeTips is true in the config, and that key has no
+   * Settings UI, so a normal install cannot reach this however hard it tries.
+   *
+   * It goes STRAIGHT to the overlay and deliberately does not call pushTip,
+   * because pushTip fills state.tips, and state.tips becomes the session
+   * archive, the session grade, the habit profile and the weekly report. A joke
+   * that quietly turned into "recurring mistake: dry peeking" in a real weekly
+   * report, or pulled a session score down, would corrupt the numbers this app
+   * exists to keep honest. It is also absent from the AI decision log, so a
+   * later log review cannot be fooled by a tip the coach never wrote.
+   *
+   * It IS broadcast as source 'ai' so it looks and sounds exactly like the real
+   * thing, voice included, which is the whole point.
+   */
+  jokeTip() {
+    const text = jokeTips.next(store);
+    if (!text) return;   // feature off: silent, not an error
+    console.log(`[joke] fake tip fired (not recorded anywhere): ${text}`);
+    registry.broadcast(C.PUSH_TIP, { text, source: 'ai', time: Date.now() });
+  },
   setOverlayInteractive(on) { overlayWindow.setInteractive(!!on); },
   toggleMinimizePanel() {
     // Minimized shows the small floating ghost (icon only, click-through,
@@ -1571,6 +1596,7 @@ const hotkeyActions = {
   minimizePanel:  () => controller.toggleMinimizePanel(),
   openSettings:   () => controller.openSettings(),
   openHistory:    () => controller.openHistory(),
+  jokeTip:        () => controller.jokeTip(),
 };
 
 // ── Launch ───────────────────────────────────────────────────────────────────
