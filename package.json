@@ -10,7 +10,7 @@
     "dist:win": "electron-builder --win",
     "dist:mac": "electron-builder --mac",
     "dist": "electron-builder --win --mac",
-    "release": "electron-builder --win --publish always && node scripts/publish-download.js",
+    "release": "node scripts/check-release-ready.js && electron-builder --win --publish always && node scripts/publish-download.js",
     "sync:valorant": "node scripts/sync-valorant-data.js",
     "sync:patch": "node scripts/sync-patch-notes.js",
     "publish:download": "node scripts/publish-download.js",
@@ -32,7 +32,8 @@
     "check:config": "node scripts/check-config-bridge.js",
     "test:contradiction": "node scripts/test-contradiction.js",
     "review:log": "node scripts/review-log.js",
-    "test:tiptext": "node scripts/test-tip-text.js"
+    "test:tiptext": "node scripts/test-tip-text.js",
+    "check:release": "node scripts/check-release-ready.js"
   },
   "build": {
     "appId": "com.ghostcoach.app2",
