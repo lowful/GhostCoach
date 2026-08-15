@@ -487,6 +487,16 @@ class CoachingEngine extends EventEmitter {
       agent:        confirmedAgent,
       recentTopics,
       recentTips,
+      // THE PLAYS THAT WILL BE REJECTED IF IT USES THEM AGAIN.
+      //
+      // The engine blocks a play that appeared in either of the last two tips,
+      // and it never told the model, which is why a quarter of a real session's
+      // calls were spent writing tips that could not possibly be shown: 31 of
+      // them said "trade partner" after a trade tip had just gone out, 12 more
+      // said hold tight. Naming the blocked plays turns a vague instruction to
+      // vary into a constraint the model can actually satisfy.
+      blockedPlays: this.tipHistory.slice(-2)
+        .map((t) => playPatternIn(t.text)).filter(Boolean),
       enemyHistory: this.enemyHistory.slice(-6),
       phaseTransition: this.recentPhaseTransition(),
       badTips: [...this.badTips].slice(0, 6),   // 3-strike blocked tips only
@@ -1825,6 +1835,42 @@ function verifyTip(rawText, source, ctx) {
        .replace(/\s{2,}/g, ' ')
        .trim();
   if (/^[a-z]/.test(t)) t = t.charAt(0).toUpperCase() + t.slice(1);
+
+  // STOP SHOUTING. The model sometimes returns a whole tip in capitals, and two
+  // reached a player mid match: "SET UP A CROSSFIRE AT B MAIN WITH YOUR
+  // SATELLITE SO THE FIRST ENTRY GETS TRADED." The advice is fine, the delivery
+  // reads as an error message, so this is normalised rather than rejected:
+  // dropping it would cost real coaching over a formatting slip. Short
+  // all-caps runs are left alone because callouts legitimately shout (A, B, C,
+  // KAY/O) and so do a few weapon names.
+  const letters = t.replace(/[^A-Za-z]/g, '');
+  if (letters.length > 12 && (letters.replace(/[^A-Z]/g, '').length / letters.length) > 0.7) {
+    t = t.charAt(0) + t.slice(1).toLowerCase();
+    // Restore the site letters, which are single capitals in normal writing.
+    t = t.replace(/\b([abc]) (site|main|long|short|link|lobby|elbow|hall|tower|heaven)\b/gi,
+      (m, l, w) => l.toUpperCase() + ' ' + w.charAt(0).toUpperCase() + w.slice(1));
+  }
+
+  // A POSSESSIVE WITH NOTHING AFTER IT. "SET UP A CROSSFIRE ON A SITE WITH
+  // your, AND HOLD AN OFF-ANGLE" shipped exactly like that: the model dropped
+  // the noun and carried on, so the sentence ends grammatically and the
+  // truncation check, which only looks at the LAST word, saw nothing wrong.
+  // Mid-sentence is precisely where that check cannot help.
+  //
+  // "a" IS CHECKED LOWERCASE ONLY, because "A" is a site. Case-insensitively
+  // this rejected "four teammates hold A, so wait for a rotation", which is an
+  // ordinary sentence. That is the second time the A site has been mistaken for
+  // an English article in this file, the first being the truncation rule above.
+  if (source === 'ai'
+      && (/\b(your|their|his|her|my|our|the|an)\s*[,.]/i.test(t) || /\ba\s*[,.]/.test(t))) {
+    return null;
+  }
+
+  // "You are lone in B Lobby" reached a player, and the same slip appeared in an
+  // earlier session, so it is worth correcting rather than dropping: the tip is
+  // otherwise good and the fix is unambiguous.
+  t = t.replace(/\byou are lone\b/gi, 'you are alone')
+       .replace(/\bis lone\b/gi, 'is alone');
 
   // must end on a complete sentence; otherwise rescue to the last one, else drop
   if (!/[.!?]["')]?$/.test(t)) {
