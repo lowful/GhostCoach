@@ -37,7 +37,8 @@
     "test:joke": "node scripts/test-joke-tips.js",
     "check:palette": "node scripts/check-palette.js",
     "test:games": "node scripts/test-games.js",
-    "test:rivalscomp": "node scripts/test-rivals-comp.js"
+    "test:rivalscomp": "node scripts/test-rivals-comp.js",
+    "test:rivalsmeta": "node scripts/test-rivals-meta.js"
   },
   "build": {
     "appId": "com.ghostcoach.app2",
