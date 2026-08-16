@@ -21,7 +21,8 @@ contextBridge.exposeInMainWorld('ghost', {
   // The registry is required here (preloads have Node) and handed over as
   // plain data, so no surface needs Node access to draw the picker.
   games: {
-    list: (includeUnavailable) => GAMES.list(includeUnavailable).map((g) => ({ id: g.id, label: g.label })),
+    list: (includeUnavailable) => GAMES.list(includeUnavailable)
+      .map((g) => ({ id: g.id, label: g.label, coaching: !!g.coaching, preview: !!g.preview })),
   },
 
   i18n: {

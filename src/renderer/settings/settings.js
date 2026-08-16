@@ -104,7 +104,8 @@ function buildGamePicker(current, includeUnavailable) {
   for (const g of games) {
     const b = document.createElement('button');
     b.dataset.val = g.id;
-    b.textContent = g.label;
+    b.textContent = g.preview ? `${g.label} (preview)` : g.label;
+    if (g.preview) b.title = 'The look and layout are real. Coaching for this game is not built yet.';
     gameSeg.append(b);
   }
   markSeg(gameSeg, current);

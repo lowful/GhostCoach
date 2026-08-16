@@ -51,6 +51,7 @@ const licenseService = require('./services/license-service');
 const agentData = require('./services/agent-data');
 const { profileHabits } = require('./services/habits');
 const jokeTips = require('./services/joke-tips');
+const gameRegistry = require('../shared/games');
 const { assembleReport, weekKey, rankIndex, trendDirection } = require('./services/weekly-report');
 const updater  = require('./updater');
 const C = require('../shared/channels');
@@ -197,6 +198,23 @@ const controller = {
       return;
     }
 
+    // REFUSE RATHER THAN COACH THE WRONG GAME.
+    //
+    // Every engine below is Valorant: the map lock, the callout gate, the side
+    // and round arithmetic, the spike. Starting it while the app is set to
+    // another game would produce tips that read perfectly and describe a game
+    // the player is not in, which is worse than silence because it is
+    // believable. The palette and layout switching is real; the coach is not,
+    // and this is where that difference gets stated out loud.
+    if (!gameRegistry.canCoach(store.get('game'))) {
+      const g = gameRegistry.get(store.get('game'));
+      pushTip({
+        text: `${g.label} coaching is not built yet. The look and layout are a preview, so switch back to Valorant in Settings to coach.`,
+        source: 'system',
+      });
+      return;
+    }
+
     engine = new CoachingEngine({
       licenseKey:      store.get('licenseKey'),
       captureFunction: () => capture.captureScreenshot(store.get('captureQuality') === 'performance' ? 'performance' : 'standard'),
@@ -224,7 +242,7 @@ const controller = {
       setStatus(status);
     });
     engine.on('match-review', async (review) => {
-      const data = { review, game: 'Valorant', timestamp: Date.now(), tipsCount: state.tips.length };
+      const data = { review, game: gameRegistry.get(store.get('game')).label, timestamp: Date.now(), tipsCount: state.tips.length };
       // Stat movement vs the previous match: compact chips on the review card.
       try {
         const current = await fetchTrackerStats(true);

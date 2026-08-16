@@ -54,6 +54,11 @@ const GAMES = {
     // shooter is decided by the hero select screen and by knowing when to
     // switch, and neither is a per-second decision.
     coaching: false,        // flip to true when the Rivals coach actually exists
+    // Selectable, and labelled for what it is. The palette, the layout and the
+    // whole shell are real and worth looking at; the coach is not built. Saying
+    // "Preview" is the difference between a feature you are showing off and a
+    // feature that appears broken.
+    preview: true,
     cadence: 'draft',
   },
 };
@@ -67,11 +72,17 @@ function get(id) {
 
 /**
  * Games a player may choose.
- * @param includeUnavailable true only for development, so an unfinished game
- *   can be previewed without offering it to anyone else.
+ *
+ * A game appears once it can be coached OR once it is explicitly marked as a
+ * preview. Preview means the shell is real and the coach is not, and the label
+ * says so, which is the honest middle ground between hiding work that is
+ * genuinely finished and pretending a coach exists that does not.
+ *
+ * @param includeUnavailable reveals games that are neither coachable nor
+ *   marked preview, for development only.
  */
 function list(includeUnavailable) {
-  return Object.values(GAMES).filter((g) => g.coaching || includeUnavailable);
+  return Object.values(GAMES).filter((g) => g.coaching || g.preview || includeUnavailable);
 }
 
 /** Is this a game we can actually coach right now? */

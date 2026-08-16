@@ -21,14 +21,29 @@ const check = (name, ok, detail) => {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok || !detail ? '' : `\n        ${detail}`}`);
 };
 
-console.log('an unfinished game is not offered to players:');
-check('  only coachable games are listed',
-  games.list().every((g) => g.coaching), games.list().map((g) => g.id).join(', '));
-check('  Marvel Rivals is hidden while its coach does not exist',
-  !games.list().some((g) => g.id === 'rivals'),
-  'it would be selectable and coached by the Valorant engine');
-check('  and visible for development', games.list(true).some((g) => g.id === 'rivals'));
-check('  canCoach agrees', games.canCoach('valorant') === true && games.canCoach('rivals') === false);
+console.log('a game is selectable only when it is coachable OR marked preview:');
+check('  every listed game is coachable or a labelled preview',
+  games.list().every((g) => g.coaching || g.preview),
+  games.list().map((g) => `${g.id}(${g.coaching ? 'coach' : g.preview ? 'preview' : 'NEITHER'})`).join(', '));
+check('  Marvel Rivals is selectable, so the skin can be seen',
+  games.list().some((g) => g.id === 'rivals'));
+check('  but it is NOT coachable', games.canCoach('rivals') === false);
+check('  and it is flagged preview so the UI can say so',
+  games.get('rivals').preview === true,
+  'without this the picker offers it as if it worked');
+check('  Valorant is coachable', games.canCoach('valorant') === true);
+
+// THE SAFETY PROPERTY. Selecting a preview game must refuse to coach, not coach
+// with the Valorant engine. Those tips would read perfectly and describe a game
+// the player is not in, which is worse than silence because it is believable.
+// Asserted against the real source, not against the comment above it.
+const mainSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'index.js'), 'utf8');
+const startBody = (mainSrc.match(/\n  start\(\)\s*\{[\s\S]*?\n    engine = new CoachingEngine/) || [''])[0];
+check('  start() refuses a game it cannot coach',
+  /canCoach\(/.test(startBody),
+  'start() would construct the Valorant engine whatever game is selected');
+check('  and it refuses BEFORE building the engine',
+  startBody.indexOf('canCoach(') < startBody.indexOf('new CoachingEngine'));
 
 console.log('\nlookups never throw:');
 check('  an unknown id falls back to the default', games.get('fortnite').id === 'valorant');
