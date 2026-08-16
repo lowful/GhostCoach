@@ -31,7 +31,7 @@ html, body {
 
 .ghost {
   /* Barely there, so the shape has some presence without a glow around it */
-  filter: drop-shadow(0 10px 26px rgba(255, 70, 85, 0.28));
+  filter: drop-shadow(0 10px 26px rgba(var(--red-rgb), 0.28));
 }
 
 /* 1. The outline draws itself, one continuous stroke.

@@ -15,6 +15,26 @@
   --bg:    #0F1923;
   --bg-2:  #0a121a;
 
+  /* The same two brand colours as bare RGB triplets, for use inside rgba().
+     A colour needs this form to be tinted: rgba(var(--red-rgb), 0.12). Without
+     it every translucent brand tint has to hand-expand the colour, which is
+     exactly what happened: 51 copies of the red and 68 of the cyan were written
+     out longhand across the surfaces, so changing the palette in one place
+     changed almost nothing on screen. */
+  --red-rgb:  255, 70, 85;
+  --cyan-rgb: 0, 240, 255;
+
+  /* Status. These describe an OUTCOME, not the brand, so they stay the same
+     whatever palette is active: a win is green in every game. They exist
+     because every green and red in the app was previously a raw hex, which
+     made them impossible to tell apart from brand colours when re-skinning. */
+  --good:  #4fd394;
+  --bad:   #ff9aa3;
+  --warn:  #f5c451;
+  --good-rgb: 79, 211, 148;
+  --bad-rgb:  255, 154, 163;
+  --warn-rgb: 245, 196, 81;
+
   /* Text */
   --text:      #E6EDF3;
   --text-dim:  #8b9bab;
@@ -32,8 +52,8 @@
   --shadow-win:   0 2px 8px rgba(0, 0, 0, 0.55);
 
   /* Accent glows */
-  --glow-cyan: 0 0 0 1px rgba(0, 240, 255, 0.45), 0 0 18px rgba(0, 240, 255, 0.25);
-  --glow-red:  0 0 18px rgba(255, 70, 85, 0.35);
+  --glow-cyan: 0 0 0 1px rgba(var(--cyan-rgb), 0.45), 0 0 18px rgba(var(--cyan-rgb), 0.25);
+  --glow-red:  0 0 18px rgba(var(--red-rgb), 0.35);
 
   /* Geometry + motion */
   --r-sm: 8px;

@@ -48,7 +48,7 @@ header {
   color: var(--text); background: var(--glass-fill-2); border: 1px solid var(--glass-border);
   border-radius: 8px; cursor: pointer; transition: all var(--t-fast) var(--ease);
 }
-.nav-btn:hover { border-color: rgba(0,240,255,0.4); }
+.nav-btn:hover { border-color: rgba(var(--cyan-rgb),0.4); }
 .nav-btn:active { transform: scale(0.95); }
 .frame-meta { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim); }
 .frame-meta .muted { color: var(--text-mute); }
@@ -72,7 +72,7 @@ header {
 .srow.dead .v { color: var(--red); font-weight: 600; }
 
 /* Why a tip the model produced never reached the player. */
-.why { margin-top: 6px; font-size: 11px; color: #ff9aa3; line-height: 1.45; }
+.why { margin-top: 6px; font-size: 11px; color: var(--bad); line-height: 1.45; }
 
 /* ── Ask the coach about this frame ──────────────────────────────────────── */
 .block.ask { border-top: 1px solid var(--glass-border); padding-top: 12px; }
@@ -83,8 +83,8 @@ header {
   border: 1px solid var(--glass-border); word-break: break-word;
 }
 .ask-msg.you   { background: rgba(255,255,255,0.05); color: var(--text-dim); align-self: flex-end; max-width: 92%; }
-.ask-msg.coach { background: rgba(0,240,255,0.07); border-color: rgba(0,240,255,0.28); color: var(--text); }
-.ask-msg.err   { background: rgba(255,70,85,0.08); border-color: rgba(255,70,85,0.30); color: #ff9aa3; }
+.ask-msg.coach { background: rgba(var(--cyan-rgb),0.07); border-color: rgba(var(--cyan-rgb),0.28); color: var(--text); }
+.ask-msg.err   { background: rgba(var(--red-rgb),0.08); border-color: rgba(var(--red-rgb),0.30); color: var(--bad); }
 .ask-msg.wait  { color: var(--text-mute); font-style: italic; }
 
 .ask-row { display: flex; gap: 6px; }
@@ -93,7 +93,7 @@ header {
   background: rgba(0,0,0,0.30); border: 1px solid var(--glass-border);
   border-radius: 8px; padding: 8px 10px; outline: none;
 }
-.ask-input:focus { border-color: rgba(0,240,255,0.5); }
+.ask-input:focus { border-color: rgba(var(--cyan-rgb),0.5); }
 .ask-input::placeholder { color: var(--text-mute); }
 .ask-send {
   flex: none; font-family: var(--font); font-size: 12px; font-weight: 700; color: #fff;
@@ -112,4 +112,4 @@ header {
   border-radius: 999px; padding: 4px 9px; cursor: pointer;
   transition: color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
 }
-.hint:hover { color: var(--text); border-color: rgba(0,240,255,0.35); }
+.hint:hover { color: var(--text); border-color: rgba(var(--cyan-rgb),0.35); }

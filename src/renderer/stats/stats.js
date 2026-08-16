@@ -175,8 +175,8 @@ async function renderRankGraph(host, opts) {
     <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
       <defs>
         <linearGradient id="rgFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="rgba(0,240,255,0.25)"/>
-          <stop offset="1" stop-color="rgba(0,240,255,0)"/>
+          <stop offset="0" stop-color="rgba(var(--cyan-rgb),0.25)"/>
+          <stop offset="1" stop-color="rgba(var(--cyan-rgb),0)"/>
         </linearGradient>
       </defs>
       <path d="${path} L ${x(points.length - 1).toFixed(1)} ${H - PAD} L ${x(0).toFixed(1)} ${H - PAD} Z" fill="url(#rgFill)" stroke="none"/>
@@ -715,7 +715,7 @@ async function buildMatchCard(m) {
     const ang = Math.random() * Math.PI * 2;
     const len = 140 + Math.random() * 260;
     const wid = 16 + Math.random() * 46;
-    ctx.fillStyle = ['rgba(52,74,140,0.20)', 'rgba(255,70,85,0.10)', 'rgba(0,240,255,0.08)'][i % 3];
+    ctx.fillStyle = ['rgba(52,74,140,0.20)', 'rgba(var(--red-rgb),0.10)', 'rgba(var(--cyan-rgb),0.08)'][i % 3];
     ctx.beginPath();
     ctx.moveTo(sx, sy);
     ctx.lineTo(sx + Math.cos(ang) * len, sy + Math.sin(ang) * len);

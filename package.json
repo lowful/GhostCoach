@@ -34,7 +34,8 @@
     "review:log": "node scripts/review-log.js",
     "test:tiptext": "node scripts/test-tip-text.js",
     "check:release": "node scripts/check-release-ready.js",
-    "test:joke": "node scripts/test-joke-tips.js"
+    "test:joke": "node scripts/test-joke-tips.js",
+    "check:palette": "node scripts/check-palette.js"
   },
   "build": {
     "appId": "com.ghostcoach.app2",

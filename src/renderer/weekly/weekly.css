@@ -117,8 +117,8 @@ h3 {
   border-radius: 999px;
   white-space: nowrap;
 }
-.delta.up   .chg { color: var(--cyan); background: rgba(0,240,255,0.10); }
-.delta.down .chg { color: var(--red);  background: rgba(255,70,85,0.10); }
+.delta.up   .chg { color: var(--cyan); background: rgba(var(--cyan-rgb),0.10); }
+.delta.down .chg { color: var(--red);  background: rgba(var(--red-rgb),0.10); }
 .delta.flat .chg { color: var(--text-mute); background: rgba(255,255,255,0.05); }
 
 /* ── Category bars ──────────────────────────────────────────────────────── */
@@ -150,7 +150,7 @@ h3 {
   width: 0;
   border-radius: 3px;
   background: linear-gradient(90deg, var(--red) 0%, #ff8a5c 45%, var(--cyan) 100%);
-  box-shadow: 0 0 10px rgba(0,240,255,0.25);
+  box-shadow: 0 0 10px rgba(var(--cyan-rgb),0.25);
   transition: width 900ms var(--ease-expo);
   transition-delay: calc(var(--i, 0) * 70ms);
 }
@@ -209,7 +209,7 @@ h3 {
   border: 1px solid var(--glass-border);
   border-left: 2px solid var(--red);
   border-radius: var(--r-md);
-  background: rgba(255, 70, 85, 0.05);
+  background: rgba(var(--red-rgb), 0.05);
 }
 .habit-head { display: flex; align-items: baseline; gap: 8px; }
 .habit-head b { color: var(--text); font-size: 13px; font-weight: 700; }
