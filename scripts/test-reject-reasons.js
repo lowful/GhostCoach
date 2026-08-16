@@ -24,7 +24,11 @@ const path = require('path');
 const fs = require('fs');
 
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'services', 'coaching-engine.js'), 'utf8');
-const TRUNCATION = eval(`[${SRC.match(/const TRUNCATION = \[([\s\S]*?)\n\];/)[1]}]`);   // eslint-disable-line no-eval
+// TRUNCATION now lives in tip-hygiene.js and is exported, so this imports it
+// rather than scraping it out of source with a regex and eval. The scrape was
+// only ever a workaround for it being private, and it broke the moment the
+// rule moved, which is a fair demonstration of why it was the wrong approach.
+const { TRUNCATION } = require(path.join(__dirname, '..', 'src', 'main', 'services', 'tip-hygiene.js'));
 const truncated = (t) => TRUNCATION.some((re) => re.test(String(t || '').trim()));
 
 let pass = 0, fail = 0;
