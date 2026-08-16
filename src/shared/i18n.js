@@ -58,6 +58,7 @@ const STRINGS = {
     'common.language': 'Language',
     'common.save': 'Save',
     'settings.performance': 'Performance',
+    'settings.game': 'Game',
     'common.languageSaved': 'Language saved.',
     'common.languageHint': 'Coaching tips and the app appear in this language.',
 
@@ -108,6 +109,7 @@ const STRINGS = {
     'common.language': 'Sprache',
     'common.save': 'Speichern',
     'settings.performance': 'Leistung',
+    'settings.game': 'Spiel',
     'common.languageSaved': 'Sprache gespeichert.',
     'common.languageHint': 'Coaching-Tipps und die App erscheinen in dieser Sprache.',
 
@@ -158,6 +160,7 @@ const STRINGS = {
     'common.language': 'Idioma',
     'common.save': 'Guardar',
     'settings.performance': 'Rendimiento',
+    'settings.game': 'Juego',
     'common.languageSaved': 'Idioma guardado.',
     'common.languageHint': 'Los consejos y la app aparecen en este idioma.',
 
@@ -208,6 +211,7 @@ const STRINGS = {
     'common.language': 'Idioma',
     'common.save': 'Salvar',
     'settings.performance': 'Desempenho',
+    'settings.game': 'Jogo',
     'common.languageSaved': 'Idioma salvo.',
     'common.languageHint': 'As dicas e o app aparecem neste idioma.',
 
@@ -258,6 +262,7 @@ const STRINGS = {
     'common.language': 'Langue',
     'common.save': 'Enregistrer',
     'settings.performance': 'Performances',
+    'settings.game': 'Jeu',
     'common.languageSaved': 'Langue enregistrée.',
     'common.languageHint': 'Les conseils et l’application apparaissent dans cette langue.',
 

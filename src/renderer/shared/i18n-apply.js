@@ -62,9 +62,28 @@ async function initI18n(onChange) {
   let lang = 'en';
   const t = (key) => (window.ghost && window.ghost.i18n ? window.ghost.i18n.t(lang, key) : key);
 
+  /**
+   * The palette rides along with the language refresh.
+   *
+   * Both answer "what does this window look like right now", both come from the
+   * same config push, and every surface already calls this once at load and
+   * again on every change. Giving the game its own subscription would mean a
+   * second listener doing the same work on the same event, and a window that
+   * could end up half repainted if one fired and the other did not.
+   */
+  const applyGame = (cfg) => {
+    const game = (cfg && cfg.game) || 'valorant';
+    const root = document.documentElement;
+    // Valorant is the default palette in theme.css, so it carries no attribute.
+    // Anything else selects a :root[data-game="..."] block.
+    if (game === 'valorant') root.removeAttribute('data-game');
+    else root.setAttribute('data-game', game);
+  };
+
   const refresh = async () => {
     try {
       const cfg = await window.ghost.getConfig();
+      applyGame(cfg);
       const next = (cfg && cfg.language) || 'en';
       if (next === lang) return false;
       lang = next;

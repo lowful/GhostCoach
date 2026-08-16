@@ -80,6 +80,40 @@
   --font: 'Inter', -apple-system, 'Segoe UI', Roboto, system-ui, sans-serif;
 }
 
+/* ── Per-game palettes ──────────────────────────────────────────────────────
+   The app sets data-game on <html> and ONLY the brand tokens are re-pointed.
+   Everything structural above (geometry, motion, the font) stays shared, which
+   is the whole reason this block sits AFTER the base :root rather than being
+   spliced into the middle of it. Splicing it in was the first attempt and it
+   silently swallowed --r-sm, --ease, --lift and --font into the Rivals block,
+   so Valorant would have lost its radii, easing and typeface. The brace count
+   still balanced perfectly, which is exactly why balance is not a check.
+
+   --good, --bad and --warn deliberately do NOT appear here: they describe an
+   outcome, so a win stays green whatever is being played.
+
+   The token names stay --red and --cyan even where the colour is gold. They
+   are identifiers, and renaming them would mean touching all 600 references
+   for no behavioural gain. The name is historical; the value is what matters.
+
+   Marvel Rivals: navy, gold and white. Chosen to EVOKE the game rather than
+   reproduce it, because shipping Marvel or NetEase brand assets would be a
+   trademark problem rather than a design decision. */
+:root[data-game="rivals"] {
+  --bg:        #0A1330;
+  --bg-2:      #060C22;
+  --red:       #FFC42E;
+  --red-2:     #F2A50C;
+  --red-rgb:   255, 196, 46;
+  --cyan:      #5FA8FF;
+  --cyan-rgb:  95, 168, 255;
+  --text:      #EEF3FF;
+  --text-dim:  #93A4C8;
+  --text-mute: #61729A;
+  --glass-fill:   rgba(10, 19, 48, 0.90);
+  --glass-fill-2: rgba(16, 27, 62, 0.80);
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 /* The hidden attribute must ALWAYS win, even over display:flex/grid rules.

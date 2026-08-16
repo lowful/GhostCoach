@@ -117,6 +117,11 @@ function snapshotConfig() {
     // and a Save button that appeared to do nothing. One missing line.
     language:        store.get('language'),
     captureQuality:  store.get('captureQuality'),
+    // The renderer needs this to paint the right palette. A setting the
+    // renderer writes but cannot read back is exactly how the language setting
+    // silently never applied, which is what check:config now exists to catch.
+    game:            store.get('game'),
+    devGames:        store.get('devGames'),
   };
 }
 

@@ -128,6 +128,11 @@ const STORE_DEFAULTS = {
   // 480p frame for weaker machines, and it genuinely costs read accuracy.
   // NOTE: distinct from performanceMode above, which is tip FREQUENCY.
   captureQuality:  'standard',   // standard | performance
+  // Which game is being coached. See src/shared/games.js. Only games with
+  // coaching:true are offered to a player; devGames reveals the rest for
+  // development, so an unfinished game can be previewed without being sold.
+  game:            'valorant',
+  devGames:        false,
   // DEVELOPER ONLY, and deliberately absent from Settings. Ctrl+Shift+J fires a
   // fake tip on the overlay for a laugh. It is broadcast straight to the overlay
   // and never enters state.tips, so it cannot reach the session archive, the

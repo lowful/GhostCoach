@@ -85,6 +85,33 @@ const aiLogSeg    = wireBoolSeg('ailog', 'aiLog');
 const captureSeg  = document.getElementById('capturequality');
 wireSeg(captureSeg, 'captureQuality');
 
+/**
+ * Game picker, built from the shared registry rather than hand-written markup.
+ *
+ * The section stays hidden while only one game can be coached. A picker with a
+ * single option is not a choice, and a picker whose second option does nothing
+ * is worse: it would let someone select Marvel Rivals and then be coached by
+ * the Valorant engine wearing a different palette. Games appear here only once
+ * their coaching genuinely exists, or when devGames is set for development.
+ */
+const gameSeg = document.getElementById('gameseg');
+const gameSection = document.getElementById('game-section');
+
+function buildGamePicker(current, includeUnavailable) {
+  if (!gameSeg || !window.ghost.games) return;
+  const games = window.ghost.games.list(includeUnavailable);
+  gameSeg.replaceChildren();
+  for (const g of games) {
+    const b = document.createElement('button');
+    b.dataset.val = g.id;
+    b.textContent = g.label;
+    gameSeg.append(b);
+  }
+  markSeg(gameSeg, current);
+  if (gameSection) gameSection.hidden = games.length < 2;
+}
+wireSeg(gameSeg, 'game');
+
 // ── Version + update state ──────────────────────────────────────────────────
 // So it is obvious which build is running and whether an update already landed,
 // instead of having to guess after a release.
@@ -334,6 +361,7 @@ async function load() {
       freqLabel.textContent = FREQ_LABELS[fi >= 0 ? fi : 1];
       markSeg(tipposSeg, cfg.tipPosition);
       markSeg(captureSeg, cfg.captureQuality || 'standard');
+      buildGamePicker(cfg.game || 'valorant', cfg.devGames === true);
       markSeg(styleSegEl, cfg.tipStyle || 'glass');
       syncOpacityAvailability(cfg.tipStyle || 'glass');
       const op = Math.round((cfg.tipOpacity != null ? cfg.tipOpacity : 0.9) * 100);

@@ -112,6 +112,14 @@
         </div>
       </section>
 
+      <!-- Game picker. Hidden entirely unless more than one game can actually
+           be coached, so it never appears as a control with one option. -->
+      <section id="game-section" hidden>
+        <h3 data-i18n="settings.game">Game</h3>
+        <p class="hint">Which game GhostCoach is coaching. The app changes colour to match.</p>
+        <div class="seg" id="gameseg"></div>
+      </section>
+
       <section>
         <h3 data-i18n="settings.performance">Performance</h3>
         <p class="hint">Screenshots are sent at 720p so the coach can read your health, the round timer, the score and the location label. Turn this on to send smaller frames on an older PC or a slow connection. It uses less bandwidth, and the coach reads the HUD less reliably.</p>
