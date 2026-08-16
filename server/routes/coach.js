@@ -2664,6 +2664,39 @@ module.exports.buildContextPrompt = buildContextPrompt;
 // turned the one endpoint whose job is answering "what is live" into a thing
 // that stated a model no code path could reach.
 module.exports.telemetry  = telemetry;
+
+/**
+ * THE PROVIDER LAYER, shared with any future game's routes.
+ *
+ * Exported rather than extracted into its own module, deliberately. The
+ * intention was to lift it into server/services/ai.js, but the members are not
+ * contiguous: agentKitBlock, ROLE_BRIEF, SPECTATE_TELL and ANALYZE_SCHEMA sit
+ * interleaved between them, and all four are Valorant prompt code. Pulling the
+ * provider layer out cleanly would mean rearranging the prompt file around it,
+ * on a server that is live and is the only thing standing between a paying user
+ * and no coaching at all. Exporting achieves the actual goal, which is that a
+ * second game never needs to EDIT this file, at none of the risk.
+ *
+ * What is shared here is not convenience, it is scar tissue. Each of these
+ * exists because of a specific outage:
+ *   visionInfer / textInfer  the reasoning-token guard, after a "flash" model
+ *                            that reasons by default returned 0 tips and 0
+ *                            STATE lines across 10 real frames
+ *   creditsLookExhausted     the breaker, and the rate-limit distinction added
+ *                            after a 429 mentioning "quota" was reported to a
+ *                            player as an empty wallet
+ *   sanitize                 dash removal, a hard rule in this product's copy
+ * A second game re-implementing these would re-learn every one of them the
+ * expensive way.
+ */
+module.exports.ai = {
+  visionInfer,
+  textInfer,
+  sanitize,
+  validateKey,
+  creditsLookExhausted,
+  creditsRetryIn,
+};
 module.exports.liveModels = () => ({
   provider:    AI.provider,
   visionModel: AI.visionModel,
