@@ -40,7 +40,8 @@
     "test:rivalscomp": "node scripts/test-rivals-comp.js",
     "test:rivalsmeta": "node scripts/test-rivals-meta.js",
     "test:statecontradiction": "node scripts/test-state-contradiction.js",
-    "verify:ai": "node scripts/verify-ai.js"
+    "verify:ai": "node scripts/verify-ai.js",
+    "test:ailog": "node scripts/test-ailog-sessions.js"
   },
   "build": {
     "appId": "com.ghostcoach.app2",

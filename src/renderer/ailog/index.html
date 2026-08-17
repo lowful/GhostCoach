@@ -18,7 +18,12 @@
         <span id="subtitle" class="sub">what the coach saw and said</span>
       </div>
     </div>
-    <button id="close" class="icon-btn no-drag" title="Close" aria-label="Close">✕</button>
+    <div class="h-right no-drag">
+      <!-- Session picker. Only the frames of the chosen session are loaded, so
+           switching costs one read rather than the viewer holding every session. -->
+      <select id="session" class="session-pick" title="Choose a session" aria-label="Session"></select>
+      <button id="close" class="icon-btn" title="Close" aria-label="Close">✕</button>
+    </div>
   </header>
 
   <div id="empty" class="empty" hidden></div>

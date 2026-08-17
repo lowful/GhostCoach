@@ -44,6 +44,7 @@ const onboardingWindow = require('./windows/onboarding-window');
 const chatWindow       = require('./windows/chat-window');
 const splashWindow     = require('./windows/splash-window');
 const api              = require('./services/api-client');
+const aiLogStore       = require('./services/ai-log-store');
 const tray     = require('./tray');
 const hotkeys  = require('./hotkeys');
 const registerIpc = require('./ipc/register-ipc');
@@ -450,7 +451,8 @@ const controller = {
   openHistory()   { historyWindow.open(); },
   openWeekly()    { weeklyWindow.open(); },
   openAiLog()     { aiLogWindow.open(); },
-  getAiLog()      { return latestAiLog(); },
+  getAiLog(id)    { return readAiLog(id); },
+  getAiLogSessions() { return aiLogSessions(); },
 
   /** "Why did I die here?" against one frame of the AI log. The screenshot goes
    *  with the question so the coach looks at the moment instead of reasoning
@@ -463,7 +465,12 @@ const controller = {
     const question = String(p.question || '').trim();
     if (!question) return { error: 'Ask a question first.' };
 
-    const log = latestAiLog();
+    // The session must come from the payload. When the viewer only ever showed
+    // the newest session this could be implied, but now that older sessions are
+    // browsable, reading the newest here would answer a question about frame 12
+    // of Tuesday's game using frame 12 of tonight's, with a confident answer and
+    // nothing to indicate it looked at the wrong picture.
+    const log = readAiLog(p.session);
     const recs = Array.isArray(log.records) ? log.records : [];
     const i = Math.max(0, Math.min(recs.length - 1, Number(p.index) || 0));
     const target = recs[i];
@@ -1380,6 +1387,9 @@ function resetSessionCounts() { sessionCounts = { tipsShown: 0, tipsGenerated: 0
 
 function aiLogRoot() { return path.join(app.getPath('userData'), 'ai-log'); }
 
+/** The id of the session being written right now, so the picker can mark it. */
+function aiLogLiveId() { return aiLogDir ? path.basename(aiLogDir) : null; }
+
 /** Start a fresh log folder for a coaching session. */
 function startAiLog() {
   if (store.get('aiLog') === false) { aiLogDir = null; return; }
@@ -1427,44 +1437,13 @@ function recordAiFrame(d) {
 }
 
 /** Keep only the most recent session folders. */
-function pruneAiLog() {
-  try {
-    const root = aiLogRoot();
-    if (!fs.existsSync(root)) return;
-    const dirs = fs.readdirSync(root)
-      .filter((f) => /^session-/.test(f))
-      .map((f) => ({ f, t: fs.statSync(path.join(root, f)).mtimeMs }))
-      .sort((a, b) => b.t - a.t);
-    for (const d of dirs.slice(AI_LOG_KEEP_SESSIONS)) {
-      fs.rmSync(path.join(root, d.f), { recursive: true, force: true });
-    }
-  } catch {}
-}
+function pruneAiLog() { aiLogStore.prune(aiLogRoot(), AI_LOG_KEEP_SESSIONS); }
 
-/** The most recent AI-log session, for the viewer. */
-function latestAiLog() {
-  try {
-    const root = aiLogRoot();
-    if (!fs.existsSync(root)) return { records: [] };
-    const dirs = fs.readdirSync(root)
-      .filter((f) => /^session-/.test(f))
-      .map((f) => ({ f, t: fs.statSync(path.join(root, f)).mtimeMs }))
-      .sort((a, b) => b.t - a.t);
-    if (!dirs.length) return { records: [] };
-    const dir = path.join(root, dirs[0].f);
-    const log = JSON.parse(fs.readFileSync(path.join(dir, 'log.json'), 'utf8'));
-    // Inline each frame as a data URI so the viewer needs no file access.
-    for (const r of log.records) {
-      try {
-        const b64 = fs.readFileSync(path.join(dir, r.frame)).toString('base64');
-        r.frameData = 'data:image/jpeg;base64,' + b64;
-      } catch { r.frameData = null; }
-    }
-    return { session: dirs[0].f, records: log.records };
-  } catch (e) {
-    return { records: [], error: e.message };
-  }
-}
+/** Metadata for the session picker: every kept session, and no frames. */
+function aiLogSessions() { return aiLogStore.sessions(aiLogRoot(), aiLogLiveId()); }
+
+/** One session with its frames, for the viewer. Newest unless asked otherwise. */
+function readAiLog(id) { return aiLogStore.read(aiLogRoot(), id, aiLogLiveId()); }
 
 function saveMatchSummary(data) {
   try {

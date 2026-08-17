@@ -15,7 +15,10 @@ contextBridge.exposeInMainWorld('ghost', {
     hasUi: (code) => I18N.hasUi(code),
   },
 
-  getLog: () => ipcRenderer.invoke(C.AILOG_GET),
-  ask:    (payload) => ipcRenderer.invoke(C.AILOG_ASK, payload),
+  // getLog(id) loads one session WITH its frames, so it is the expensive call.
+  // sessions() is metadata only and is what the picker is built from.
+  getLog:   (id) => ipcRenderer.invoke(C.AILOG_GET, id),
+  sessions: () => ipcRenderer.invoke(C.AILOG_SESSIONS),
+  ask:      (payload) => ipcRenderer.invoke(C.AILOG_ASK, payload),
   close:  () => window.close(),
 });

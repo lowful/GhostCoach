@@ -8,6 +8,20 @@ header {
 .h-brand { display: flex; align-items: center; gap: 10px; }
 .h-brand h2 { font-size: 14px; font-weight: 700; line-height: 1.1; }
 .sub { font-size: 10.5px; color: var(--text-mute); }
+.h-right { display: flex; align-items: center; gap: 8px; }
+
+/* Session picker. The option list is drawn by the OS, so both it and the closed
+   control need explicit colours or Windows paints dark text on a dark field. */
+.session-pick {
+  max-width: 300px; padding: 6px 8px;
+  font-family: var(--font); font-size: 11px; color: var(--text);
+  background: var(--glass-fill-2); border: 1px solid var(--glass-border);
+  border-radius: var(--r-sm); cursor: pointer;
+  transition: border-color var(--t-fast) var(--ease);
+}
+.session-pick:hover { border-color: rgba(var(--cyan-rgb), 0.4); }
+.session-pick:disabled { opacity: 0.5; cursor: default; }
+.session-pick option { background: var(--bg-2); color: var(--text); }
 
 .empty { flex: 1; display: grid; place-items: center; text-align: center; padding: 40px; color: var(--text-dim); font-size: 13px; line-height: 1.6; }
 

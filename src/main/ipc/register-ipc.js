@@ -56,7 +56,8 @@ function registerIpc(deps) {
   safeHandle(C.STATS_RANK_HISTORY, async (_e, force) => controller.getRankHistory(force));
   safeHandle(C.CHAT_SEED, async () => controller.takeChatSeed());
   safeHandle(C.WEEKLY_GET, async () => controller.getWeeklyReport());
-  safeHandle(C.AILOG_GET, async () => controller.getAiLog());
+  safeHandle(C.AILOG_GET, async (_e, id) => controller.getAiLog(id));
+  safeHandle(C.AILOG_SESSIONS, async () => controller.getAiLogSessions());
   safeHandle(C.AILOG_ASK, async (_e, payload) => controller.askAboutFrame(payload));
   safeHandle(C.APP_VERSION, async () => updater.getStatus());
   safeHandle(C.APP_UPDATE_CHECK, async () => updater.checkNow());

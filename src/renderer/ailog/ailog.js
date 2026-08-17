@@ -1,13 +1,19 @@
 'use strict';
 
 /**
- * AI decision-log viewer. Scrubs through this session's analyzed frames, each
+ * AI decision-log viewer. Scrubs through a session's analyzed frames, each
  * paired with the STATE the coach parsed (its notes) and the tip. Text only,
  * never innerHTML: STATE and tips are AI-written strings.
+ *
+ * The last five sessions are kept on disk and any of them can be opened from the
+ * picker, but only one is ever loaded. Frames are the expensive part, running
+ * several megabytes a session before base64 inflates them, so the picker is
+ * built from metadata alone and a switch pays for exactly one session.
  */
 const $ = (id) => document.getElementById(id);
 let records = [];
 let idx = 0;
+let sessionId = null;   // which session is loaded; rides along with every question
 
 // The STATE fields worth surfacing, in a sensible reading order, with the
 // location + alive reads flagged since those are the usual culprits.
@@ -123,11 +129,15 @@ function buildMarks() {
 const askLog = $('ask-log');
 const askInput = $('ask-input');
 const askSend = $('ask-send');
-let conversations = {};          // frame index -> [{ role, content }]
+// Keyed by session AND frame, not frame alone. Frame numbers restart in every
+// session, so an index-only key would show Tuesday's answer under tonight's
+// twelfth frame, which reads as the coach contradicting itself.
+let conversations = {};          // "session:index" -> [{ role, content }]
+const convKey = (i) => `${sessionId}:${i}`;
 
 function paintConversation() {
   askLog.textContent = '';
-  for (const m of conversations[idx] || []) {
+  for (const m of conversations[convKey(idx)] || []) {
     askLog.appendChild(el('div', 'ask-msg ' + (m.role === 'assistant' ? 'coach' : m.role === 'error' ? 'err' : 'you'), m.content));
   }
   askLog.scrollTop = askLog.scrollHeight;
@@ -137,8 +147,10 @@ async function ask(question) {
   const q = String(question || '').trim();
   if (!q || askSend.disabled) return;
   const at = idx;                                   // the frame this is about
-  conversations[at] = conversations[at] || [];
-  conversations[at].push({ role: 'user', content: q });
+  const key = convKey(at);
+  const from = sessionId;                           // and the session it belongs to
+  conversations[key] = conversations[key] || [];
+  conversations[key].push({ role: 'user', content: q });
   askInput.value = '';
   askSend.disabled = true;
   paintConversation();
@@ -148,21 +160,22 @@ async function ask(question) {
 
   try {
     const res = await window.ghost.ask({
+      session: from,        // or main would answer from the newest session's frames
       index: at,
       question: q,
       // Only this frame's history, so the coach is never answering about a
       // moment the player has already scrolled away from.
-      history: conversations[at].slice(0, -1),
+      history: conversations[key].slice(0, -1),
     });
     const reply = res && res.reply;
-    conversations[at].push(reply
+    conversations[key].push(reply
       ? { role: 'assistant', content: reply }
       : { role: 'error', content: (res && res.error) || 'No answer came back.' });
   } catch (e) {
-    conversations[at].push({ role: 'error', content: 'Could not reach the coach.' });
+    conversations[key].push({ role: 'error', content: 'Could not reach the coach.' });
   } finally {
     askSend.disabled = false;
-    if (at === idx) paintConversation();
+    if (at === idx && from === sessionId) paintConversation();
   }
 }
 
@@ -181,26 +194,83 @@ document.addEventListener('keydown', (e) => {
   else if (e.key === 'ArrowRight') go(idx + 1);
 });
 
-window.ghost.getLog().then((log) => {
-  records = (log && Array.isArray(log.records)) ? log.records : [];
-  if (!records.length) {
-    $('empty').hidden = false;
-    $('empty').textContent = 'No AI log yet. Start a coaching session (with the AI log enabled in Settings) and the frames the coach reads will show up here to review.';
-    return;
+// ── Sessions ────────────────────────────────────────────────────────────────
+const picker = $('session');
+
+/** "Today 21:35" / "Tue 21:35", since a bare timestamp is hard to place. */
+function sessionWhen(at) {
+  if (!at) return 'unknown time';
+  const d = new Date(at);
+  const clock = d.toTimeString().slice(0, 5);
+  const days = Math.floor((new Date().setHours(0, 0, 0, 0) - new Date(at).setHours(0, 0, 0, 0)) / 86400000);
+  if (days === 0) return `Today ${clock}`;
+  if (days === 1) return `Yesterday ${clock}`;
+  if (days < 7) return `${d.toLocaleDateString(undefined, { weekday: 'short' })} ${clock}`;
+  return `${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${clock}`;
+}
+
+/** A session covers however long you coached for, which can be several matches,
+ *  so the label names the maps rather than pretending it is one game. */
+function sessionLabel(s) {
+  const bits = [s.live ? `Current · ${sessionWhen(s.at)}` : sessionWhen(s.at)];
+  if (s.maps && s.maps.length) bits.push(s.maps.length > 2 ? `${s.maps[0]} +${s.maps.length - 1}` : s.maps.join(', '));
+  bits.push(`${s.frames} frames`);
+  if (s.deaths) bits.push(`${s.deaths} death${s.deaths === 1 ? '' : 's'}`);
+  return bits.join(' · ');
+}
+
+function paintPicker(sessions) {
+  picker.replaceChildren();
+  for (const s of sessions) {
+    const o = el('option', null, sessionLabel(s));
+    o.value = s.id;
+    picker.appendChild(o);
   }
-  $('main').hidden = false;
-  $('slider').max = String(records.length - 1);
-  const deaths = records.filter((r) => r.shown && r.shown.death).length;
-  $('subtitle').textContent = deaths
-    ? `${records.length} frames from your latest session, ${deaths} death ${deaths === 1 ? 'review' : 'reviews'}`
-    : `${records.length} frames from your latest session`;
-  buildMarks();
-  // Jump to the most recent frame first, that is usually what you want to review.
-  go(records.length - 1);
-}).catch((err) => {
-  $('empty').hidden = false;
-  $('empty').textContent = 'Could not load the AI log.';
-  console.error('[ailog] load failed', err);
-});
+  picker.value = sessionId || (sessions[0] && sessions[0].id) || '';
+  // With one session there is nothing to switch between, so the control would
+  // only be clutter on the surface it is least wanted on.
+  picker.hidden = sessions.length < 2;
+}
+
+function loadSession(id) {
+  picker.disabled = true;
+  $('subtitle').textContent = 'Loading frames...';
+  return window.ghost.getLog(id).then((log) => {
+    records = (log && Array.isArray(log.records)) ? log.records : [];
+    sessionId = (log && log.session) || null;
+    paintPicker((log && log.sessions) || []);
+    picker.disabled = false;
+
+    if (!records.length) {
+      $('main').hidden = true;
+      $('empty').hidden = false;
+      $('empty').textContent = 'No AI log yet. Start a coaching session (with the AI log enabled in Settings) and the frames the coach reads will show up here to review.';
+      $('subtitle').textContent = 'what the coach saw and said';
+      return;
+    }
+    $('empty').hidden = true;
+    $('main').hidden = false;
+    $('slider').max = String(records.length - 1);
+    const deaths = records.filter((r) => r.shown && r.shown.death).length;
+    const which = (log.sessions || []).find((s) => s.id === sessionId);
+    const when = which ? sessionWhen(which.at).toLowerCase() : 'your latest session';
+    $('subtitle').textContent = deaths
+      ? `${records.length} frames from ${when}, ${deaths} death ${deaths === 1 ? 'review' : 'reviews'}`
+      : `${records.length} frames from ${when}`;
+    buildMarks();
+    // Jump to the most recent frame first, that is usually what you want to review.
+    go(records.length - 1);
+  }).catch((err) => {
+    picker.disabled = false;
+    $('main').hidden = true;
+    $('empty').hidden = false;
+    $('empty').textContent = 'Could not load the AI log.';
+    console.error('[ailog] load failed', err);
+  });
+}
+
+picker.addEventListener('change', () => loadSession(picker.value));
+
+loadSession();
 
 console.log('[ailog] ready');
