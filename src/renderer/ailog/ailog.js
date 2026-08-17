@@ -14,6 +14,7 @@ const $ = (id) => document.getElementById(id);
 let records = [];
 let idx = 0;
 let sessionId = null;   // which session is loaded; rides along with every question
+let segments = [];      // confirmed map stretches, from the main process
 
 // The STATE fields worth surfacing, in a sensible reading order, with the
 // location + alive reads flagged since those are the usual culprits.
@@ -53,6 +54,24 @@ function render() {
   $('time').textContent = fmtTime(r.at, records[0] && records[0].at);
   $('slider').value = String(idx);
 
+  // The map for the stretch this frame sits in. Deliberately NOT r.state.map:
+  // that is one frame's guess, and one frame's guess is wrong often enough that
+  // showing it here would contradict the timeline directly above it.
+  const seg = segments.find((s) => idx >= s.from && idx <= s.to);
+  const segEl = $('seg');
+  if (!seg || !seg.map) {
+    segEl.textContent = segments.length ? 'map not confirmed' : '';
+    segEl.className = 'seg unsure';
+    segEl.title = 'The location names on screen were not enough to identify the map.';
+  } else {
+    const n = segments.filter((s) => s.map).length;
+    segEl.textContent = seg.map + (n > 1 ? ` (${segments.indexOf(seg) + 1} of ${n})` : '');
+    segEl.className = 'seg' + (seg.confirmed ? '' : ' unsure');
+    segEl.title = seg.confirmed
+      ? `Confirmed: the AI read ${seg.byModel} and the ${seg.labels} location names on screen also fingerprint ${seg.byLabel}.`
+      : `Unconfirmed: the AI read ${seg.byModel || 'nothing usable'}, the location names point to ${seg.byLabel || 'nothing definite'}. The location names are trusted.`;
+  }
+
   // Tip shown after the gates (and the raw AI tip when it differs / was dropped).
   const shown = r.shown && r.shown.text;
   const shownEl = $('shown');
@@ -88,6 +107,14 @@ function render() {
     const row = el('div', 'srow' + (flag === 'key' ? ' key' : '') + (key === 'playerAlive' && st[key] === false ? ' dead' : ''));
     row.appendChild(el('span', 'k', label));
     row.appendChild(el('span', 'v', v));
+    // These notes are the model's raw reads, so this row can disagree with the
+    // confirmed map above. Saying so is the point of showing both: a silent
+    // disagreement is the reader deciding which one to believe with no help.
+    if (key === 'map' && seg && seg.map && v !== seg.map) {
+      const bad = el('span', 'misread', `misread, it was ${seg.map}`);
+      bad.title = 'This one frame named a different map to the one confirmed for this stretch of the session.';
+      row.appendChild(bad);
+    }
     box.appendChild(row);
   }
   if (!any) box.appendChild(el('div', 'srow', 'The AI reported no readable HUD state for this frame.'));
@@ -110,6 +137,19 @@ function buildMarks() {
   const box = $('marks');
   box.replaceChildren();
   if (records.length < 2) return;
+
+  // Map changes first, so a death marker on the same frame draws on top of it.
+  // Only CONFIRMED changes are pinned: the AI's map read flickers to a wrong map
+  // for a frame or two several times a session, and a marker for each would
+  // claim the player changed map nine times in one game.
+  segments.slice(1).forEach((s) => {
+    const b = el('button', 'mark-map', s.map || '?');
+    b.type = 'button';
+    b.style.left = `${(s.from / (records.length - 1)) * 100}%`;
+    b.title = `Map changed to ${s.map || 'an unidentified map'} at frame ${s.from + 1}`;
+    b.addEventListener('click', () => go(s.from));
+    box.appendChild(b);
+  });
 
   records.forEach((r, i) => {
     if (!(r.shown && r.shown.death)) return;
@@ -237,6 +277,7 @@ function loadSession(id) {
   $('subtitle').textContent = 'Loading frames...';
   return window.ghost.getLog(id).then((log) => {
     records = (log && Array.isArray(log.records)) ? log.records : [];
+    segments = (log && Array.isArray(log.segments)) ? log.segments : [];
     sessionId = (log && log.session) || null;
     paintPicker((log && log.sessions) || []);
     picker.disabled = false;

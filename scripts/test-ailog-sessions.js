@@ -43,8 +43,8 @@ function makeSession(stamp, recs, mtime) {
 
 const T = Date.UTC(2026, 7, 10, 20, 0, 0);
 makeSession('2026-08-10T20-00-00-000Z', [
-  { at: T, state: { map: 'Bind' } },
-  { at: T + 600000, state: { map: 'Bind' }, shown: { text: 'died', death: true } },
+  { at: T, state: { map: 'Bind', locLabel: 'Hookah' } },
+  { at: T + 600000, state: { map: 'Bind', locLabel: 'Showers' }, shown: { text: 'died', death: true } },
 ], T);
 makeSession('2026-08-12T21-35-10-405Z', [
   { at: T + 86400000, state: { map: 'Haven' } },
@@ -74,9 +74,17 @@ ok(bind.frames === 2 && bind.deaths === 1, 'frame and death counts are right');
 ok(bind.mins === 10, `duration is read from the records (${bind.mins} min)`);
 ok(bind.live === false, 'a finished session is not marked live');
 
+// THE BUG THIS ASSERTION EXISTS FOR. This session's three frames each name a
+// different map, which is what a real session looks like when the model
+// flickers. Listing the raw reads labelled all five real sessions on this
+// machine with two or three maps when every one of them was a single map, so a
+// map must be corroborated before it is named at all.
 const multi = list.find((s) => s.id === 'session-2026-08-12T21-35-10-405Z');
-ok(multi.maps.join() === 'Haven,Lotus,Abyss', 'every map in a session is listed, in order');
+ok(multi.maps.length === 0, `three contradictory one-frame reads name no map (got ${JSON.stringify(multi.maps)})`);
 ok(multi.live === true, 'the session being written is marked live');
+
+// A session with a plurality and agreeing callouts DOES get named.
+ok(bind.maps.join() === 'Bind', `a corroborated map is named (${JSON.stringify(bind.maps)})`);
 
 // An empty session still gets a time, recovered from its folder name.
 const blank = list.find((s) => s.id === 'session-2026-08-13T10-00-00-000Z');

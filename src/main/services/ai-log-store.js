@@ -18,6 +18,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const timeline = require('./ai-log-timeline');
 
 /** Session folders that actually have an index, newest first. */
 function dirs(root) {
@@ -55,10 +56,10 @@ function sessions(root, liveId) {
         at: first.at || startedAt(id),
         frames: recs.length,
         deaths: recs.filter((r) => r.shown && r.shown.death).length,
-        // Maps are listed rather than used to split a session into matches. One
-        // misread map frame would split a single match into three, and the map
-        // lock exists precisely because those misreads happen.
-        maps: [...new Set(recs.map((r) => r.state && r.state.map).filter(Boolean))],
+        // CONFIRMED maps, not the raw reads. Listing what the model said would
+        // label all five real sessions on this machine with two or three maps
+        // each, when every one of them was a single map from start to finish.
+        maps: timeline.mapsPlayed(recs),
         mins: first.at && last.at ? Math.max(1, Math.round((last.at - first.at) / 60000)) : 0,
         live: !!liveId && id === liveId,
       };
@@ -83,7 +84,18 @@ function read(root, id, liveId) {
         r.frameData = 'data:image/jpeg;base64,' + fs.readFileSync(path.join(dir, r.frame)).toString('base64');
       } catch { r.frameData = null; }
     }
-    return { session: chosen, sessions: sessions(root, liveId), records: recs };
+    return {
+      session: chosen,
+      sessions: sessions(root, liveId),
+      records: recs,
+      // Where the map actually changed, so the scrubber can mark it. Computed
+      // once here rather than in the renderer, because it needs the callout
+      // fingerprint from the engine and a renderer has no Node access.
+      segments: timeline.segments(recs).map((s) => ({
+        from: s.from, to: s.to, map: s.map, confirmed: s.confirmed,
+        byModel: s.byModel, byLabel: s.byLabel, labels: s.labels,
+      })),
+    };
   } catch (e) {
     return { records: [], sessions: [], error: e.message };
   }

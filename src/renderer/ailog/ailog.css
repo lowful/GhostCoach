@@ -50,6 +50,19 @@ header {
 }
 .mark-death:hover { transform: translateX(-50%) scale(1.25); }
 
+/* Map changes. Only confirmed ones are ever drawn, so a marker here means the
+   map genuinely changed rather than the AI having a bad frame. */
+.mark-map {
+  position: absolute; top: -1px; transform: translateX(-50%);
+  padding: 1px 6px; border-radius: 999px;
+  font-family: var(--font); font-size: 9px; font-weight: 800;
+  letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap;
+  color: var(--text); background: rgba(var(--cyan-rgb), 0.16);
+  border: 1px solid rgba(var(--cyan-rgb), 0.45);
+  pointer-events: auto; cursor: pointer; line-height: 1.3;
+}
+.mark-map:hover { background: rgba(var(--cyan-rgb), 0.3); }
+
 .death-tag {
   display: inline-block; margin-right: 8px; padding: 2px 8px;
   border: 1px solid rgba(255,255,255,0.22); border-radius: 999px;
@@ -64,8 +77,12 @@ header {
 }
 .nav-btn:hover { border-color: rgba(var(--cyan-rgb),0.4); }
 .nav-btn:active { transform: scale(0.95); }
-.frame-meta { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim); }
+.frame-meta { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-dim); }
 .frame-meta .muted { color: var(--text-mute); }
+/* The confirmed map for this stretch. Dimmed and italic when the two reads
+   disagreed, so an uncertain answer never looks like a certain one. */
+.seg { font-weight: 700; color: var(--text); letter-spacing: 0.02em; }
+.seg.unsure { font-weight: 500; font-style: italic; color: var(--text-mute); }
 
 /* ── Read pane ──────────────────────────────────────────────────────────── */
 .read-pane { padding: 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
@@ -84,6 +101,14 @@ header {
 /* Highlight the location + alive reads, since those are the usual culprits. */
 .srow.key .v { color: var(--cyan); font-weight: 600; }
 .srow.dead .v { color: var(--red); font-weight: 600; }
+/* Flags a frame whose map read disagrees with the confirmed map for its stretch,
+   so the two readouts never quietly contradict each other. */
+.srow .misread {
+  flex: none; align-self: center; padding: 1px 6px; border-radius: 999px;
+  font-size: 9.5px; font-weight: 700; white-space: nowrap;
+  color: var(--red); background: rgba(var(--red-rgb), 0.12);
+  border: 1px solid rgba(var(--red-rgb), 0.35);
+}
 
 /* Why a tip the model produced never reached the player. */
 .why { margin-top: 6px; font-size: 11px; color: var(--bad); line-height: 1.45; }
