@@ -95,6 +95,11 @@ function read(root, id, liveId) {
         from: s.from, to: s.to, map: s.map, confirmed: s.confirmed,
         byModel: s.byModel, byLabel: s.byLabel, labels: s.labels,
       })),
+      // Every death, not just the ones the coach spoke about. The two differ by
+      // design, since the engine caps review tips and then goes quiet, so the
+      // marks used to stop at the coaching and leave real deaths unfindable.
+      deaths: timeline.deaths(recs),
+      deathCheck: timeline.deathSanity(recs),
     };
   } catch (e) {
     return { records: [], sessions: [], error: e.message };

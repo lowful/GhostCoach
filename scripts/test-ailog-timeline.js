@@ -146,6 +146,107 @@ ok(tl.segments(null).length === 0, 'a missing session has no segments');
     'a session the AI never read reports an unknown map rather than guessing');
 }
 
+// ── Deaths ──────────────────────────────────────────────────────────────────
+// Every tell below is copied verbatim from a real logged session, and the ones
+// asserted as alive were each confirmed by opening the screenshot.
+const at = (tell, extra = {}) => ({ state: { aliveTell: tell, ...extra }, shown: null });
+const dead = (tell, extra) => at(tell, extra);
+
+{
+  // The verdict on single frames, which is where both errors live.
+  const v = (t, e) => tl.aliveVerdict({ aliveTell: t, ...(e || {}) });
+  ok(v('spectating Fade with SWITCH PLAYER text bottom left') === 'dead', 'SWITCH PLAYER means dead');
+  ok(v('Killed by Clove, spectating own death') === 'dead', 'a killcam means dead');
+  ok(v('own HP 74 and Bandit bottom center') === 'alive', 'seeing your own hud means alive');
+
+  // The screenshot for this frame shows a living player at 100 HP with the
+  // scoreboard open. The server used to force it dead on the word "spectating"
+  // alone, and the flag in the stored log is still wrong, so the evidence in the
+  // tell has to win over the flag.
+  ok(v('own HP 100 and knife bottom center, spectating scoreboard', { playerAlive: false }) === 'alive',
+    'spectating the SCOREBOARD is not spectating a player');
+
+  // The reverse trap: a health number read off the spectated teammate's hud.
+  ok(v('Spectating THINKtwise with 87 HP and Vandal bottom center', { playerHp: 87, playerAlive: true }) === 'dead',
+    "a teammate's health number does not make you alive");
+}
+
+{
+  // A lone dead frame between living ones. Both of these were opened: the player
+  // is mid round holding their own weapon, with a teammate merely visible.
+  const recs = [
+    at('own HP 100 and Vandal bottom center'),
+    at('own HP 100 and Vandal bottom center'),
+    dead('Spectating teammate at C Garage with Sheriff'),
+    at('own HP 87 and Vandal bottom center'),
+    at('own HP 87 and Vandal bottom center'),
+  ];
+  ok(tl.deaths(recs).length === 0, 'a single unproven dead frame is not a death');
+}
+{
+  // The same shape, but the game printed SWITCH PLAYER, so it is real.
+  const recs = [
+    at('own HP 100 and Vandal bottom center'),
+    dead('Spectating Reyna with SWITCH PLAYER text bottom left'),
+    at('own HP 100 and knife bottom center'),
+  ];
+  ok(tl.deaths(recs).length === 1, 'a single PROVEN dead frame is a death');
+}
+{
+  // Unproven but sustained: dying ends your round, so the spectator hud stays up.
+  const recs = [
+    at('own HP 100 and Vandal bottom center'),
+    dead('Spectating Fade, own loadout replaced by teammate name'),
+    dead('spectating Fade with no own HP'),
+    at('own HP 100 and knife bottom center'),
+  ];
+  const d = tl.deaths(recs);
+  ok(d.length === 1 && d[0].at === 1, 'an unproven death that LASTS counts, and is placed at its first frame');
+}
+{
+  // Two deaths in a row must not merge, and a review only counts for its own.
+  const recs = [
+    at('own HP 100 and knife bottom center'),
+    dead('Killed by Clove, spectating own death'),
+    dead('Spectating Fade, own loadout not visible'),
+    at('own HP 100 and knife bottom center'),
+    at('own HP 100 and Vandal bottom center'),
+    dead('spectating Fade with SWITCH PLAYER text bottom left'),
+    dead('Spectating iphone5 with SWITCH PLAYER'),
+  ];
+  recs[1].shown = { text: 'you walked out alone', death: true };
+  const d = tl.deaths(recs);
+  ok(d.length === 2, `two separate deaths stay separate (got ${d.length})`);
+  ok(d[0].reviewed === true && d[1].reviewed === false, 'reviewed is tracked per death');
+  ok(d[0].killedBy === 'Clove', `the killer is read when it is stated (${d[0].killedBy})`);
+}
+{
+  // Joining mid death still counts it, rather than reporting a session with a
+  // visible death review as having had no deaths.
+  const recs = [
+    dead('Spectating Fade with SWITCH PLAYER text bottom left'),
+    dead('Spectating Fade, killed by Clove'),
+    at('own HP 100 and knife bottom center'),
+  ];
+  const d = tl.deaths(recs);
+  ok(d.length === 1 && d[0].joinedInProgress === true, 'a session opening mid death still records it');
+}
+{
+  // The stale combat report. "KILLED BY CLOVE" stays on screen through the end
+  // of the round and into the next buy phase, and three real frames carried it
+  // while the player was alive at full health.
+  const recs = [
+    at('own HP 100 and knife bottom center, KILLED BY CLOVE panel on right', { killFeed: 'Killed by Clove' }),
+    at('own HP 100 and knife bottom center, combat report visible', { killFeed: 'Killed by Clove' }),
+    at('own HP 100 and Vandal bottom center', { killFeed: 'Killed by Clove' }),
+  ];
+  ok(tl.deaths(recs).length === 0, 'a leftover KILLED BY panel is not a death');
+}
+{
+  ok(tl.deaths([]).length === 0, 'an empty session has no deaths');
+  ok(tl.deaths(null).length === 0, 'a missing session has no deaths');
+}
+
 // ── Against the real log, if there is one ───────────────────────────────────
 // Every session recorded so far is a single match on a single map, and each was
 // misreported as two or three maps before this existed.
@@ -161,6 +262,11 @@ if (fs.existsSync(root)) {
     const raw = new Set(recs.map((r) => r.state && r.state.map).filter(Boolean)).size;
     ok(segs.every((s) => s.confirmed),
       `${id.slice(8, 24)}: ${recs.length} frames, ${raw} maps read, ${segs.length} confirmed segment(s): ${segs.map((s) => s.map).join(' then ')}`);
+    // A player dies at most once per round, so this is a hard ceiling and
+    // breaking it means a run of frames was read as the wrong state.
+    const san = tl.deathSanity(recs);
+    ok(!san.overCeiling,
+      `${id.slice(8, 24)}: ${san.deaths} deaths in ${san.rounds} rounds, ${san.reviewed} reviewed`);
   }
 }
 

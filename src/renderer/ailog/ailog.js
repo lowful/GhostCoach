@@ -15,6 +15,7 @@ let records = [];
 let idx = 0;
 let sessionId = null;   // which session is loaded; rides along with every question
 let segments = [];      // confirmed map stretches, from the main process
+let deaths = [];        // every death found in the frames, reviewed or not
 
 // The STATE fields worth surfacing, in a sensible reading order, with the
 // location + alive reads flagged since those are the usual culprits.
@@ -151,13 +152,21 @@ function buildMarks() {
     box.appendChild(b);
   });
 
-  records.forEach((r, i) => {
-    if (!(r.shown && r.shown.death)) return;
-    const b = el('button', 'mark-death', '\u{1F480}');
+  // EVERY death, not only the ones the coach reviewed. Marking review tips meant
+  // the timeline stopped wherever the coaching stopped: the engine sends at most
+  // two reviews per death and then stays quiet until the next buy phase, so on a
+  // real session it pinned 5 marks for 8 deaths and the other three could not be
+  // found by scrubbing at all.
+  deaths.forEach((d) => {
+    const b = el('button', 'mark-death' + (d.reviewed ? '' : ' unreviewed'), '\u{1F480}');
     b.type = 'button';
-    b.style.left = `${(i / (records.length - 1)) * 100}%`;
-    b.title = `Death review at frame ${i + 1}: ${r.shown.text || ''}`;
-    b.addEventListener('click', () => go(i));
+    b.style.left = `${(d.at / (records.length - 1)) * 100}%`;
+    const who = d.killedBy ? ` to ${d.killedBy}` : '';
+    const where = d.round ? ` in round ${d.round}` : '';
+    b.title = d.reviewed
+      ? `Death${where}${who}, reviewed by the coach. Frame ${d.at + 1}.`
+      : `Death${where}${who}, no review was shown. Frame ${d.at + 1}.`;
+    b.addEventListener('click', () => go(d.at));
     box.appendChild(b);
   });
 }
@@ -278,6 +287,7 @@ function loadSession(id) {
   return window.ghost.getLog(id).then((log) => {
     records = (log && Array.isArray(log.records)) ? log.records : [];
     segments = (log && Array.isArray(log.segments)) ? log.segments : [];
+    deaths = (log && Array.isArray(log.deaths)) ? log.deaths : [];
     sessionId = (log && log.session) || null;
     paintPicker((log && log.sessions) || []);
     picker.disabled = false;
@@ -292,11 +302,14 @@ function loadSession(id) {
     $('empty').hidden = true;
     $('main').hidden = false;
     $('slider').max = String(records.length - 1);
-    const deaths = records.filter((r) => r.shown && r.shown.death).length;
     const which = (log.sessions || []).find((s) => s.id === sessionId);
     const when = which ? sessionWhen(which.at).toLowerCase() : 'your latest session';
-    $('subtitle').textContent = deaths
-      ? `${records.length} frames from ${when}, ${deaths} death ${deaths === 1 ? 'review' : 'reviews'}`
+    // Deaths and reviews are counted separately, because they are different
+    // numbers and the gap between them is the useful part: it says how many
+    // times you died without the coach telling you anything about it.
+    const seen = deaths.filter((d) => d.reviewed).length;
+    $('subtitle').textContent = deaths.length
+      ? `${records.length} frames from ${when}, ${deaths.length} death${deaths.length === 1 ? '' : 's'}, ${seen} reviewed`
       : `${records.length} frames from ${when}`;
     buildMarks();
     // Jump to the most recent frame first, that is usually what you want to review.

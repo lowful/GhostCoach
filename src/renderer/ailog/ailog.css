@@ -49,6 +49,11 @@ header {
   background: none; border: 0; padding: 0;
 }
 .mark-death:hover { transform: translateX(-50%) scale(1.25); }
+/* A death the coach never reviewed. Dimmed rather than hidden, because it is
+   still a moment worth scrubbing to, and the contrast with the solid marks is
+   the point: it shows where the coaching went quiet. */
+.mark-death.unreviewed { opacity: 0.45; filter: grayscale(1) drop-shadow(0 0 4px rgba(255,255,255,0.35)); }
+.mark-death.unreviewed:hover { opacity: 1; }
 
 /* Map changes. Only confirmed ones are ever drawn, so a marker here means the
    map genuinely changed rather than the AI having a bad frame. */

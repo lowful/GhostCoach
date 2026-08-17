@@ -188,6 +188,18 @@ BEFORE you name one, check the ability bar in THIS frame: bright means ready, di
 // below is a phrasing taken from a real logged session.
 const SPECTATE_TELL = /\bspectat(e|es|ing|or)\b|\bswitch player\b|\bkill ?cam\b|\bteammate\b[^.]{0,24}\bhp\b|\bwatching (a |your )?teammate\b/i;
 
+// THE ONE SCREEN A LIVING PLAYER ALSO OPENS. Everything else the model reports
+// spectating is a person or the spectator interface itself, which is exactly the
+// evidence this tell is looking for: measured across 129 matching frames of real
+// sessions it says a teammate's name, "teammate", "ui", "hud", "camera" or
+// "screen". "Scoreboard" appeared once, on a frame where the screenshot shows
+// the player alive at 100 HP with the scoreboard open and no SWITCH PLAYER
+// anywhere, and the tell still read "own HP 100 and knife bottom center,
+// spectating scoreboard". The rule then declared a live player dead in the
+// middle of a round and threw away a correct health reading, which is the exact
+// failure it was written to prevent, arriving from the other direction.
+const SPECTATE_FALSE_FRIEND = /\bspectat(?:e|es|ing|or)\s+(?:the\s+)?(?:score\s?board|mini\s?map)\b/i;
+
 // A RATE LIMIT IS NOT AN EMPTY WALLET, and it says so in words that overlap.
 // Rate-limit bodies routinely mention "quota", which the wording test above
 // treats as a money problem, so a burst of requests could trip the breaker, shut
@@ -1231,7 +1243,8 @@ function mapState(s) {
   // So when the tell says spectating, the tell wins and the health number is
   // DROPPED rather than reassigned, because it belongs to somebody else and a
   // teammate's health passed off as the player's is worse than no reading.
-  if (out.aliveTell && SPECTATE_TELL.test(out.aliveTell)) {
+  if (out.aliveTell && SPECTATE_TELL.test(out.aliveTell)
+      && !(SPECTATE_FALSE_FRIEND.test(out.aliveTell) && !/\bswitch player\b|\bkill ?cam\b/i.test(out.aliveTell))) {
     if (out.playerAlive !== false || out.playerHp != null) {
       console.log(`[coach] spectator tell beats the health number: "${out.aliveTell}"`
         + ` (reported alive:${out.playerAlive} hp:${out.playerHp})`);

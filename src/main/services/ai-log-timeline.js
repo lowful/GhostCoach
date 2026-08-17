@@ -177,4 +177,161 @@ function mapsPlayed(records) {
     .filter((m, i, a) => m !== a[i - 1]);
 }
 
-module.exports = { segments, mapsPlayed, matchStarts, MIN_RUN };
+// ── Deaths ───────────────────────────────────────────────────────────────────
+// The timeline used to pin `shown.death`, which marks a frame where a death
+// REVIEW was displayed. That is a record of coaching, not of dying, and the two
+// are deliberately different: the engine sends at most DEATH_TIPS_MAX reviews
+// per death and then goes quiet until the next buy phase, so a death during the
+// silence leaves no mark at all. Measured on a real session that showed 5 review
+// markers, the player actually died 9 times.
+//
+// Deciding it from the frames instead needs care in BOTH directions, because
+// both errors were found in the same session by opening the screenshots:
+//
+//   - the "KILLED BY <enemy>" combat report stays on screen through the end of
+//     the round and into the next buy phase. Three frames showing a living
+//     player at full health carried that panel, so anything keying off it
+//     invents deaths that already happened.
+//   - the health number belongs to the SPECTATED teammate while dead, so a
+//     confident "100 HP" is not evidence of being alive.
+//
+// The signal that actually separates them is the spectator interface: SWITCH
+// PLAYER, a killcam, or watching a named player. That is what is required here.
+
+// Evidence that the player is watching somebody else, which is the only
+// dependable sign of being dead. A person or the spectator UI, not the
+// scoreboard, which a living player opens too.
+const SPECTATING = /\bswitch player\b|\bkill ?cam\b|\bspectat(?:e|es|ing|or)\b|\bwatching (?:a |your )?teammate\b|\bteammate\b[^.]{0,24}\bhp\b/i;
+const NOT_SPECTATING = /\bspectat(?:e|es|ing|or)\s+(?:the\s+)?(?:score\s?board|mini\s?map)\b/i;
+// Evidence the player is looking at their OWN hud: their loadout and health.
+const OWN_HUD = /\bown (?:hp|health|loadout|weapon|abilit)/i;
+
+// PROOF rather than interpretation. Valorant prints SWITCH PLAYER on screen only
+// while spectating, so the model reporting those words is reporting something it
+// read. "Spectating <name>" is the model's own description, and it is wrong: two
+// frames were opened whose tells read "Spectating teammate at C Garage with
+// Sheriff" and "Spectating teammate Vandal and 100 HP bottom center", and both
+// screenshots show a living player mid round holding their own weapon, with a
+// teammate simply visible in the world. So the weak phrasing needs the death to
+// last, and the strong phrasing stands on its own.
+const SPECTATING_PROOF = /\bswitch player\b|\bkill ?cam\b|\bspectating own death\b|\bdead [a-z]{0,10} ?body\b/i;
+
+/** dead | alive | unknown for one frame, from the tell rather than the flag. */
+function aliveVerdict(state) {
+  const s = state || {};
+  const tell = String(s.aliveTell || '');
+  const spectating = SPECTATING.test(tell)
+    && !(NOT_SPECTATING.test(tell) && !/\bswitch player\b|\bkill ?cam\b/i.test(tell));
+  if (spectating) return 'dead';
+  // Seeing your OWN loadout and health, with no spectator interface anywhere,
+  // beats the flag. It has to, because the flag can already be wrong: the server
+  // used to force it false on any sentence containing "spectating", and one real
+  // frame read "own HP 100 and knife bottom center, spectating scoreboard" while
+  // the screenshot showed a living player with the scoreboard open. Logs written
+  // before that was fixed still carry the wrong flag, so this reads the evidence
+  // and not the conclusion.
+  if (OWN_HUD.test(tell)) return 'alive';
+  if (s.playerAlive === false) return 'dead';
+  if (s.playerAlive === true) return 'alive';
+  return 'unknown';
+}
+
+/**
+ * Every death in a session: the frame the player was first seen dead, whether a
+ * review was shown for it, and which round it fell in.
+ *
+ * A death is a transition from a corroborated ALIVE run to a corroborated DEAD
+ * run. Unknown frames extend whichever run they sit in rather than ending it,
+ * because the hud is genuinely unreadable during a killcam and a gap is not
+ * evidence of anything.
+ */
+function deaths(records) {
+  const recs = Array.isArray(records) ? records : [];
+
+  // Group into runs first, because a death is judged on the run and not on the
+  // frame that started it. Unknown frames extend whichever run they sit in.
+  const runs = [];
+  let state = null;
+  for (let i = 0; i < recs.length; i++) {
+    const v = aliveVerdict(recs[i].state);
+    if (v === 'unknown') { if (runs.length) runs[runs.length - 1].to = i; continue; }
+    if (v !== state) { runs.push({ verdict: v, from: i, to: i, opening: state === null }); state = v; }
+    else if (runs.length) runs[runs.length - 1].to = i;
+  }
+
+  const out = [];
+  for (const run of runs) {
+    if (run.verdict !== 'dead') continue;
+    const tells = recs.slice(run.from, run.to + 1)
+      .map((r) => String((r.state || {}).aliveTell || '')).join(' | ');
+    const proven = SPECTATING_PROOF.test(tells);
+    const frames = run.to - run.from + 1;
+
+    // A REAL death lasts. Dying ends your round, so the spectator hud stays up
+    // until the next one, which at a ten second capture is almost never a single
+    // frame. A lone dead frame between two living ones is the model misreading a
+    // teammate in the world as a spectator view, so it needs the printed proof.
+    if (!proven && frames < 2) continue;
+
+    const s = recs[run.from].state || {};
+    out.push({
+      at: run.from,
+      frames,
+      proven,
+      // A session that opens on a dead frame joined a death already in progress.
+      // Recording it beats dropping it: one nine frame session began mid death,
+      // and dropping it reported zero deaths for a session that had visibly
+      // shown a death review.
+      joinedInProgress: !!run.opening,
+      round: (typeof s.teamScore === 'number' && typeof s.enemyScore === 'number')
+        ? s.teamScore + s.enemyScore + 1 : null,
+      killedBy: killerOf(recs, run.from),
+      // Was the player actually told anything about this one?
+      reviewed: recs.slice(run.from, run.to + 2).some((r) => r.shown && r.shown.death),
+    });
+  }
+  return out;
+}
+
+/** Who did it, from the kill feed or the tell, when either says so plainly. */
+function killerOf(recs, i) {
+  for (const r of recs.slice(i, i + 3)) {
+    const s = r.state || {};
+    const m = /killed by ([A-Za-z0-9|_. -]{2,24})/i.exec(`${s.aliveTell || ''} ${s.killFeed || ''}`);
+    if (m) return m[1].trim().replace(/[,.]$/, '');
+  }
+  return null;
+}
+
+/**
+ * A player dies at most ONCE per round, so more deaths than rounds means the
+ * detector is wrong somewhere. This REPORTS that rather than acting on it.
+ *
+ * Merging deaths that share a round was tried first and was worse. It silently
+ * threw away real deaths, because the round is derived from the model's own
+ * scoreboard read and that read lags: three genuine deaths, each verified
+ * against its screenshot, all carried the score 2-3 while the screenshots showed
+ * 1-2, 2-3 and 2-3. A ceiling built on an unreliable number must not be allowed
+ * to delete evidence, so it is a diagnostic and nothing more.
+ */
+function deathSanity(records) {
+  const found = deaths(records);
+  const recs = Array.isArray(records) ? records : [];
+  let rounds = 0;
+  for (const r of recs) {
+    const s = r.state || {};
+    if (typeof s.teamScore === 'number' && typeof s.enemyScore === 'number') {
+      rounds = Math.max(rounds, s.teamScore + s.enemyScore + 1);
+    }
+  }
+  return {
+    deaths: found.length,
+    rounds: rounds || null,
+    reviewed: found.filter((d) => d.reviewed).length,
+    // True when the count is impossible, which means a run of frames was read
+    // as alive in the middle of a death, or as dead in the middle of a life.
+    overCeiling: !!rounds && found.length > rounds,
+  };
+}
+
+module.exports = { segments, mapsPlayed, matchStarts, deaths, deathSanity, aliveVerdict, MIN_RUN };

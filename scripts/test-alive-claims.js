@@ -85,5 +85,30 @@ const plainDeath = mapState({ alive: false, hp: null, aliveTell: 'no HP number, 
 check('  a plain death with no health number stays dead',
   plainDeath.playerAlive === false && plainDeath.playerHp == null);
 
+console.log('\nthe scoreboard is not a player, so watching it is not spectating:');
+// The rule above fires on the word "spectating", and this tell contains it. The
+// screenshot for this exact frame shows a living player at 100 HP with the
+// scoreboard open and no SWITCH PLAYER anywhere, so the rule declared a live
+// player dead mid round and deleted a correct health reading, which is the same
+// failure it exists to prevent arriving from the other side. Measured across 129
+// real spectating frames, every other one names a person or the spectator
+// interface itself.
+const board = mapState({ alive: true, hp: 100, aliveTell: 'own HP 100 and knife bottom center, spectating scoreboard' });
+check('  "spectating scoreboard" leaves a living player alive',
+  board.playerAlive === true && board.playerHp === 100,
+  `got alive:${board.playerAlive} hp:${board.playerHp}`);
+
+// But the printed proof still wins, even alongside the scoreboard.
+const boardDead = mapState({ alive: true, hp: 100, aliveTell: 'spectating scoreboard with SWITCH PLAYER bottom left' });
+check('  SWITCH PLAYER still beats it',
+  boardDead.playerAlive === false && boardDead.playerHp == null,
+  `got alive:${boardDead.playerAlive} hp:${boardDead.playerHp}`);
+
+// And a named teammate is unambiguous.
+const named = mapState({ alive: true, hp: 100, aliveTell: 'own HP 100 and knife bottom center, spectating Reyna' });
+check('  spectating a named player is still a death',
+  named.playerAlive === false && named.playerHp == null,
+  `got alive:${named.playerAlive} hp:${named.playerHp}`);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
