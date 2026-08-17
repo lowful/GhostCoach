@@ -21,6 +21,10 @@
  */
 const fs = require('fs');
 const path = require('path');
+// The engine's own rules, imported rather than reimplemented, so this reviewer
+// cannot drift away from the thing it is reviewing.
+const { polishText } = require(path.join(__dirname, '..', 'src', 'main', 'services', 'tip-hygiene.js'));
+const { __test } = require(path.join(__dirname, '..', 'src', 'main', 'services', 'coaching-engine.js'));
 
 const APPDATA = process.env.APPDATA || path.join(process.env.HOME || '', 'AppData', 'Roaming');
 const LOGS = path.join(APPDATA, 'GhostCoach 2.0', 'ai-log');
@@ -70,8 +74,16 @@ check('no tip SHOUTS in capitals', shouty.length === 0, shouty[0]);
 // "...WITH your, AND HOLD AN OFF-ANGLE..." shipped: the noun after the
 // possessive was dropped, so the sentence still ended properly and the
 // end-of-sentence truncation check could not see it.
-const fragment = shown.filter((t) => /\b(your|their|his|her|my|our|the|a|an)\s*[,.]/i.test(t));
-check('no dangling possessive mid sentence', fragment.length === 0, fragment[0]);
+//
+// THIS IMPORTS THE ENGINE'S RULE RATHER THAN COPYING IT. The copy that used to
+// live here still matched "a" case-insensitively, which the engine had already
+// been fixed not to do, so it flagged "four teammates committed A, so you had
+// no trade partner" as a dropped noun. That is the A site being mistaken for an
+// English article for the third time in this project, and the second time in a
+// checker rather than in the app. A reviewer that reimplements the rule it is
+// reviewing will always drift away from it.
+const fragment = shown.filter((t) => polishText(t, 'ai') === null);
+check('every shown tip survives the text rules', fragment.length === 0, fragment[0]);
 
 // "You are lone in B Lobby" reached a player twice across sessions.
 const lone = shown.filter((t) => /\b(you are|is) lone\b/i.test(t));
@@ -153,6 +165,52 @@ const dominant = themes.map(([n, re]) => [n, shown.filter((t) => re.test(t)).len
 check('no single theme dominates what the player sees',
   !shown.length || dominant[1] / shown.length < 0.5,
   `"${dominant[0]}" in ${dominant[1]}/${shown.length}`);
+
+// ── Tip accuracy ────────────────────────────────────────────────────────────
+/**
+ * The share of shown tips that break no checkable rule.
+ *
+ * "Accurate" needs a definition or it is just a feeling. A tip is not simply
+ * right or wrong, and no honest score can grade whether advice was WISE. What
+ * can be graded, exactly, is whether a tip contradicts something the app had
+ * already counted or read off the screen, because those are facts, not
+ * opinions: a tip saying "last alive" while three teammates are up is wrong in
+ * a way nobody has to argue about.
+ *
+ * So this counts hard errors only, and every rule below fired on a real tip
+ * that reached a real player. Repetition is deliberately NOT counted here: a
+ * repeated tip is dull, not inaccurate, and folding the two together would hide
+ * whichever one is currently worse.
+ */
+const ACCURACY_TARGET = 95;
+
+const HARD_RULES = [
+  ['contradicts the counted state', (t, s) => !!__test.contradictsState(t, s)],
+  ['fails the text rules', (t) => polishText(t, 'ai') === null],
+  ['tells a living player they are dead', (t, s) => {
+    const spectating = /spectat|switch player|killcam/i.test(String(s.aliveTell || ''));
+    const alive = !spectating && (s.playerAlive === true || (typeof s.playerHp === 'number' && s.playerHp > 0));
+    return alive && /\byou are (dead|spectating)\b|\byou'?re (dead|spectating)\b/i.test(t);
+  }],
+];
+
+const graded = recs.filter((r) => r.shown && r.shown.text);
+const errors = [];
+for (const r of graded) {
+  for (const [label, rule] of HARD_RULES) {
+    let bad = false;
+    try { bad = rule(r.shown.text, r.state || {}); } catch { bad = false; }
+    if (bad) { errors.push({ label, text: r.shown.text }); break; }
+  }
+}
+const accuracy = graded.length ? Math.round(((graded.length - errors.length) / graded.length) * 1000) / 10 : 100;
+
+console.log(`\nTIP ACCURACY: ${accuracy}%  (${graded.length - errors.length}/${graded.length} shown tips break no checkable rule)`);
+for (const e of errors.slice(0, 5)) {
+  console.log(`  ${e.label}: ${e.text.slice(0, 92)}`);
+}
+check(`accuracy is at least ${ACCURACY_TARGET}%`, accuracy >= ACCURACY_TARGET,
+  `${accuracy}% with ${errors.length} hard error(s) in ${graded.length} shown tips`);
 
 // ── Report ──────────────────────────────────────────────────────────────────
 for (const r of results) {

@@ -497,6 +497,29 @@ class CoachingEngine extends EventEmitter {
       // them said "trade partner" after a trade tip had just gone out, 12 more
       // said hold tight. Naming the blocked plays turns a vague instruction to
       // vary into a constraint the model can actually satisfy.
+      // THE THEME THIS SESSION HAS WORN OUT.
+      //
+      // blockedPlays below only stops back-to-back repeats, and that is not the
+      // shape of the problem. Across one real session 9 of the 15 tips a player
+      // saw contained the word "alone", none of them adjacent, so every
+      // back-to-back rule passed while the session as a whole said one thing
+      // over and over. This reports the theme that has taken over the tips the
+      // player has ACTUALLY seen, so the model can be told to leave it alone
+      // rather than merely to vary its wording.
+      overusedTheme: (() => {
+        const seen = this.tipHistory.slice(-8).map((t) => String(t.text || ''));
+        if (seen.length < 4) return null;
+        const THEMES = [
+          ['playing alone', /\balone\b|\bsolo\b|\bisolated\b/i],
+          ['waiting for a trade', /\btrade\b/i],
+          ['holding tight', /hold[^.]*tight|stay tight|tight to/i],
+          ['waiting for the team', /wait for|until your team|before you peek/i],
+        ];
+        for (const [label, re] of THEMES) {
+          if (seen.filter((t) => re.test(t)).length / seen.length > 0.5) return label;
+        }
+        return null;
+      })(),
       blockedPlays: this.tipHistory.slice(-2)
         .map((t) => playPatternIn(t.text)).filter(Boolean),
       enemyHistory: this.enemyHistory.slice(-6),
@@ -888,6 +911,21 @@ class CoachingEngine extends EventEmitter {
     if (source !== 'system' && this.roundDecided()) {
       noteReject('every enemy is dead, the round is already decided, staying quiet until the next one');
       return false;
+    }
+
+    // THE TIP ASSERTS SOMETHING THE HUD ALREADY DISAGREES WITH.
+    //
+    // Two of these reached a player in one session:
+    //   "You are last alive on defense"          with THREE teammates alive
+    //   "last alive in a 1v5, use the spike timer" during the BUY PHASE, no spike
+    //
+    // Both read as confident, specific coaching, and both describe a round that
+    // is not happening. This is the same principle as HP beats death: the coach
+    // reports what is on screen and never infers, so when a sentence contradicts
+    // a number the app has already counted, the number wins.
+    if (source === 'ai') {
+      const wrong = contradictsState(text, this.matchContext);
+      if (wrong) { noteReject(wrong); return false; }
     }
 
     // Never blame the player for a play this coach just recommended. Checked
@@ -2220,6 +2258,50 @@ function playPatternIn(text) {
  *
  * @returns the play name when the tip contradicts recent advice, else null
  */
+// Claims the tip can make that the app has already COUNTED, so a disagreement
+// is a fact-check rather than a matter of taste.
+const CLAIMS_LAST_ALIVE = /\blast alive\b|\b1v[2-9]\b|\bclutch(ing)?\b|\ball your teammates are dead\b|\byou are alone against\b/i;
+const CLAIMS_SPIKE_DOWN = /\bspike timer\b|\bspike is (down|planted)\b|\bpost.?plant\b|\bthe defuse\b|\bdefusing\b/i;
+
+/**
+ * Does this tip contradict something the HUD read already established?
+ *
+ * Every rule here fired on a real tip that reached a real player. The failure
+ * is not that the advice is bad, it is that the advice is about a round that is
+ * not happening, which is far more corrosive: it is specific, confident and
+ * checkable, so the player knows immediately that the coach is not watching.
+ *
+ * Only ever rejects on a POSITIVE contradiction. A missing count means the app
+ * does not know, and not knowing is never grounds for throwing away a tip.
+ *
+ * @returns a reject reason, or null when nothing conflicts
+ */
+function contradictsState(text, ctx) {
+  const t = String(text || '');
+  if (!ctx) return null;
+
+  // "Last alive" is a count, and the app has the count.
+  if (CLAIMS_LAST_ALIVE.test(t)
+      && typeof ctx.teammatesAlive === 'number' && ctx.teammatesAlive > 0) {
+    return `said the player was last alive while ${ctx.teammatesAlive} teammates were still up`;
+  }
+
+  // A clutch cannot happen during the buy phase: nobody has died yet. This is
+  // usually a stale count carried over from the end of the previous round, and
+  // it produced "last alive in a 1v5" to a player at full health in buy.
+  if (CLAIMS_LAST_ALIVE.test(t) && ctx.phase === 'buy') {
+    return 'described a clutch during the buy phase, where nobody has died yet';
+  }
+
+  // The spike drives a whole family of advice, so referencing it when it is not
+  // down sends the player to defuse something that does not exist.
+  if (CLAIMS_SPIKE_DOWN.test(t) && ctx.phase === 'buy') {
+    return 'referenced the spike during the buy phase, before it can be planted';
+  }
+
+  return null;
+}
+
 function blamesOwnAdvice(text, tipHistory) {
   const t = String(text || '');
   if (!DEATH_REVIEW_RE.test(t)) return null;   // only a review assigns fault
@@ -2364,4 +2446,4 @@ module.exports = CoachingEngine;
 // Exposed for tests. The death-location gate is the kind of rule that is easy
 // to get subtly wrong (gating a general tip, or letting the spectated location
 // through), so it is checked directly rather than only through a live session.
-module.exports.__test = { blamesOwnAdvice, isDeathReview, wrongDeathSpot, namedCallouts, namedSpots, wrongSideHold, mapFromLabels, claimsNotAlive, verifyTip };
+module.exports.__test = { contradictsState, blamesOwnAdvice, isDeathReview, wrongDeathSpot, namedCallouts, namedSpots, wrongSideHold, mapFromLabels, claimsNotAlive, verifyTip };
