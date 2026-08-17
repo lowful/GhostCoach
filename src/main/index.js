@@ -46,7 +46,7 @@ const splashWindow     = require('./windows/splash-window');
 const api              = require('./services/api-client');
 const aiLogStore       = require('./services/ai-log-store');
 const aiLogTimeline    = require('./services/ai-log-timeline');
-const { reconcile: reconcileDeaths, summarise: summariseDeaths } = require('./services/death-reconcile');
+const { reconcile: reconcileDeaths, summarise: summariseDeaths, makeCheckCache } = require('./services/death-reconcile');
 const tray     = require('./tray');
 const hotkeys  = require('./hotkeys');
 const registerIpc = require('./ipc/register-ipc');
@@ -1439,8 +1439,15 @@ function recordAiFrame(d) {
       const drop = aiLogRecords.shift();
       try { fs.unlinkSync(path.join(aiLogDir, drop.frame)); } catch {}
     }
-    fs.writeFileSync(path.join(aiLogDir, 'log.json'),
-      JSON.stringify({ startedAt: aiLogRecords[0] ? aiLogRecords[0].at : Date.now(), records: aiLogRecords }));
+    // The app version is stamped so a review of this session can tell whether it
+    // predates a guard. Grading an old session with today's checkers reports
+    // failures the current build already fixes, and a review tool that cries
+    // regression at fixed bugs stops being believed.
+    fs.writeFileSync(path.join(aiLogDir, 'log.json'), JSON.stringify({
+      startedAt: aiLogRecords[0] ? aiLogRecords[0].at : Date.now(),
+      app: app.getVersion(),
+      records: aiLogRecords,
+    }));
   } catch (e) { /* a dropped frame is not worth interrupting coaching */ }
 }
 
@@ -1456,20 +1463,32 @@ function readAiLog(id) { return aiLogStore.read(aiLogRoot(), id, aiLogLiveId());
 /**
  * Check a logged session's deaths against Riot's record of the match.
  *
- * Three tracker calls, so the result is cached for the life of the process: the
- * HenrikDev rate limit is strict enough to have emptied whole queues out of the
- * stats view before, and reopening the log should not cost anything.
+ * Three tracker calls, so results are cached: the HenrikDev rate limit is strict
+ * enough to have emptied whole queues out of the stats view before, and
+ * reopening the log should not cost anything.
+ *
+ * A CONFIRMED result is cached for the life of the process, because a finished
+ * match never changes. A FAILURE is cached only briefly, and that difference
+ * matters more than it looks: the tracker takes a minute or two to index a match
+ * after it ends, and the session a player is most likely to open is the one they
+ * just played. Caching "no match lines up" permanently meant checking once,
+ * seconds too early, and then never again, so the confirmation silently never
+ * appeared for the game they actually wanted it for.
  *
  * Everything here fails to "unavailable" rather than to an error, because this
  * is a confirmation of something the viewer has already shown. No Riot ID, no
  * network, an unranked custom the tracker never saw: in all of those the deaths
  * read off the screen are still the best available answer.
  */
-const deathCheckCache = new Map();      // session id -> reconciliation
+const DEATH_CHECK_RETRY_MS = 3 * 60 * 1000;   // how long a failure is remembered
+const deathChecks = makeCheckCache(DEATH_CHECK_RETRY_MS);
+const deathCheckRemember = (key, rec) => deathChecks.remember(key, rec);
+
 async function confirmDeaths(id) {
   const chosen = aiLogStore.dirs(aiLogRoot()).includes(String(id)) ? String(id) : (aiLogStore.dirs(aiLogRoot())[0] || null);
   if (!chosen) return { status: 'unavailable' };
-  if (deathCheckCache.has(chosen)) return deathCheckCache.get(chosen);
+  const cached = deathChecks.get(chosen);
+  if (cached) return cached;
 
   const riotId = (store.get('riotId') || '').trim();
   const licenseKey = store.get('licenseKey');
@@ -1484,33 +1503,45 @@ async function confirmDeaths(id) {
 
     // Both queues, because a coached game is as likely to be unrated as ranked
     // and the match list is per queue.
+    //
+    // ONE RETRY PER QUEUE, because the tracker's account lookup fails
+    // intermittently under its own rate limit and reports it as "Account not
+    // found", which reads like a wrong Riot ID rather than a blip. Reproduced
+    // here four times in a row: the first call failed and the second, seconds
+    // later, returned all ten matches. Losing a queue to that means losing every
+    // unrated game, which is most of what gets coached.
     const matches = [];
     for (const mode of ['competitive', 'unrated']) {
-      const { ok, data } = await api.get(
-        `/api/coach/matches?mode=${mode}&username=${encodeURIComponent(riotId)}`, licenseKey, 30000);
-      if (ok && data && Array.isArray(data.matches)) matches.push(...data.matches);
+      for (let attempt = 0; attempt < 2; attempt++) {
+        if (attempt) await new Promise((r) => setTimeout(r, 2500));
+        const { ok, data } = await api.get(
+          `/api/coach/matches?mode=${mode}&username=${encodeURIComponent(riotId)}`, licenseKey, 30000);
+        if (ok && data && Array.isArray(data.matches)) { matches.push(...data.matches); break; }
+        if (attempt) console.log(`[ai-log] ${mode} match list unavailable: ${(data && data.error) || 'no answer'}`);
+      }
     }
     // The same verification the session review uses, so a session is never
     // graded against a match somebody else was playing.
     const mctx = { map: segs[0] && segs[0].map, agent: null };
     const hit = matches.find((m) => verifyCoachedMatch(m, recs[0].at, recs[recs.length - 1].at, mctx).ok);
     if (!hit) {
-      const miss = { status: 'unavailable', why: 'no tracker match lines up with this session' };
-      deathCheckCache.set(chosen, miss);
-      return miss;
+      // Short lived on purpose: a match that has only just ended is not in the
+      // tracker yet, and this is exactly the session a player opens first.
+      return deathCheckRemember(chosen, { status: 'unavailable', why: 'no tracker match lines up with this session' });
     }
 
     const { ok, data } = await api.get(
       `/api/coach/match-deaths?matchId=${encodeURIComponent(hit.id)}&username=${encodeURIComponent(riotId)}`,
       licenseKey, 30000);
-    if (!ok || !data || data.error) return { status: 'unavailable', why: (data && data.error) || 'tracker did not answer' };
+    if (!ok || !data || data.error) {
+      return deathCheckRemember(chosen, { status: 'unavailable', why: (data && data.error) || 'tracker did not answer' });
+    }
 
     const rec = reconcileDeaths(detected, data, recs);
     rec.summary = summariseDeaths(rec);
     rec.match = { map: hit.map, score: hit.score, agent: hit.agent, result: hit.result };
-    deathCheckCache.set(chosen, rec);
     console.log(`[ai-log] death check for ${chosen}: ${rec.summary}`);
-    return rec;
+    return deathCheckRemember(chosen, rec);
   } catch (e) {
     console.error('[ai-log] death check failed:', e.message);
     return { status: 'unavailable', why: 'the check could not run' };

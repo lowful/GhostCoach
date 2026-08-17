@@ -89,5 +89,28 @@ ok(roundsCovered([]) === null, 'a session with no readable score has no round sp
   ok(r.status === 'agrees' && r.covered === null, 'an unreadable scoreboard compares against the whole match');
 }
 
+// ── The cache remembers answers and forgets failures ────────────────────────
+{
+  const { makeCheckCache } = require(path.join(__dirname, '..', 'src', 'main', 'services', 'death-reconcile.js'));
+  let clock = 1000;
+  const cache = makeCheckCache(3 * 60 * 1000, () => clock);
+
+  cache.remember('s1', { status: 'agrees', expected: 4 });
+  clock += 60 * 60 * 1000;                       // an hour later
+  ok(cache.get('s1').status === 'agrees', 'a settled result is kept, since a finished match never changes');
+
+  // THE BUG THIS EXISTS FOR. The tracker takes a minute or two to index a match
+  // after it ends, and the session a player opens first is the one they just
+  // played. Remembering the failure forever meant checking once, seconds too
+  // early, and never again.
+  cache.remember('s2', { status: 'unavailable', why: 'no tracker match lines up with this session' });
+  clock += 1000;
+  ok(cache.get('s2') !== null, 'a failure is remembered briefly, so reopening does not hammer the tracker');
+  clock += 3 * 60 * 1000;
+  ok(cache.get('s2') === null, 'but it EXPIRES, so a match indexed late is still found');
+
+  ok(cache.get('never asked') === null, 'an unknown key is a miss');
+}
+
 console.log(fails ? `\n${fails} failure(s)` : '\nall death reconcile checks passed');
 process.exit(fails ? 1 : 0);

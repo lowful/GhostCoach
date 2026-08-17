@@ -98,4 +98,31 @@ function summarise(rec) {
   return `Riot recorded ${rec.expected} death${rec.expected === 1 ? '' : 's'}${scope}, the coach marked ${rec.detected}, so ${n} is not real.`;
 }
 
-module.exports = { reconcile, summarise, roundsCovered, ROUND_SLACK };
+/**
+ * A cache that remembers answers and forgets failures.
+ *
+ * Confirmed results never change, so they are kept for the life of the process
+ * and reopening the log costs nothing against a strict tracker rate limit.
+ * Failures must expire, and that difference is the whole point: the tracker
+ * takes a minute or two to index a match after it ends, and the session a player
+ * opens first is the one they just played. Remembering "no match lines up"
+ * forever meant checking once, seconds too early, then never again, so the
+ * confirmation silently never arrived for the game they actually cared about.
+ */
+function makeCheckCache(ttlMs, now = () => Date.now()) {
+  const map = new Map();
+  return {
+    get(key) {
+      const hit = map.get(key);
+      if (!hit) return null;
+      if (hit.rec.status !== 'unavailable') return hit.rec;   // settled
+      if (now() - hit.at < ttlMs) return hit.rec;             // too soon to retry
+      map.delete(key);
+      return null;
+    },
+    remember(key, rec) { map.set(key, { at: now(), rec }); return rec; },
+    get size() { return map.size; },
+  };
+}
+
+module.exports = { reconcile, summarise, roundsCovered, makeCheckCache, ROUND_SLACK };

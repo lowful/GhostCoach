@@ -58,8 +58,24 @@ function check(name, ok, detail, severity = 'fail') {
   results.push({ name, ok, detail, severity });
 }
 
+// WHICH BUILD RECORDED THIS. Grading an old session with today's checkers
+// reports failures the current build already fixes: the last real session here
+// showed two "last alive" tips that contradicted the counted state, and both are
+// blocked outright by the guard that shipped after it was recorded. A review
+// tool that cries regression at bugs already fixed stops being believed, so the
+// version is stated up front and a mismatch is called out.
+const APP_NOW = require(path.join(__dirname, '..', 'package.json')).version;
+const recordedBy = log.app || null;
+const stale = recordedBy && recordedBy !== APP_NOW;
+
 console.log(`${path.basename(dir)}`);
-console.log(`${recs.length} frames, ${minutes.toFixed(1)} min, ${generated.length} tips written, ${shown.length} shown\n`);
+console.log(`${recs.length} frames, ${minutes.toFixed(1)} min, ${generated.length} tips written, ${shown.length} shown`);
+if (stale) {
+  console.log(`recorded by ${recordedBy}, this build is ${APP_NOW}. Failures below may already be fixed.`);
+} else if (!recordedBy) {
+  console.log(`recorded before the version stamp existed, so it predates ${APP_NOW}. Failures below may already be fixed.`);
+}
+console.log('');
 
 // ── Things that must NEVER reach a player ───────────────────────────────────
 // Each of these shipped at least once, so they are failures, not warnings.
