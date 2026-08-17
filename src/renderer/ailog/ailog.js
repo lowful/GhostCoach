@@ -314,6 +314,7 @@ function loadSession(id) {
     buildMarks();
     // Jump to the most recent frame first, that is usually what you want to review.
     go(records.length - 1);
+    confirmDeaths(sessionId);
   }).catch((err) => {
     picker.disabled = false;
     $('main').hidden = true;
@@ -324,6 +325,42 @@ function loadSession(id) {
 }
 
 picker.addEventListener('change', () => loadSession(picker.value));
+
+/**
+ * Ask Riot whether the deaths on this timeline are the real ones.
+ *
+ * Fired AFTER the session is drawn, never before, so the log opens instantly and
+ * still works with no network and no Riot ID. A session that cannot be checked
+ * simply shows nothing extra, because the screen-read deaths are still the best
+ * answer available and an error banner would suggest otherwise.
+ */
+function confirmDeaths(forSession) {
+  const box = $('confirm');
+  box.hidden = true;
+  if (!window.ghost.confirm) return;
+  window.ghost.confirm(forSession).then((rec) => {
+    if (!rec || forSession !== sessionId) return;          // switched away meanwhile
+    if (rec.status === 'unavailable' || !rec.summary) return;
+    box.hidden = false;
+    box.className = 'confirm ' + rec.status;
+    box.replaceChildren();
+    box.appendChild(el('span', 'dot'));
+    box.appendChild(el('span', null, rec.summary));
+
+    // When the counts agree the pairing is trustworthy, so each mark can carry
+    // the real round, killer and weapon instead of the model's reading of them.
+    if (rec.pairs && rec.pairs.length) {
+      const marks = [...document.querySelectorAll('#marks .mark-death')];
+      rec.pairs.forEach((p, i) => {
+        const d = deaths[i];
+        if (!d || !marks[i]) return;
+        d.round = p.round; d.killedBy = p.killer; d.weapon = p.weapon; d.confirmed = true;
+        marks[i].title = `Round ${p.round}: killed by ${p.killer}${p.weapon ? ` with a ${p.weapon}` : ''}`
+          + `${d.reviewed ? ', reviewed by the coach' : ', no review was shown'}. Confirmed by Riot.`;
+      });
+    }
+  }).catch(() => { /* a confirmation that does not arrive changes nothing */ });
+}
 
 loadSession();
 

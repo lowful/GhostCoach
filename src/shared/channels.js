@@ -34,6 +34,7 @@ const CHANNELS = {
   WEEKLY_GET:       'weekly:get',        // () → the week's report (stat movement, strengths, what to fix)
   AILOG_GET:        'ailog:get',         // (sessionId?) → one AI decision-log session, newest by default { session, sessions, records: [{frameData, state, aiTip, shown}] }
   AILOG_SESSIONS:   'ailog:sessions',    // () → [{ id, at, frames, deaths, maps, mins, live }] metadata only, no frames
+  AILOG_CONFIRM:    'ailog:confirm',     // (sessionId) → { status, detected, expected, summary, pairs } check the log's deaths against Riot
   AILOG_ASK:        'ailog:ask',         // ({ session, index, question, history }) → { reply } ask the coach about one logged frame
   APP_VERSION:      'app:version',       // () → { current, state, version } running version + update status
   APP_UPDATE_CHECK: 'app:updateCheck',   // () → same shape, after forcing a fresh feed check

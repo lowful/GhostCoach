@@ -82,6 +82,21 @@ header {
 }
 .nav-btn:hover { border-color: rgba(var(--cyan-rgb),0.4); }
 .nav-btn:active { transform: scale(0.95); }
+/* Riot's verdict on the timeline's deaths. Green when they agree, amber when
+   the coach missed some, red when it marked one that never happened. */
+.confirm {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px; border-radius: var(--r-sm); font-size: 11px; line-height: 1.4;
+  background: var(--glass-fill-2); border: 1px solid var(--glass-border); color: var(--text-dim);
+}
+.confirm .dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--text-mute); }
+.confirm.agrees      { border-color: rgba(var(--good-rgb), 0.35); color: var(--text); }
+.confirm.agrees .dot { background: var(--good); }
+.confirm.missed      { border-color: rgba(var(--warn-rgb), 0.35); color: var(--text); }
+.confirm.missed .dot { background: var(--warn); }
+.confirm.overcounted      { border-color: rgba(var(--red-rgb), 0.4); color: var(--text); }
+.confirm.overcounted .dot { background: var(--red); }
+
 .frame-meta { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-dim); }
 .frame-meta .muted { color: var(--text-mute); }
 /* The confirmed map for this stretch. Dimmed and italic when the two reads

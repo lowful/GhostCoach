@@ -19,6 +19,9 @@ contextBridge.exposeInMainWorld('ghost', {
   // sessions() is metadata only and is what the picker is built from.
   getLog:   (id) => ipcRenderer.invoke(C.AILOG_GET, id),
   sessions: () => ipcRenderer.invoke(C.AILOG_SESSIONS),
+  // Checks the log's deaths against Riot. Called after the session is on screen,
+  // never before, so the viewer stays instant and works with no network.
+  confirm:  (id) => ipcRenderer.invoke(C.AILOG_CONFIRM, id),
   ask:      (payload) => ipcRenderer.invoke(C.AILOG_ASK, payload),
   close:  () => window.close(),
 });

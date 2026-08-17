@@ -113,10 +113,16 @@ ok(store.read(root, 'session-deleted-while-open').session === store.dirs(root)[0
   'a pruned session falls back to the newest rather than failing');
 
 // ── Pruning keeps the newest ────────────────────────────────────────────────
+// A frameless session leaves a folder with no log.json. dirs() skips those on
+// purpose, so a prune built on dirs() can never see them and they pile up
+// forever in the one directory that exists to stay bounded. The app creates one
+// every time it starts and stops before capturing a frame.
+ok(fs.existsSync(path.join(root, 'session-broken')), 'the index-less folder is still on disk before pruning');
 store.prune(root, 2);
 const left = store.dirs(root);
 ok(left.length === 2 && left[0] === 'session-2026-08-13T10-00-00-000Z',
   `prune keeps the 2 newest (${left.join(', ')})`);
+ok(!fs.existsSync(path.join(root, 'session-broken')), 'and prune removes the frameless folder it cannot index');
 
 // ── Missing root ────────────────────────────────────────────────────────────
 ok(store.sessions(path.join(root, 'nope')).length === 0, 'a missing log folder lists nothing');

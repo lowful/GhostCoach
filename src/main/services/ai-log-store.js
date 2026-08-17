@@ -106,11 +106,25 @@ function read(root, id, liveId) {
   }
 }
 
-/** Keep only the most recent session folders. */
+/**
+ * Keep only the most recent session folders.
+ *
+ * Deliberately NOT built on dirs(), which skips folders with no log.json. A
+ * session that is started and closed before a single frame is captured leaves
+ * exactly such a folder, and a prune that cannot see them never removes them, so
+ * they pile up forever in a directory whose whole point is to stay bounded.
+ * Empty ones go first, then the oldest of the rest.
+ */
 function prune(root, keep) {
   try {
-    for (const id of dirs(root).slice(keep)) {
-      fs.rmSync(path.join(root, id), { recursive: true, force: true });
+    if (!root || !fs.existsSync(root)) return;
+    const all = fs.readdirSync(root)
+      .filter((f) => /^session-/.test(f))
+      .map((f) => ({ f, t: fs.statSync(path.join(root, f)).mtimeMs, has: fs.existsSync(path.join(root, f, 'log.json')) }));
+    const empty = all.filter((d) => !d.has);
+    const real = all.filter((d) => d.has).sort((a, b) => b.t - a.t);
+    for (const d of [...empty, ...real.slice(keep)]) {
+      fs.rmSync(path.join(root, d.f), { recursive: true, force: true });
     }
   } catch {}
 }
