@@ -1946,6 +1946,96 @@ async function matchDetail(region, matchId, name, tag, rounds = 0) {
   }
 }
 
+// ─── Per-round deaths, for checking what the coach thought it saw ────────────
+// The AI log works out when the player died by reading the screen, and it is
+// wrong in both directions: measured against this endpoint it missed 3 deaths in
+// one session and invented 1 in another. Riot knows the answer exactly, so this
+// exposes it: every death, the round it happened in, and who did it.
+//
+// Deliberately its own route rather than folded into matchDetail, which caches
+// { mvp, team } per match id. Adding a field to a cached shape is how a stale
+// entry starts serving nulls for something it never fetched.
+const matchDeathsCache = new Map();   // matchId -> { rounds, deaths } | null
+
+/** Kill events from a v4 match, whatever shape they arrive in. */
+function killEventsOf(d) {
+  if (Array.isArray(d && d.kills)) return d.kills;
+  // Older and alternate shapes nest them per round. Flattened rather than
+  // trusted to exist, so a payload change degrades to "no data" instead of
+  // throwing inside a route.
+  const out = [];
+  for (const r of (Array.isArray(d && d.rounds) ? d.rounds : [])) {
+    for (const s of (Array.isArray(r.stats) ? r.stats : [])) {
+      for (const k of (Array.isArray(s.kill_events) ? s.kill_events : [])) out.push(k);
+    }
+  }
+  return out;
+}
+
+const whoIs = (x) => (x && typeof x === 'object')
+  ? [x.name, x.tag].filter(Boolean).join('#') || x.puuid || null
+  : (typeof x === 'string' ? x : null);
+
+// GET /api/coach/match-deaths?matchId=...&username=Name%23TAG
+router.get('/match-deaths', async (req, res) => {
+  const licenseKey = String(req.headers['x-license-key'] || '').trim().toUpperCase();
+  if (!licenseKey || !await validateKey(licenseKey)) return res.status(403).json({ error: 'Invalid license' });
+  if (!process.env.HENRIKDEV_API_KEY) return res.json({ error: 'No stats provider configured.' });
+
+  const matchId = String(req.query.matchId || '').trim();
+  const username = String(req.query.username || '');
+  if (!matchId) return res.json({ error: 'No match id.' });
+  if (!username.includes('#')) return res.json({ error: 'Riot ID must be Name#TAG.' });
+  const [name, tag] = username.split('#').map((s) => s.trim());
+
+  const cacheKey = matchId + '|' + username.toLowerCase();
+  if (matchDeathsCache.has(cacheKey)) return res.json(matchDeathsCache.get(cacheKey));
+
+  try {
+    const enc = encodeURIComponent;
+    const acct = await henrikGet(`/valorant/v2/account/${enc(name)}/${enc(tag)}`);
+    const region = acct.json && acct.json.data && acct.json.data.region;
+    if (!region) return res.json({ error: 'Could not resolve the account region.' });
+
+    const md = await henrikGet(`/valorant/v4/match/${region}/${enc(matchId)}`);
+    if (md.status === 429) return res.json({ error: 'Tracker rate limit, try again shortly.' });
+    const d = md.json && md.json.data;
+    if (!d) return res.json({ error: 'The tracker returned no match detail.' });
+
+    const mine = (p) => String((p && p.name) || '').toLowerCase() === name.toLowerCase()
+      && String((p && p.tag) || '').toLowerCase() === tag.toLowerCase();
+
+    const events = killEventsOf(d);
+    const deaths = events
+      .filter((k) => mine(k.victim))
+      .map((k) => ({
+        round: typeof k.round === 'number' ? k.round + 1 : null,   // Riot counts from 0
+        atMs: k.time_in_round_in_ms != null ? k.time_in_round_in_ms : null,
+        killer: whoIs(k.killer),
+        weapon: (k.weapon && (k.weapon.name || k.weapon.type)) || null,
+      }))
+      .sort((a, b) => (a.round || 0) - (b.round || 0));
+
+    const rounds = Array.isArray(d.rounds) ? d.rounds.length : null;
+    const out = {
+      matchId, rounds, total: deaths.length, deaths,
+      map: (d.metadata && (d.metadata.map && d.metadata.map.name)) || null,
+      startedAt: d.metadata && (Date.parse(d.metadata.started_at) || d.metadata.game_start_millis) || null,
+    };
+    // When nothing parsed, say what the payload actually looked like rather than
+    // reporting zero deaths, which is indistinguishable from a flawless game.
+    if (!events.length) {
+      out.error = 'No kill events in this payload.';
+      out.shape = { top: Object.keys(d), round0: d.rounds && d.rounds[0] ? Object.keys(d.rounds[0]) : null };
+    }
+    cacheSet(matchDeathsCache, cacheKey, out, 200);
+    res.json(out);
+  } catch (e) {
+    console.error('[coach] match-deaths failed:', e.message);
+    res.status(500).json({ error: 'Match death lookup failed.' });
+  }
+});
+
 // GET /api/coach/matches?username=Name%23TAG[&refresh=1][&mode=competitive|unrated]
 // The player's last 10 matches with per-match 0-100 ratings. mode=unrated
 // merges unrated and swiftplay, rated and treated the same, just not ranked.
