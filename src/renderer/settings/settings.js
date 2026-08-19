@@ -416,10 +416,15 @@ document.getElementById('quit').addEventListener('click', () => window.ghost.qui
 document.getElementById('close').addEventListener('click', () => window.close());
 
 // Support email: click to copy to clipboard (falls back to selecting the text).
+// The address is READ FROM THE MARKUP rather than repeated here. It used to be
+// hardcoded in both places, so changing the address in one would have left the
+// panel showing one thing and the clipboard holding another, with nothing on
+// screen to reveal it. Captured once at load, because the element's text is
+// swapped for "Copied!" during the flash.
 const emailEl = document.getElementById('support-email');
 if (emailEl) {
+  const email = emailEl.textContent.trim();
   emailEl.addEventListener('click', () => {
-    const email = 'ghostcoachsupport@gmail.com';
     const flash = () => {
       const orig = emailEl.textContent;
       emailEl.textContent = 'Copied!';
