@@ -1,84 +1,59 @@
 {
-  "generatedAt": "2026-08-18T15:21:51.217Z",
-  "patch": "13.02",
-  "buildDate": "2026-08-10T20:40:19Z",
-  "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-13-02/",
-  "headline": "Phoenix ult change, new maps added to Retakes, and loads of bug fixes.",
+  "generatedAt": "2026-08-19T15:21:37.756Z",
+  "patch": "13.04",
+  "buildDate": "2026-08-13T23:37:05Z",
+  "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-13-04/",
+  "headline": "New map rotation and bug fixes for Agents and melee skins",
   "changes": [
     {
-      "type": "agent",
+      "type": "map",
       "names": [
-        "Phoenix"
+        "Breeze",
+        "Abyss"
       ],
-      "line": "Phoenix adjustment to address frequent casting of Run it Back ."
+      "line": "TLDR; Goodbye Breeze and hello Abyss ! There’s a new map rotation in our Competitive and Deathmatch queues, and we fixed some issues with Agent bugs and transforming melees like Kuronami 2.0 and Nocturnum."
     },
     {
       "type": "map",
       "names": [
-        "Split",
-        "Lotus",
-        "Corrode"
+        "Abyss"
       ],
-      "line": "Split, Corrode, and Lotus added to Retakes!"
+      "line": "ABYSS is IN the COMPETITIVE and DEATHMATCH queues."
     },
     {
       "type": "map",
       "names": [
-        "Summit"
+        "Breeze"
       ],
-      "line": "A fix for some door/ability interactions on Summit ."
-    },
-    {
-      "type": "agent",
-      "names": [
-        "Phoenix"
-      ],
-      "line": "Overall we are happy with the state of Phoenix's balance. This is a small touch to address the frequency with which he is able to cast his ultimate to be more in line with other characters."
-    },
-    {
-      "type": "map",
-      "names": [
-        "Split",
-        "Lotus",
-        "Corrode"
-      ],
-      "line": "Split, Corrode, and Lotus are being added to the map pool for RETAKE."
+      "line": "BREEZE is OUT of the COMPETITIVE and DEATHMATCH queues."
     },
     {
       "type": "agent",
       "names": [
         "Cypher"
       ],
-      "line": "Fixed a rare issue where Cypher disconnected while casting Neural Theft ."
+      "line": "Fixed an issue where Cypher's Spycam minimap icon was rotated incorrectly."
     },
     {
       "type": "agent",
       "names": [
-        "Chamber"
+        "Viper"
       ],
-      "line": "Fixed an issue where Rendezvous could fail to teleport Chamber back to his anchor."
+      "line": "Fixed an issue where Viper's Snake Bite equip animation appeared incorrectly from an enemy's point of view."
     },
     {
       "type": "agent",
       "names": [
-        "Waylay",
-        "Icebox"
+        "Deadlock"
       ],
-      "line": "Fixed an issue on Icebox where Lightspeed and Refract could allow Waylay to clip into the walls of B Tube."
+      "line": "Fixed an issue where Deadlock's GravNet visual effects could disappear after a player disconnected and reconnected."
     },
     {
       "type": "agent",
       "names": [
-        "Omen"
+        "Clove"
       ],
-      "line": "Fixed an issue where Annihilation could incorrectly capture Omen while he was using From the Shadows, resulting in unintended damage of 900100 damage."
-    },
-    {
-      "type": "agent",
-      "names": [
-        "Vyse"
-      ],
-      "line": "Fixed an issue where Razorvine could become indestructible if it was deployed at the same moment Vyse was suppressed."
+      "line": "Fixed an issue where repeatedly switching between Clove's Meddle and Ruse could cause a player to freeze and disconnect."
     }
   ],
   "notesFound": true
