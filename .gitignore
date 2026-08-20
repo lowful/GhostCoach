@@ -17,3 +17,5 @@ build/
 .DS_Store
 Thumbs.db
 desktop.ini
+fixtures/rivals/*.png
+fixtures/rivals/*.jpg

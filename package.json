@@ -43,7 +43,8 @@
     "verify:ai": "node scripts/verify-ai.js",
     "test:ailog": "node scripts/test-ailog-sessions.js",
     "test:ailog-timeline": "node scripts/test-ailog-timeline.js",
-    "test:deathreconcile": "node scripts/test-death-reconcile.js"
+    "test:deathreconcile": "node scripts/test-death-reconcile.js",
+    "test:rivalsdraft": "node scripts/test-rivals-draft.js"
   },
   "build": {
     "appId": "com.ghostcoach.app2",
