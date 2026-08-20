@@ -89,7 +89,9 @@ async function checkSeed() {
     if (!seed || busy) return;
     const sc = seed.scores || {};
     const parts = [`Review my coached session${seed.date ? ' from ' + seed.date : ''}${seed.map ? ' on ' + seed.map : ''}.`];
-    if (sc.economy != null) parts.push(`Category scores, Economy ${sc.economy}, Positioning ${sc.positioning}, Utility ${sc.utility}, Aim ${sc.aim}${seed.overall != null ? ', overall ' + seed.overall : ''}.`);
+    // openChatSeeded migrates the retired `economy` score onto `impact`, so the
+    // seed only ever carries `impact` and a guard on `economy` never fires.
+    if (sc.impact != null) parts.push(`Category scores, Impact ${sc.impact}, Positioning ${sc.positioning}, Utility ${sc.utility}, Aim ${sc.aim}${seed.overall != null ? ', overall ' + seed.overall : ''}.`);
     if (seed.strengths)  parts.push(`Strengths noted: ${seed.strengths}`);
     if (seed.weaknesses) parts.push(`Weaknesses noted: ${seed.weaknesses}`);
     parts.push('What should I focus on first?');

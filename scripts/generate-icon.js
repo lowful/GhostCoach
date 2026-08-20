@@ -2,7 +2,7 @@
 'use strict';
 /**
  * Generates assets/icon.png (256x256) and assets/icon.ico (multi-size)
- * from the GhostCoach ghost shape — no external dependencies required.
+ * from the GhostCoach ghost shape, no external dependencies required.
  *
  * Usage:  node scripts/generate-icon.js
  */
@@ -14,12 +14,12 @@ const path = require('path');
 // ─── Ghost shape (SVG viewBox 0 0 24 24, scaled to any size) ─────────────────
 
 function isInsideGhost(gx, gy) {
-  // Upper dome — ellipse centred at (12, 11), rx=9, ry=9 (top half only)
+  // Upper dome, ellipse centred at (12, 11), rx=9, ry=9 (top half only)
   if (gy <= 11) {
     return ((gx - 12) / 9) ** 2 + ((gy - 11) / 9) ** 2 <= 1;
   }
 
-  // Lower body — rectangle x:[3,21], y:[11,waveBottom]
+  // Lower body, rectangle x:[3,21], y:[11,waveBottom]
   if (gx < 3 || gx > 21) return false;
 
   // Wavy bottom: l3-3 3 3 3-3 3 3 3-3 starting from (3,22)
@@ -69,7 +69,7 @@ function drawGhost(size) {
   return pixels;
 }
 
-// ─── PNG encoder (pure Node.js — uses built-in zlib) ─────────────────────────
+// ─── PNG encoder (pure Node.js, uses built-in zlib) ──────────────────────────
 
 const CRC_TABLE = (() => {
   const t = new Uint32Array(256);
@@ -121,7 +121,7 @@ function encodePNG(size, pixels) {
   ]);
 }
 
-// ─── ICO encoder (embeds PNGs — Windows Vista+ PNG-in-ICO format) ────────────
+// ─── ICO encoder (embeds PNGs, Windows Vista+ PNG-in-ICO format) ─────────────
 
 function encodeICO(pngBuffers, sizes) {
   const count = pngBuffers.length;

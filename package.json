@@ -6,6 +6,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
+    "test": "node scripts/run-all.js",
     "generate-icon": "node scripts/generate-icon.js",
     "dist:win": "electron-builder --win",
     "dist:mac": "electron-builder --mac",
@@ -43,7 +44,8 @@
     "verify:ai": "node scripts/verify-ai.js",
     "test:ailog": "node scripts/test-ailog-sessions.js",
     "test:ailog-timeline": "node scripts/test-ailog-timeline.js",
-    "test:deathreconcile": "node scripts/test-death-reconcile.js"
+    "test:deathreconcile": "node scripts/test-death-reconcile.js",
+    "test:costrollover": "node scripts/test-cost-rollover.js"
   },
   "build": {
     "appId": "com.ghostcoach.app2",

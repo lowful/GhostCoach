@@ -1,0 +1,45 @@
+name: CI
+
+# Run the repo's own suite on every push and pull request.
+#
+# This did not exist, and the cost of that was concrete: `npm run check:server`,
+# the check written specifically to catch a backend that cannot boot, was itself
+# failing on main and had been for a while. Three unmounted files from the old
+# pre-Supabase auth stack required packages that are not in server/package.json.
+# Nothing ran the suite, so nothing said so.
+#
+# `npm test` discovers every check:* and test:* script from package.json, so new
+# tests are covered here the moment they exist, with no edit to this file.
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+
+      # The suite only ever require()s plain modules, never the Electron runtime,
+      # so skip the ~100MB binary download that electron's postinstall would do.
+      - name: Install client dependencies
+        run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+
+      # check:server loads every server module, so the backend's own
+      # dependencies have to be present or it reports a false failure.
+      - name: Install server dependencies
+        run: npm ci
+        working-directory: server
+
+      - name: Run checks and tests
+        run: npm test

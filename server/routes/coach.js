@@ -42,25 +42,45 @@ function cacheSet(map, key, value, max) {
 }
 
 const costStore   = new Map();
-const globalStats = { callsToday: 0, callsMonth: 0, costToday: 0, costMonth: 0, date: '' };
-const COST_PER_CALL = (2200 * 0.00000013) + (40 * 0.00000052); // Qwen3-VL, ~$0.0003
+const globalStats = { callsToday: 0, callsMonth: 0, costToday: 0, costMonth: 0, date: '', month: '' };
+
+/**
+ * Indicative cost of one analyze call, in dollars.
+ *
+ * The default is priced from Qwen3-VL token rates (~2200 in, ~40 out), which is
+ * NOT the model the code defaults to any more, so the figure drifts every time
+ * the default model changes and the admin cost view quietly reports the wrong
+ * dollars. AI_COST_PER_CALL overrides it so the number can be corrected in
+ * Railway without a deploy, which is the only way this stays honest.
+ */
+const COST_PER_CALL = Number(process.env.AI_COST_PER_CALL)
+  || ((2200 * 0.00000013) + (40 * 0.00000052));
 
 function trackCall(key, units = 1) {           // units: frame-memory calls send 2 images
   const cost  = COST_PER_CALL * units;
   const today = new Date().toISOString().slice(0, 10);
+  const month = today.slice(0, 7);
   if (globalStats.date !== today) {
     globalStats.callsToday = 0;
     globalStats.costToday  = 0;
     globalStats.date = today;
+  }
+  // Without this the monthly totals only ever reset when the process restarted,
+  // so /api/admin/costs reported "since the last deploy" under a month label.
+  if (globalStats.month !== month) {
+    globalStats.callsMonth = 0;
+    globalStats.costMonth  = 0;
+    globalStats.month = month;
   }
   globalStats.callsToday++;
   globalStats.callsMonth++;
   globalStats.costToday  += cost;
   globalStats.costMonth  += cost;
 
-  if (!costStore.has(key)) cacheSet(costStore, key, { callsToday: 0, callsMonth: 0, costToday: 0, costMonth: 0, date: '' }, 5000);
+  if (!costStore.has(key)) cacheSet(costStore, key, { callsToday: 0, callsMonth: 0, costToday: 0, costMonth: 0, date: '', month: '' }, 5000);
   const e = costStore.get(key);
   if (e.date !== today) { e.callsToday = 0; e.costToday = 0; e.date = today; }
+  if (e.month !== month) { e.callsMonth = 0; e.costMonth = 0; e.month = month; }
   e.callsToday++;
   e.callsMonth++;
   e.costToday  += cost;
@@ -1107,7 +1127,7 @@ ${spectatorLine}${aliveLine}${deathWhereLine}${deathLine}${roundLostLine}${enemy
 
 RECENT TIPS (do not repeat these word for word; if the SAME mistake is still happening and the advice matters, give it again in FRESH wording and mark the repetition, "still", "again", "third time now", important advice bears repeating, lazy copies do not):
 ${recent}
-THESE ARE YOUR OWN WORDS, SO STAND BEHIND THEM. If the player did what you just told them to do and it went badly, that is YOUR call to own, never their mistake to be scolded for. In a real session this coach said "take an aggressive off-angle on B Main", the player took it, died, and was then told they died "because you took an aggressive off-angle" — the player followed instructions and got blamed for it, and nothing destroys trust faster. When a play you recommended fails, say so plainly and adjust: "that off-angle got read, they were already holding it, so next round take it later or from the other side". If you cannot own it and give the adjustment in one sentence, coach something else entirely.
+THESE ARE YOUR OWN WORDS, SO STAND BEHIND THEM. If the player did what you just told them to do and it went badly, that is YOUR call to own, never their mistake to be scolded for. In a real session this coach said "take an aggressive off-angle on B Main", the player took it, died, and was then told they died "because you took an aggressive off-angle", the player followed instructions and got blamed for it, and nothing destroys trust faster. When a play you recommended fails, say so plainly and adjust: "that off-angle got read, they were already holding it, so next round take it later or from the other side". If you cannot own it and give the adjustment in one sentence, coach something else entirely.
 ${lastShown ? 'NEVER REPEAT BACK TO BACK: the last tip shown ("' + lastShown + '") is still on the player\'s screen. Your next tip must either make a DIFFERENT point entirely, or, only if the same mistake is genuinely still happening and urgent, say it in completely fresh words with escalation ("still", "again", "third time now"). A tip that echoes the previous tip\'s advice or wording gets dropped by the app and wastes the slot, so when the only honest tip would be that repeat, prefer SKIP.\n' : ''}
 ${Array.isArray(ctx.badTips) && ctx.badTips.length ? 'The player rejected these tips repeatedly (3 or more times), NEVER give this advice or anything close to it again:\n' + ctx.badTips.slice(0, 6).map((t) => '- ' + t).join('\n') + '\n' : ''}
 ${Array.isArray(ctx.tipFeedback) && ctx.tipFeedback.length ? 'PLAYER FEEDBACK on past tips, their own words on why a tip missed. Learn from these, the reasons matter more than the tips:\n' + ctx.tipFeedback.slice(-6).map((f) => '- "' + String(f.text || '').slice(0, 90) + '" the player said: "' + String(f.reason || '').slice(0, 150) + '"').join('\n') + '\n' : ''}Recent topics: ${topics}. Prefer covering a DIFFERENT one (positioning, utility, aim, rotation, spike, teamwork, mental) unless a repeated mistake demands a repeat.
@@ -2764,6 +2784,7 @@ module.exports = router;
 module.exports.costStore   = costStore;
 module.exports.globalStats = globalStats;
 module.exports.mapState    = mapState;             // exported for tests
+module.exports.trackCall   = trackCall;            // exported for tests
 module.exports.buildContextPrompt = buildContextPrompt;
 // The models actually in use, so /health reports THIS rather than keeping its
 // own copy of the defaults. It kept a separate copy and they drifted, which
