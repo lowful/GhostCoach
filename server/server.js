@@ -20,6 +20,7 @@ const paymentRoutes = require('./routes/payments');
 const licenseRoutes = require('./routes/license');
 const accountRoutes = require('./routes/account');
 const coachRoutes   = require('./routes/coach');
+const rivalsRoutes  = require('./routes/rivals');
 const adminRoutes   = require('./routes/admin');
 const webhookHandler = require('./routes/webhook');
 
@@ -100,12 +101,14 @@ app.use('/api/license/activate',        activationLimiter);
 app.use('/api/payments/create-checkout', checkoutLimiter);
 app.use('/api/coach/chat',               chatLimiter);
 app.use('/api/coach',                    coachLimiter);
+app.use('/api/rivals',                   coachLimiter);
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
 app.use('/api/payments', paymentRoutes);
 app.use('/api/license',  licenseRoutes);
 app.use('/api/account',  accountRoutes);
 app.use('/api/coach',    coachRoutes);
+app.use('/api/rivals',   rivalsRoutes);
 app.use('/api/admin',    adminRoutes);
 
 // ─── Health checks ────────────────────────────────────────────────────────────

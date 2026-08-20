@@ -44,7 +44,9 @@
     "test:ailog": "node scripts/test-ailog-sessions.js",
     "test:ailog-timeline": "node scripts/test-ailog-timeline.js",
     "test:deathreconcile": "node scripts/test-death-reconcile.js",
-    "test:rivalsdraft": "node scripts/test-rivals-draft.js"
+    "test:rivalsdraft": "node scripts/test-rivals-draft.js",
+    "test:rivalsroute": "node scripts/test-rivals-route.js",
+    "test:rivalsengine": "node scripts/test-rivals-engine.js"
   },
   "build": {
     "appId": "com.ghostcoach.app2",
