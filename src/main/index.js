@@ -69,6 +69,7 @@ const state = {
   tipRatings: store.get('tipRatings') || {},   // text -> 'good'|'bad', disk-backed so ratings survive restarts and mark archived sessions
   licenseActive: true,  // false once the subscription ends (locks coaching)
   licenseReason: '',    // why it ended (expired | cancelled | payment_failed | ...)
+  reviewRetryTimer: null,   // pending match-review re-push, cancelled when coaching stops
 };
 
 let mainLaunched = false;
@@ -279,10 +280,23 @@ const controller = {
       pushTip({ text: 'Want the full breakdown? Open Ask Coach from the panel and ask what to fix.', source: 'system' });
       // Riot publishes match data a few minutes after the match ends; if it
       // was not up yet, try once more and re-push the review with real stats.
+      //
+      // THE RETRY HAS TO VERIFY TOO. It called bare fetchLastMatch(), which is
+      // the exact unverified lookup the block above exists to avoid, so waiting
+      // 90 seconds re-opened the wrong-scoreboard bug rather than fixing the
+      // missing one. The window and the match context are captured now because
+      // the engine may be torn down by the time this fires, and the timer is
+      // held so stopping coaching cancels it: a review from the previous match
+      // must never land on top of a session that has already moved on.
       if (!data.lastMatch) {
-        setTimeout(async () => {
+        const startedAt = state.sessionStartedAt || Date.now();
+        const endedAt   = Date.now();
+        const mctx      = { map: engine.matchContext.map, agent: engine.matchContext.agent };
+        clearTimeout(state.reviewRetryTimer);
+        state.reviewRetryTimer = setTimeout(async () => {
+          state.reviewRetryTimer = null;
           try {
-            const lm = await fetchLastMatch();
+            const lm = await fetchCoachedMatch(startedAt, endedAt, mctx);
             if (lm) registry.broadcast(C.PUSH_MATCH_REVIEW, { ...data, lastMatch: lm });
           } catch {}
         }, 90000);
@@ -337,6 +351,11 @@ const controller = {
     if (!state.isCoaching) return;
     state.isCoaching = false;
     state.isPaused   = false;
+    // A pending match-review retry belongs to the session that just ended.
+    if (state.reviewRetryTimer) {
+      clearTimeout(state.reviewRetryTimer);
+      state.reviewRetryTimer = null;
+    }
     // Score the session for the stats dashboard (server AI grades the four
     // categories AND writes a coach recap from the tips; logged locally).
     // A session qualifies with multiple tips OR after 5+ minutes of coaching.

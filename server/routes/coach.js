@@ -2464,6 +2464,42 @@ router.post('/match-review', async (req, res) => {
   }
 });
 
+const DETECTABLE_AGENTS = ['Jett','Reyna','Phoenix','Raze','Neon','Iso','Yoru','Sova','Breach','Skye','KAY/O','Fade','Gekko','Tejo','Omen','Brimstone','Viper','Astra','Harbor','Clove','Sage','Killjoy','Cypher','Chamber','Deadlock','Vyse','Waylay'];
+const AGENT_WORD_RE = new RegExp(
+  '\\b(' + DETECTABLE_AGENTS.map((a) => a.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')).join('|') + ')\\b', 'gi');
+
+/**
+ * The agent a detection reply names, or null when it does not clearly name one.
+ *
+ * This was a substring search, and English is full of agent names: "the icons
+ * are not visible at this moment" detected OMEN, "cannot read the ability bar
+ * in this isolation view" detected ISO, "please check the message area"
+ * detected SAGE. A wrong lock is expensive, because the ability gate then
+ * validates tips against the wrong kit, while returning null costs only a
+ * confirmation the player is asked for anyway.
+ *
+ * So the reply has to earn it: the prompt asks for one bare word, an exact
+ * answer is taken, a short answer naming exactly one agent is taken, and prose
+ * is refused. Prose is where every false positive lived.
+ */
+function detectAgentName(reply) {
+  const raw = String(reply || '').trim();
+  if (!raw) return null;
+  // KAY/O is the one canonical name that is not a plain word, so accept the
+  // spellings a model actually returns for it.
+  const text = raw.replace(/\bKAY[\s._-]?O\b/gi, 'KAY/O');
+  const bare = text.replace(/[.!,;:"'`]+$/g, '').trim();
+
+  const exact = DETECTABLE_AGENTS.find((a) => a.toLowerCase() === bare.toLowerCase());
+  if (exact) return exact;
+
+  if (bare.split(/\s+/).length > 5) return null;
+  const hits = new Set((text.match(AGENT_WORD_RE) || [])
+    .map((m) => DETECTABLE_AGENTS.find((a) => a.toLowerCase() === m.toLowerCase()))
+    .filter(Boolean));
+  return hits.size === 1 ? [...hits][0] : null;
+}
+
 // POST /api/coach/detect-agent, JSON body: { image: base64 }
 // Cheap one-shot agent detection. Used at session start to lock the agent.
 router.post('/detect-agent', async (req, res) => {
@@ -2515,9 +2551,8 @@ If you cannot clearly see all 4 ability icons or are not 100% sure, respond with
     ]);
     trackCall(licenseKey);
 
-    const validAgents = ['Jett','Reyna','Phoenix','Raze','Neon','Iso','Yoru','Sova','Breach','Skye','KAY/O','Fade','Gekko','Tejo','Omen','Brimstone','Viper','Astra','Harbor','Clove','Sage','Killjoy','Cypher','Chamber','Deadlock','Vyse','Waylay'];
     const cleanText = String(text || '').trim();
-    const detected  = validAgents.find(a => cleanText.toLowerCase().includes(a.toLowerCase()));
+    const detected  = detectAgentName(cleanText);
 
     console.log('[coach] Agent detection - raw:', cleanText.slice(0, 40), 'matched:', detected);
     res.json({ agent: detected || null });
@@ -2785,6 +2820,7 @@ module.exports.costStore   = costStore;
 module.exports.globalStats = globalStats;
 module.exports.mapState    = mapState;             // exported for tests
 module.exports.trackCall   = trackCall;            // exported for tests
+module.exports.detectAgentName = detectAgentName;  // exported for tests
 module.exports.buildContextPrompt = buildContextPrompt;
 // The models actually in use, so /health reports THIS rather than keeping its
 // own copy of the defaults. It kept a separate copy and they drifted, which

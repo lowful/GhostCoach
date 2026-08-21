@@ -64,6 +64,52 @@ check('  unknown phase', contradictsState('Use the spike timer now.', {}) === nu
 check('  no context at all', contradictsState(realA, null) === null);
 check('  empty text', contradictsState('', { teammatesAlive: 3 }) === null);
 
+// ── Telling a living player they are dead ────────────────────────────────────
+//
+// claimsNotAlive existed, with both regexes written and working, and NOTHING
+// CALLED IT. verifyTip returned "You died holding that angle, reset next round."
+// unchanged to a player at 100 HP in an active round.
+//
+// The refusals in this block matter more than the catches. Deaths that looked
+// fabricated turned out to be real (see test-alive-claims), and the guard built
+// on that mistake suppressed correct death reviews. So this fires only on
+// affirmative evidence of being alive with no death under review.
+console.log('\na living player must not be told they are dead:');
+const aliveCtx = { playerAlive: true, playerHp: 100, phase: 'active', teammatesAlive: 3 };
+for (const t of [
+  'You died holding that angle, reset next round.',
+  'You got traded there, so play closer to your team.',
+  "You're dead, so watch the killcam for their position.",
+  'You are spectating, so watch how they clear the site.',
+]) {
+  const why = contradictsState(t, aliveCtx);
+  check(`  "${t.slice(0, 46)}..." is caught`, !!why, why || 'not caught');
+}
+check('  and the reason states the health it was told',
+  /100 HP/.test(contradictsState('You died there, reset next round.', aliveCtx) || ''));
+check('  a readable health number alone is enough',
+  !!contradictsState('You died there, reset next round.', { playerHp: 74, phase: 'active' }));
+
+console.log('\nBUT A REAL DEATH REVIEW MUST SURVIVE, which is the whole risk here:');
+const deathReview = 'You died holding B Market alone without a trade partner, so reset next round.';
+check('  while dead by the alive flag',
+  contradictsState(deathReview, { playerAlive: false, phase: 'dead' }) === null);
+check('  while the phase says dead',
+  contradictsState(deathReview, { phase: 'dead', playerHp: 100 }) === null,
+  'a spectated teammate\'s health must not unlock the rejection');
+check('  just respawned, inside the review window',
+  contradictsState(deathReview, { playerAlive: true, playerHp: 100, phase: 'buy', lastDeathAt: Date.now() - 3000 }) === null,
+  'the review of the death that just happened is the most valuable tip there is');
+check('  spectating claim while genuinely spectating',
+  contradictsState('You are spectating, so watch their rotation.', { playerAlive: false, phase: 'dead' }) === null);
+check('  alive state unknown',
+  contradictsState(deathReview, { phase: 'active', teammatesAlive: 3 }) === null,
+  'not knowing is not the same as knowing otherwise');
+check('  hp 0 is not alive',
+  contradictsState(deathReview, { playerHp: 0, phase: 'active' }) === null);
+check('  a tip about a TEAMMATE dying is not a claim about the player',
+  contradictsState('Trade your teammate when they die instead of holding.', aliveCtx) === null);
+
 console.log('\nordinary tips are untouched:');
 for (const t of [
   'Hold A Link tight until your team commits, then take the angle.',
