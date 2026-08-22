@@ -8,12 +8,18 @@ Not committed. These are pictures of somebody's screen and this repository is
 public, so the folder is gitignored and the frames live only on the machine
 doing the work.
 
-Expected files:
+Expected files. The countdown in the centre of each draft frame is the reliable
+way to tell them apart, since the role tabs look similar at a glance:
 
-  draft-vanguard.png    hero select, Vanguard tab open
-  draft-duelist.png     hero select, Duelist tab open
-  draft-strategist.png  hero select, Strategist tab open
-  scoreboard.png        post match scoreboard
+  draft-vanguard.png     hero select, Vanguard tab,   countdown 22s
+  draft-duelist.png      hero select, Duelist tab,    countdown 18s
+  draft-duelist-2.png    hero select, Duelist tab,    countdown 8s, scrolled
+  draft-strategist.png   hero select, Strategist tab, countdown 2s
+  scoreboard.png         post match scoreboard, DEFEAT, Klyntar
+
+Four draft frames rather than three is deliberate. The two Duelist frames differ
+in scroll position AND in countdown, which is what makes the timer read testable
+at all, and the 2s frame is the only one where every teammate slot is filled.
 
 What the draft frames establish, which the written plan had wrong:
 

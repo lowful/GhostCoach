@@ -17,7 +17,16 @@
 const PREAMBLE = [
   /^here is/i, /^here's/i, /^sure[,!]/i, /^okay[,!]/i, /^the json/i,
   /^as requested/i, /^based on/i, /^analyzing/i, /^looking at/i, /^i'll/i, /^i can/i,
+  // THE FORMAT INSTRUCTIONS, echoed back. The reply contract asks for "Line 1:
+  // the tip" and "Line 2: STATE", and a real Rivals draft frame came back as
+  // "Line 1: You should pick a Vanguard... Line 2:" with the labels left in.
+  // STATE still parsed, so nothing downstream noticed, and the player would have
+  // read a coaching card that began with "Line 1:".
+  /^line\s*\d\s*[:.\-]/i, /^tip\s*[:.\-]/i, /^answer\s*[:.\-]/i,
 ];
+
+// The same leak at the END, where the model starts the second line and stops.
+const TRAILING_LABEL = /\s*\b(line\s*\d|state)\s*[:.\-]?\s*$/i;
 
 // A reply cut off mid sentence really does end on one of these. Ordering and
 // case matter more than they look: "a" is checked LOWERCASE ONLY, because "A"
@@ -50,7 +59,14 @@ function countOf(str, ch) {
 
 /** Dashes are banned in this product's copy, everywhere. */
 function cleanTip(tip) {
-  return String(tip == null ? '' : tip).replace(/ - /g, ', ').trim();
+  let t = String(tip == null ? '' : tip).replace(/ - /g, ', ').trim();
+  // Strip the reply format echoed back into the tip. Seen on a real Rivals draft
+  // frame: "Line 1: You should pick a Vanguard... Line 2:". STATE still parsed,
+  // so nothing downstream flagged it, and the card would have read "Line 1:" to
+  // the player.
+  for (const p of PREAMBLE) t = t.replace(p, '').trim();
+  t = t.replace(TRAILING_LABEL, '').trim();
+  return t;
 }
 
 // ── repeat detection primitives ─────────────────────────────────────────────

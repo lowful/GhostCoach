@@ -67,6 +67,26 @@ ok(readSuggested('there is a hero picker on the right') === null, 'unrelated tex
     'an empty roster still resolves, since every role is missing');
 }
 
+// ── The countdown catches the roster lying ──────────────────────────────────
+// Measured on four real draft frames, the roster read was wrong on all four and
+// twice returned NOBODY when the bottom row showed three and five teammates. An
+// empty roster is not "unknown", it is a confident claim, so it sails past the
+// trust check above. The countdown was read correctly all four times, and
+// teammates lock in as it runs down, so an empty team late in the draft is
+// arithmetic that cannot be true.
+{
+  ok(draftAdvice({ locked: [], suggested: 'SUGGESTED PICK: VANGUARD', timer: 2 }) === null,
+    'an empty roster at 2s is refused, since five teammates were really locked');
+  ok(draftAdvice({ locked: [], suggested: 'SUGGESTED PICK: VANGUARD', timer: 8 }) === null,
+    'and at 8s');
+  ok(draftAdvice({ locked: [], suggested: 'SUGGESTED PICK: VANGUARD', timer: 22 }) !== null,
+    'but early in the draft an empty team is plausible and still advises');
+  ok(draftAdvice({ locked: [], suggested: 'SUGGESTED PICK: VANGUARD' }) !== null,
+    'and with no countdown at all there is nothing to contradict');
+  ok(draftAdvice({ locked: ['Duelist', 'Strategist'], timer: 2 }) !== null,
+    'a real roster late in the draft is fine, it is emptiness that is suspect');
+}
+
 // ── Refusing to advise on a roster it cannot trust ──────────────────────────
 ok(draftAdvice({ locked: ['Vanguard', 'Sorcerer'], suggested: null }) === null,
   'one unreadable role means no advice at all');

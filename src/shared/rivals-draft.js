@@ -13,21 +13,35 @@
  * Counter picking therefore cannot happen at draft, and belongs to the mid match
  * switch call, where the enemy team is finally visible on the scoreboard.
  *
- * What IS on screen turns out to be better than a workaround. The game prints
+ * The game prints SUGGESTED PICK: <ROLE> bottom right, which looked at first
+ * like the Rivals equivalent of Valorant printing a location name on the HUD.
+ * It is not, and the frames are why. Two separate things had to be told apart:
  *
- *     SUGGESTED PICK: VANGUARD
+ *   how RELIABLY a thing is READ. The banner was read correctly on all four
+ *   frames. The roster was read wrong on all four, twice reporting nobody at
+ *   all when the bottom row plainly showed three and five teammates.
  *
- * in the bottom right. That is a role recommendation from the game itself, and
- * it is the Rivals equivalent of Valorant printing the location name on the HUD:
- * a deterministic fact the model can read but must not invent. So it is treated
- * the same way the location labels are, as the more reliable witness, and the
- * model's own read of the team has to agree with it or the tip is dropped.
+ *   whether the thing is CURRENT. The banner read VANGUARD from 22s down to 2s
+ *   while the slots filled up, and that match ended 2-2-2 with the player on a
+ *   Duelist, so it was probably stale advice read perfectly.
+ *
+ * A perfectly read stale answer and a badly read live one are both wrong, so
+ * nothing here trusts one witness alone. The roster decides when it is
+ * trustworthy, the banner stands in when it is not, and the countdown is a third
+ * witness used to catch the roster lying: teammates lock in as the clock runs
+ * down, so an empty team late in the draft cannot be true.
  *
  * Nothing here talks to the network or the Rivals API. It is arithmetic over a
  * roster plus one printed string, which is exactly why it can be finished and
  * tested while the API is down.
  */
 const { ROLES, TEAM_SIZE, IDEAL, normaliseRole, countRoles, pickHelps } = require('./rivals-comp');
+
+// Seconds left below which an EMPTY roster is a misread rather than a fact.
+// Hero select counts down from roughly thirty seconds while teammates lock in,
+// so ten is late enough that a team of nobody cannot be true, and early enough
+// that a genuinely slow lobby is not silenced.
+const EMPTY_ROSTER_DEADLINE = 10;
 
 /** Pull the role out of whatever the model reports for the printed banner. */
 const ROLE_WORD = /\b(vanguard|duelist|strategist|dps|tank|support|healer|damage)\b/i;
@@ -67,6 +81,21 @@ function draftAdvice(draft) {
   // Valorant map lock exists to prevent, arriving in a new game.
   const { counts, unknown } = countRoles(locked);
   if (unknown > 0) return null;
+
+  // THE CLOCK CONTRADICTS THE ROSTER, so neither can be trusted.
+  //
+  // An empty roster is not "unknown", it is a confident claim that nobody has
+  // locked in, and it sails through the check above. Measured on four real
+  // draft frames the roster read was wrong on all four, twice reporting nobody
+  // at all when the bottom row plainly showed three and five teammates.
+  //
+  // The countdown is the second witness, and it reads reliably: 22, 18, 8 and 2
+  // were all correct. Hero select runs down from about thirty seconds while
+  // players lock in, so an empty team late in the draft is arithmetic that
+  // cannot be true. Refusing here costs one tip; believing it advises the
+  // opposite role at the moment the player can least afford it.
+  const timer = Number(d.timer);
+  if (Number.isFinite(timer) && timer <= EMPTY_ROSTER_DEADLINE && locked.length === 0) return null;
 
   // More locked teammates than seats means the read is wrong, not that the game
   // has changed. Refuse rather than reason from it.

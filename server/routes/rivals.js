@@ -60,12 +60,34 @@ READ ONLY WHAT IS ON THE SCREEN. Never infer, never assume, never fill a gap
 with what is usually true.
 
 The screen has:
-- the map name and the objective, top left
-- the hero picker on the right, filtered by a role tab
-- YOUR TEAM's slots along the bottom. Locked teammates show a hero portrait and
-  a small role icon. Empty slots show a placeholder.
+- the game MODE and its objective, top left, for example "CONVERGENCE" and
+  "Escort Knull's Essence to the Underground". This is the mode, NOT the map.
+  The map name is not printed on this screen, so leave map out.
+- the hero picker on the right, filtered by a role tab. These are heroes
+  AVAILABLE to pick. They are NOT your team and NOT the enemy team. Ignore them
+  completely when counting your team.
 - a countdown in the centre
 - the game's own recommendation, bottom right, printed as "SUGGESTED PICK: <ROLE>"
+
+YOUR TEAM IS THE ROW OF SLOTS ALONG THE VERY BOTTOM EDGE of the screen, below
+the countdown. This row is the single most important thing to read and it is
+easy to miss, so look at it deliberately.
+
+There are six slots in that bottom row, left to right. Each slot is either:
+- FILLED: it shows a hero portrait, with a small white role icon beside it.
+  Count this teammate and report their role.
+- EMPTY: it shows a plain placeholder with no portrait, often a "?" shape.
+  Do not count it.
+
+Count the FILLED slots one by one, left to right, and put one role in "locked"
+for each. Do not include yourself. If you genuinely cannot tell a slot's role,
+put "unknown" for it rather than leaving it out, because a short list is read as
+a nearly empty team and produces the opposite advice.
+
+Sanity check before you answer: the countdown runs down from about thirty
+seconds and players lock in as it falls, so late in the draft MOST slots are
+filled. If the countdown is under ten seconds and you counted no teammates at
+all, you have misread the bottom row. Look again.
 
 THE ENEMY TEAM IS NOT ON THIS SCREEN. You cannot see what they picked. Never say
 anything about the enemy team, their comp, or what they are running. If you
@@ -79,10 +101,11 @@ a specific hero unless you can read its name on screen.
 
 STATE fields, omit any you cannot read rather than guessing:
   phase      always "draft"
-  map        the map name, top left
-  mode       the objective type if printed
+  mode       the mode name printed top left, for example "CONVERGENCE"
   suggested  the role from the SUGGESTED PICK banner, exactly as printed
-  locked     array of role names already taken by your teammates, excluding you
+  locked     one entry per FILLED slot in the bottom row, excluding you, using
+             "Vanguard", "Duelist", "Strategist" or "unknown"
+  filled     how many of the six bottom slots have a hero portrait, as a number
   timer      seconds left on the countdown, as a number
 ${STATE_CONTRACT}`;
 
