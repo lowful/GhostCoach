@@ -53,11 +53,23 @@ const GAMES = {
     // Draft advice and post-match review, not a live tip stream. A 6v6 hero
     // shooter is decided by the hero select screen and by knowing when to
     // switch, and neither is a per-second decision.
-    coaching: false,        // flip to true when the Rivals coach actually exists
-    // Selectable, and labelled for what it is. The palette, the layout and the
-    // whole shell are real and worth looking at; the coach is not built. Saying
-    // "Preview" is the difference between a feature you are showing off and a
-    // feature that appears broken.
+    // COACHING IS NOT ONE SWITCH, because the two halves are not equally ready.
+    //
+    // Measured against real capture frames: the post-match review reads a
+    // scoreboard essentially perfectly, every figure matching the screen. The
+    // draft read does not. It gets the teammate COUNT right and their ROLES
+    // wrong, which produced confident advice naming the wrong role on three of
+    // four frames, and a higher quality capture made it worse rather than
+    // better, so it is not a legibility problem.
+    //
+    // A single `coaching` boolean forces a choice between shipping the broken
+    // half and withholding the good one. So each feature carries its own flag,
+    // and the game counts as coachable when any of them is true.
+    features: {
+      review: true,         // proven against a real scoreboard
+      draft: false,         // roles read wrong, see test-rivals-draft
+    },
+    // Still labelled honestly in the picker, because only part of it works.
     preview: true,
     cadence: 'draft',
   },
@@ -85,9 +97,24 @@ function list(includeUnavailable) {
   return Object.values(GAMES).filter((g) => g.coaching || g.preview || includeUnavailable);
 }
 
-/** Is this a game we can actually coach right now? */
+/**
+ * Is this a game we can actually coach right now?
+ *
+ * True when ANY feature works, since a game whose review is proven and whose
+ * draft is not should still review. Valorant carries `coaching: true` and no
+ * feature map, so it stays coachable without listing every feature it has.
+ */
 function canCoach(id) {
-  return !!get(id).coaching;
+  const g = get(id);
+  if (g.coaching) return true;
+  return Object.values(g.features || {}).some(Boolean);
 }
 
-module.exports = { GAMES, DEFAULT_GAME, get, list, canCoach };
+/** Is one specific feature ready for this game? */
+function hasFeature(id, name) {
+  const g = get(id);
+  if (g.features) return !!g.features[name];
+  return !!g.coaching;          // a game with no feature map has all of them
+}
+
+module.exports = { GAMES, DEFAULT_GAME, get, list, canCoach, hasFeature };

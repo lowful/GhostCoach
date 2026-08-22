@@ -27,7 +27,18 @@ check('  every listed game is coachable or a labelled preview',
   games.list().map((g) => `${g.id}(${g.coaching ? 'coach' : g.preview ? 'preview' : 'NEITHER'})`).join(', '));
 check('  Marvel Rivals is selectable, so the skin can be seen',
   games.list().some((g) => g.id === 'rivals'));
-check('  but it is NOT coachable', games.canCoach('rivals') === false);
+// Coaching is no longer one switch. Measured against real capture frames the
+// post-match review reads a scoreboard essentially perfectly while the draft
+// read gets teammate ROLES wrong, so the two ship separately: withholding the
+// working half because the other half is broken helps nobody.
+check('  it IS coachable, because the review works', games.canCoach('rivals') === true);
+check('  the review feature is on', games.hasFeature('rivals', 'review') === true);
+check('  the draft feature is OFF, since it names the wrong role',
+  games.hasFeature('rivals', 'draft') === false);
+check('  Valorant has every feature without listing them',
+  games.hasFeature('valorant', 'review') === true && games.hasFeature('valorant', 'draft') === true);
+check('  an unknown feature is not silently granted',
+  games.hasFeature('rivals', 'nonsense') === false);
 check('  and it is flagged preview so the UI can say so',
   games.get('rivals').preview === true,
   'without this the picker offers it as if it worked');
@@ -52,7 +63,12 @@ check('  ids are case insensitive', games.get('VALORANT').id === 'valorant');
 
 console.log('\nevery game is complete enough to render:');
 for (const g of Object.values(games.GAMES)) {
-  check(`  ${g.id}`, !!(g.id && g.label && g.cadence && typeof g.coaching === 'boolean'),
+  // Readiness is declared either way round: a single `coaching` boolean, or a
+  // per-feature map for a game whose halves are not equally finished. What is
+  // NOT allowed is declaring neither, which would leave canCoach guessing.
+  const declaresReadiness = typeof g.coaching === 'boolean'
+    || (g.features && typeof g.features === 'object' && Object.keys(g.features).length > 0);
+  check(`  ${g.id}`, !!(g.id && g.label && g.cadence && declaresReadiness),
     JSON.stringify(g).slice(0, 90));
 }
 

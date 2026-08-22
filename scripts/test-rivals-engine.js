@@ -135,5 +135,41 @@ ok(DRAFT_COOLDOWN_MS > PROBE_MS * 5, 'a read draft goes quiet rather than re-rea
   ok(true, 'stopping twice does not throw');
 }
 
-console.log(fails ? `\n${fails} failure(s)` : '\nall rivals engine checks passed');
-process.exit(fails ? 1 : 0);
+// ── Feature flags decide which question is even asked ───────────────────────
+// The draft read gets teammate roles wrong, so it ships OFF. Not asking is
+// stronger than gating the answer: a request never made cannot produce a wrong
+// tip, and it does not spend a vision call only to throw the result away.
+//
+// This block is LAST and asynchronous, and the summary below lives inside its
+// continuation. Written first as a bare top level `return`, which in CommonJS
+// exits the module: every later check silently never ran, the summary never
+// printed, and the file still exited 0. A test that reports success without
+// running is worse than one that fails.
+{
+  const routes = [];
+  const e = new RivalsEngine({
+    getKey: () => 'KEY',
+    capture: async () => 'IMG',
+    log: () => {},
+    features: { review: true, draft: false },
+  });
+  e.running = true;
+  e.schedule = () => {};
+
+  // Stand in for the network, so which route the engine chose is observable
+  // without one.
+  const api = require(path.join(__dirname, '..', 'src', 'main', 'services', 'api-client.js'));
+  const realPost = api.post;
+  api.post = async (route) => { routes.push(route); return { ok: true, data: { tip: 'LOBBY', context: {} } }; };
+
+  Promise.all([e.tick(), e.tick()]).then(() => {
+    api.post = realPost;
+    ok(routes.length > 0, 'the engine actually made a request');
+    ok(routes.every((r) => /review/.test(r)),
+      `with draft off, every request is a review (${[...new Set(routes)].join(', ')})`);
+    ok(!routes.some((r) => /draft/.test(r)), 'and the draft route is never called at all');
+
+    console.log(fails ? `\n${fails} failure(s)` : '\nall rivals engine checks passed');
+    process.exit(fails ? 1 : 0);
+  });
+}

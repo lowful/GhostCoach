@@ -46,6 +46,7 @@ const splashWindow     = require('./windows/splash-window');
 const api              = require('./services/api-client');
 const aiLogStore       = require('./services/ai-log-store');
 const aiLogTimeline    = require('./services/ai-log-timeline');
+const { RivalsEngine } = require('./services/rivals-engine');
 const { reconcile: reconcileDeaths, summarise: summariseDeaths, makeCheckCache } = require('./services/death-reconcile');
 const tray     = require('./tray');
 const hotkeys  = require('./hotkeys');
@@ -210,12 +211,41 @@ const controller = {
     // the player is not in, which is worse than silence because it is
     // believable. The palette and layout switching is real; the coach is not,
     // and this is where that difference gets stated out loud.
-    if (!gameRegistry.canCoach(store.get('game'))) {
-      const g = gameRegistry.get(store.get('game'));
+    const chosenGame = store.get('game');
+    if (!gameRegistry.canCoach(chosenGame)) {
+      const g = gameRegistry.get(chosenGame);
       pushTip({
         text: `${g.label} coaching is not built yet. The look and layout are a preview, so switch back to Valorant in Settings to coach.`,
         source: 'system',
       });
+      return;
+    }
+
+    // A DIFFERENT GAME GETS A DIFFERENT ENGINE, never this one with a new
+    // palette. The Rivals coach reads hero select and a scoreboard a handful of
+    // times a match; this one reads a Valorant HUD every ten seconds. Sharing
+    // the engine would mean the map lock, the callout gate and the spike
+    // arithmetic all running against a game that has none of those.
+    if (chosenGame === 'rivals') {
+      engine = new RivalsEngine({
+        getKey: () => store.get('licenseKey'),
+        capture: () => capture.captureScreenshot(store.get('captureQuality') === 'performance' ? 'performance' : 'standard'),
+        log: (m) => console.log(m),
+        // Only the features that actually work. The draft read gets roles wrong,
+        // so it stays off and the engine simply never asks that question.
+        features: {
+          review: gameRegistry.hasFeature('rivals', 'review'),
+          draft: gameRegistry.hasFeature('rivals', 'draft'),
+        },
+      });
+      engine.on('tip', (t) => pushTip({ text: t.text, source: t.source || 'ai' }));
+      engine.on('status', (s) => console.log('[rivals] status', JSON.stringify(s)));
+      engine.start();
+      pushTip({
+        text: 'Marvel Rivals coach on. Play your match, and the post match scoreboard gets reviewed automatically.',
+        source: 'system',
+      });
+      state.isCoaching = true;
       return;
     }
 

@@ -47,12 +47,25 @@ class RivalsEngine extends EventEmitter {
     this.getKey = opts.getKey || (() => null);
     this.capture = opts.capture || (async () => null);
     this.log = opts.log || (() => {});
+    // WHICH QUESTIONS THIS ENGINE IS ALLOWED TO ASK.
+    //
+    // The draft read gets teammate roles wrong, so it is off by default and the
+    // engine never sends that request at all. That is stronger than gating the
+    // tip afterwards: a request never made cannot produce a wrong answer, and it
+    // does not spend a vision call to be thrown away.
+    this.features = { review: true, draft: false, ...(opts.features || {}) };
     this.running = false;
     this.timer = null;
     this.lastDraftAt = 0;
     this.lastReviewAt = 0;
     this.recentTips = [];
+    this.aiTipCount = 0;
+    this.paused = false;
     this.lastState = {};
+    // The session archive reads this on quit. Valorant fills it with per round
+    // memory; Rivals has one review a match, so it stays empty rather than
+    // absent, because an absent array is a crash and an empty one is a fact.
+    this.matchMemory = [];
   }
 
   start() {
@@ -78,7 +91,7 @@ class RivalsEngine extends EventEmitter {
 
   /** One probe: capture, ask, act on whatever screen it turned out to be. */
   async tick() {
-    if (!this.running) return;
+    if (!this.running || this.paused) return;
     const key = this.getKey();
     if (!key) { this.schedule(PROBE_MS); return; }
 
@@ -90,8 +103,13 @@ class RivalsEngine extends EventEmitter {
     // rather than by trying to classify the screen locally. A local classifier
     // would be a second thing that can be wrong about the screen.
     const now = Date.now();
-    const wantDraft = now - this.lastDraftAt > DRAFT_COOLDOWN_MS;
+    const wantDraft = this.features.draft && now - this.lastDraftAt > DRAFT_COOLDOWN_MS;
     const route = wantDraft ? '/api/rivals/draft' : '/api/rivals/review';
+    // With draft off, every probe is a review question. The model answers LOBBY
+    // for anything that is not a scoreboard, which costs a handful of tokens, so
+    // polling for the end of a match is affordable in a way a Valorant style
+    // loop would not be.
+    if (!wantDraft && !this.features.review) { this.schedule(PROBE_MS); return; }
 
     try {
       const { ok, data } = await api.post(route, { image }, key, 30000);
@@ -167,6 +185,7 @@ class RivalsEngine extends EventEmitter {
       this.log('[rivals] dropped a repeat');
       return;
     }
+    this.aiTipCount++;
     this.recentTips.push(words);
     if (this.recentTips.length > 6) this.recentTips.shift();
     this.emit('tip', { text: clean, source, game: 'rivals', phase: (ctx && ctx.phase) || null });
@@ -193,6 +212,50 @@ class RivalsEngine extends EventEmitter {
       return { error: 'Could not reach the coach.' };
     }
   }
+
+  // ── The rest of the engine contract ────────────────────────────────────────
+  //
+  // main/index.js drives whichever engine is running through one interface, and
+  // a missing method is not a quiet no-op: pushTip calls getMix() on every tip,
+  // so the first Rivals tip crashed the main process with "getMix is not a
+  // function" while every unit test passed. Unit tests exercised the class; only
+  // booting the app exercised the CONTRACT.
+  //
+  // Each of these is implemented honestly rather than stubbed to satisfy a
+  // caller. Where Rivals has no equivalent concept the method does nothing and
+  // says why, which is different from pretending the feature exists.
+
+  /** Tip provenance, for the session archive. Rivals has no library fallback. */
+  getMix() {
+    return { ai: this.aiTipCount, library: 0, aiShare: this.aiTipCount ? 1 : 0 };
+  }
+
+  /** Push a tip in from outside, used for system messages. */
+  emitTip(text, source = 'system') {
+    this.emit('tip', { text: String(text || ''), source, game: 'rivals', phase: null });
+  }
+
+  /** The manual "coach me now" button: take a frame and read it immediately. */
+  requestTip() { if (this.running) this.tick(); }
+
+  pause() { this.paused = true; if (this.timer) { clearTimeout(this.timer); this.timer = null; } }
+  resume() { if (this.paused) { this.paused = false; this.tick(); } }
+
+  noteBadTip() { /* Rivals sends too few tips for a three strike list to mean anything yet. */ }
+
+  // Valorant reads the player's agent to gate ability advice. Rivals coaching is
+  // role-shaped rather than hero-shaped, and the hero read is not reliable
+  // enough to gate on, so these are accepted and ignored rather than acted on.
+  setAgent() {}
+  confirmAgent() {}
+
+  // Habits, performance summaries and rank stats are all Valorant-shaped inputs
+  // built from its own session history. Rivals has no equivalent record yet, and
+  // feeding it Valorant's would describe the wrong game.
+  setHabits() {}
+  setPerformanceMode() {}
+  setPerformanceSummary() {}
+  setPlayerStats() {}
 
   /** What the diagnostics panel and the AI log ask for. */
   snapshot() {
