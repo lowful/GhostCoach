@@ -46,7 +46,8 @@
     "test:deathreconcile": "node scripts/test-death-reconcile.js",
     "test:rivalsdraft": "node scripts/test-rivals-draft.js",
     "test:rivalsroute": "node scripts/test-rivals-route.js",
-    "test:rivalsengine": "node scripts/test-rivals-engine.js"
+    "test:rivalsengine": "node scripts/test-rivals-engine.js",
+    "test:rivalsknowledge": "node scripts/test-rivals-knowledge.js"
   },
   "build": {
     "appId": "com.ghostcoach.app2",

@@ -33,6 +33,8 @@ const router = express.Router();
 // of that file.
 const { visionInfer, sanitize, validateKey, creditsLookExhausted, creditsRetryIn } = require('./coach').ai;
 
+const knowledge = require('../services/rivals-knowledge');
+
 // NOTHING is required from src/ here, and check:server-boot enforces it. Only
 // server/ is deployed, so a require reaching outside it resolves in development
 // and throws on Railway. coach.js requires nothing from src/ for the same
@@ -99,6 +101,8 @@ standard team is two of each.
 The tip must name a ROLE to pick and say what is missing without it. Do not name
 a specific hero unless you can read its name on screen.
 
+${knowledge.fundamentals()}
+
 STATE fields, omit any you cannot read rather than guessing:
   phase      always "draft"
   mode       the mode name printed top left, for example "CONVERGENCE"
@@ -125,6 +129,8 @@ with the icons, say nothing about roles rather than guessing.
 
 The tip must be one specific, checkable thing the player can do next match,
 drawn from their own row. Never invent a number that is not printed.
+
+${knowledge.block()}
 
 STATE fields, omit any you cannot read:
   phase    always "scoreboard"
