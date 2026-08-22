@@ -130,6 +130,9 @@ class CoachingEngine extends EventEmitter {
     this.lastScoreAt = 0;              // when a round/score read was last believed, for the rate ceiling
     this.seenLabels = [];              // location labels the game printed, for map fingerprinting
     this.mapConfirmedByLabels = false; // once true, the model cannot change the map
+    this.mapDoubt = 0;                 // else a stale doubt keeps blocking callouts
+    this.mapChallenger = null;
+    this.aliveFalseStreak = 0;
     this.pendingMode = null;
     this.standardEvidence = 0;
     this.swapEvidence = 0;
@@ -1230,6 +1233,15 @@ class CoachingEngine extends EventEmitter {
       this.matchContext.side = null;   // stale side from the last match: re-read it fresh
       this.matchContext.map = null;    // a new match may be a new map: re-read and re-lock
       this.pendingMap = null;
+      // The label fingerprint has to go with it. applyMapRead returns early
+      // while mapConfirmedByLabels is set, so clearing the map without clearing
+      // the confirmation left the new match unable to lock a map at all, and the
+      // old match's labels still filtering the candidates.
+      this.mapConfirmedByLabels = false;
+      this.seenLabels = [];
+      this.mapDoubt = 0;
+      this.mapChallenger = null;
+      this.matchContext.mapUncertain = false;
       this.scoreboardChallenge = null;
       newMatch = true;
     }
@@ -1424,7 +1436,14 @@ class CoachingEngine extends EventEmitter {
     // review then describes the player's own loadout, which is what it is for.
     const spectatingNow = updates.playerAlive === false || updates.phase === 'dead'
                           || this.isSpectating();
-    const SPECTATOR_OWNED = ['playerWeapon', 'playerCredits', 'playerSpot', 'mmPos'];
+    // playerHp belongs here for the same reason as the rest, and it is the one
+    // that mattered most: the server strips a spectated health number before it
+    // is ever sent, so the merge below simply skipped the field and the player's
+    // LAST-ALIVE health stayed in context. The server then reads
+    // `alive || hp > 0` and told the model "THE PLAYER IS ALIVE RIGHT NOW, at
+    // 100 HP" while they were watching a killcam, which is precisely the
+    // contradiction the whole death pipeline exists to prevent.
+    const SPECTATOR_OWNED = ['playerWeapon', 'playerCredits', 'playerSpot', 'mmPos', 'playerHp'];
 
     for (const key of Object.keys(updates)) {
       const v = updates[key];
@@ -1532,6 +1551,10 @@ class CoachingEngine extends EventEmitter {
       this.lastDeathAt = Date.now();   // opens the death-review window
       this.matchContext.lastDeathAt = this.lastDeathAt;   // visible to the tip verifier
       this.deathTipsSent = 0;          // this death gets its own review budget
+      // The health they died with is not health they still have. Leaving it set
+      // makes every later frame report a live player to the server, since it
+      // treats any positive hp as alive.
+      this.matchContext.playerHp = null;
       // WHERE THE PLAYER ACTUALLY DIED, pinned at the moment of death.
       // Everything positional goes stale the instant the spectator camera takes
       // over, so the review has to be told the spot rather than read it off a
@@ -2297,6 +2320,31 @@ function contradictsState(text, ctx) {
   // down sends the player to defuse something that does not exist.
   if (CLAIMS_SPIKE_DOWN.test(t) && ctx.phase === 'buy') {
     return 'referenced the spike during the buy phase, before it can be planted';
+  }
+
+  // Telling a living player they are dead. Health is the ground truth for being
+  // alive, so this is the same kind of fact-check as "last alive" with four
+  // teammates still up.
+  //
+  // DELIBERATELY NARROW, because the last guard built on this idea did real
+  // damage. Deaths that looked fabricated turned out to be genuine (see
+  // test-alive-claims), and suppressing their reviews silenced correct coaching
+  // at the exact moment it mattered most. So a claim is only rejected when the
+  // player is AFFIRMATIVELY alive and there is no death under review: dead by
+  // either signal, or a death recent enough that reviewing it is still the right
+  // thing to do, both leave the tip alone.
+  const notAlive = claimsNotAlive(t);
+  if (notAlive) {
+    const aliveNow = ctx.playerAlive === true
+      || (typeof ctx.playerHp === 'number' && ctx.playerHp > 0);
+    const reviewing = ctx.playerAlive === false || ctx.phase === 'dead'
+      || !!(ctx.lastDeathAt && Date.now() - ctx.lastDeathAt < DEATH_WINDOW_MS);
+    if (aliveNow && !reviewing) {
+      const at = typeof ctx.playerHp === 'number' ? ` at ${ctx.playerHp} HP` : '';
+      return notAlive === 'spectating'
+        ? `said the player was spectating while they were alive${at} and playing the round`
+        : `said the player was dead while they were alive${at}`;
+    }
   }
 
   return null;

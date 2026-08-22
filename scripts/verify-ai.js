@@ -82,6 +82,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   let firstErr = null;
   const blocked = [];
   let ctx = {};
+  // Mirrors matchContext.lastDeathAt in the engine, which is what makes a death
+  // review legitimate to the alive-claim guard.
+  let lastDeathAt = 0;
 
   for (const r of sample) {
     const image = fs.readFileSync(path.join(session, r.frame)).toString('base64');
@@ -121,8 +124,23 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     // counted as blocked, not as an error, and accuracy is measured over the
     // survivors. A rising block rate is its own warning: it means the model got
     // worse even though the player never saw it.
+    // THE GUARDS MUST BE JUDGED ON THE CONTEXT PRODUCTION GIVES THEM.
+    //
+    // contradictsState is called in the engine with matchContext, which carries
+    // client-side fields the server never returns, and lastDeathAt is the one
+    // that matters here: it is what tells the alive-claim guard that a death
+    // review is legitimate rather than a claim about a living player.
+    //
+    // Replaying with the server context alone made this gate reject four real
+    // death reviews and report a 44% survivor rate, which would have blocked a
+    // good deploy. That is the same failure as a checker keeping its own copy of
+    // a rule: the gate has to model what the engine actually does, not a
+    // convenient subset of it.
+    if (s.playerAlive === false || s.phase === 'dead') lastDeathAt = Date.now();
+    const judged = lastDeathAt ? { ...s, lastDeathAt } : s;
+
     if (tip) {
-      const why = __test.contradictsState(tip, s) ? 'contradicts the counted state'
+      const why = __test.contradictsState(tip, judged) ? 'contradicts the counted state'
         : polishText(tip, 'ai') === null ? 'fails the text rules' : null;
       if (why) blocked.push({ why, tip });
     }

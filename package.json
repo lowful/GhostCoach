@@ -6,6 +6,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
+    "test": "node scripts/run-all.js",
     "generate-icon": "node scripts/generate-icon.js",
     "dist:win": "electron-builder --win",
     "dist:mac": "electron-builder --mac",
@@ -47,7 +48,11 @@
     "test:rivalsdraft": "node scripts/test-rivals-draft.js",
     "test:rivalsroute": "node scripts/test-rivals-route.js",
     "test:rivalsengine": "node scripts/test-rivals-engine.js",
-    "test:rivalsknowledge": "node scripts/test-rivals-knowledge.js"
+    "test:rivalsknowledge": "node scripts/test-rivals-knowledge.js",
+    "test:costrollover": "node scripts/test-cost-rollover.js",
+    "test:deathhp": "node scripts/test-death-hp.js",
+    "test:newmatch": "node scripts/test-new-match-reset.js",
+    "test:agentdetect": "node scripts/test-agent-detect.js"
   },
   "build": {
     "appId": "com.ghostcoach.app2",

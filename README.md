@@ -15,7 +15,7 @@ npm install
 npm start          # or: npm run dev
 ```
 
-On first launch you'll see the **activation screen** — paste your license key.
+On first launch you'll see the **activation screen**, paste your license key.
 After that, GhostCoach launches straight to the overlay + control panel.
 
 ## Hotkeys
@@ -53,14 +53,14 @@ src/
 
 **Key design points**
 
-- **Single-source-of-truth IPC** — main and every preload import `shared/channels.js`,
+- **Single-source-of-truth IPC**, main and every preload import `shared/channels.js`,
   so channel names can never drift out of sync.
 - **`contextIsolation: true`, `nodeIntegration: false`** on every window; preloads
   expose a minimal `window.ghost` API. Renderer consoles are teed into `debug.log`
   so a broken bridge can never fail silently.
 - **Capture runs in a Worker Thread** (PowerShell `Graphics.CopyFromScreen`) so the
   game never stalls on a screenshot.
-- **License-based** — no API keys. The client only talks to the GhostCoach backend.
+- **License-based**, no API keys. The client only talks to the GhostCoach backend.
 
 ## Build (Windows)
 
