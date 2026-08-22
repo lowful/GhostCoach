@@ -29,27 +29,42 @@ ok(readSuggested('SUGGESTED PICK: DPS') === 'Duelist', 'maps the game’s own ro
 ok(readSuggested('') === null, 'an unreadable banner is null, not a guess');
 ok(readSuggested('there is a hero picker on the right') === null, 'unrelated text yields nothing');
 
-// ── The game outranks the model ─────────────────────────────────────────────
+// ── The readable roster outranks the printed banner ─────────────────────────
 {
-  // Team already has 2 Vanguards, so the arithmetic would say Duelist, but the
-  // game printed Vanguard. The printed fact wins, exactly as location labels
-  // beat the model's map guess in Valorant.
+  // Both witnesses agree, which is the confident case.
   const a = draftAdvice({ locked: ['Vanguard', 'Vanguard', 'Strategist'], suggested: 'SUGGESTED PICK: DUELIST' });
-  ok(a && a.role === 'Duelist', `the banner decides the role (${a && a.role})`);
-  ok(a && a.source === 'game', 'and it is recorded as coming from the game');
-  ok(a && a.agreed === true, 'agreement with the arithmetic is reported');
+  ok(a && a.role === 'Duelist', `agreement gives the obvious answer (${a && a.role})`);
+  ok(a && a.agreed === true, 'and is reported as agreement');
 }
 {
-  // Disagreement: arithmetic wants a Strategist, the game says Vanguard.
-  const a = draftAdvice({ locked: ['Vanguard', 'Duelist', 'Duelist'], suggested: 'SUGGESTED PICK: VANGUARD' });
-  ok(a && a.role === 'Vanguard', 'the banner still wins when the two disagree');
-  ok(a && a.agreed === false, 'and the disagreement is surfaced rather than hidden');
+  // THE CASE THE CAPTURE FRAMES ARGUED. The banner read VANGUARD across four
+  // frames of one real draft, 22s down to 2s, while the team slots filled up,
+  // and that match's scoreboard shows a finished 2-2-2 with the player on a
+  // Duelist. Following the banner there would have talked them out of the right
+  // pick with two seconds left, so the roster decides and the banner is kept
+  // only to show the disagreement.
+  const a = draftAdvice({
+    locked: ['Vanguard', 'Vanguard', 'Duelist', 'Strategist', 'Strategist'],
+    suggested: 'SUGGESTED PICK: VANGUARD',
+  });
+  ok(a && a.role === 'Duelist', `the roster decides when the two disagree (${a && a.role})`);
+  ok(a && a.source === 'comp', 'and the source says so');
+  ok(a && a.printed === 'Vanguard', 'the banner is kept rather than discarded');
+  ok(a && a.agreed === false, 'and the disagreement is surfaced');
 }
 {
-  // No banner: fall back to the arithmetic, and say so.
+  // No banner at all: the arithmetic was already doing the work.
   const a = draftAdvice({ locked: ['Vanguard', 'Duelist', 'Duelist'], suggested: null });
   ok(a && a.role === 'Strategist' && a.source === 'comp', `without a banner the comp decides (${a && a.role})`);
   ok(/nobody is healing/.test(a.why), `and explains what is missing (${a.why})`);
+  ok(a.printed === null, 'and records that there was no banner');
+}
+{
+  // The banner's genuinely better case: the roster could not be read at all, so
+  // there is no arithmetic to prefer and the printed role is all there is.
+  const a = draftAdvice({ locked: [], suggested: 'SUGGESTED PICK: VANGUARD' });
+  ok(a && a.role === 'Vanguard' && a.source === 'comp',
+    'an empty roster still resolves, since every role is missing');
 }
 
 // ── Refusing to advise on a roster it cannot trust ──────────────────────────
@@ -58,17 +73,24 @@ ok(draftAdvice({ locked: ['Vanguard', 'Sorcerer'], suggested: null }) === null,
 ok(draftAdvice({ locked: ['Vanguard', 'Vanguard', 'Duelist', 'Duelist', 'Strategist', 'Strategist'] }) === null,
   'a full team has nothing to advise');
 ok(draftAdvice({ locked: [], suggested: 'SUGGESTED PICK: VANGUARD' }).role === 'Vanguard',
-  'an empty roster still takes the printed suggestion');
+  'an empty roster resolves to a role rather than staying silent');
 ok(draftAdvice(null) === null, 'no draft at all is null');
 ok(draftAdvice({ locked: ['Vanguard'], suggested: 'SUGGESTED PICK: NONSENSE' }).source === 'comp',
-  'an unreadable banner falls back to the arithmetic rather than failing');
+  'an unreadable banner leaves the arithmetic in charge rather than failing');
 
 // ── Never make the comp worse ───────────────────────────────────────────────
 {
-  // The game would have to be misread for this: two Strategists already, and a
-  // banner naming a third. pickHelps refuses it.
+  // A banner naming a role that is already full cannot drag the advice there,
+  // because the roster is what decides and it says Duelist.
   const a = draftAdvice({ locked: ['Strategist', 'Strategist', 'Vanguard'], suggested: 'SUGGESTED PICK: STRATEGIST' });
-  ok(a === null, 'a pick that would overfill a role is refused even when the banner says it');
+  ok(a && a.role === 'Duelist', `a full role in the banner is ignored (${a && a.role})`);
+  ok(a && a.printed === 'Strategist', 'though the banner is still reported');
+}
+{
+  // And when only the banner is available and it would overfill, pickHelps
+  // refuses rather than making the comp worse.
+  const a = draftAdvice({ locked: ['Vanguard', 'Vanguard', 'Duelist', 'Duelist', 'Strategist'], suggested: 'SUGGESTED PICK: VANGUARD' });
+  ok(a && a.role === 'Strategist', `the last seat is filled by what is missing (${a && a.role})`);
 }
 
 // ── The enemy gate, the reason this file exists ─────────────────────────────

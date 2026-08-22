@@ -80,22 +80,36 @@ function draftAdvice(draft) {
   const under = ROLES.filter((r) => counts[r] < IDEAL[r]);
   const computed = empty[0] || under[0] || null;
 
-  // THE GAME WINS. When the banner was readable it decides the role, because it
-  // is a printed fact and the model's role tally is a reading of six small
-  // portraits. The computed answer is kept only to say whether they agreed,
-  // which is what lets the interface admit uncertainty instead of asserting.
-  const role = printed || computed;
+  // THE ROSTER WINS, and this was the other way round until the capture frames
+  // argued against it.
+  //
+  // The banner is a printed fact, which is why it looked like the better
+  // witness. What it is NOT is provably current. Across four frames of one real
+  // draft, at 22s, 18s, 8s and 2s, it read VANGUARD the whole way down while the
+  // team slots visibly filled up, and that match's scoreboard shows the player
+  // finishing on a 2-2-2 as a Duelist. If their five teammates were already
+  // 2V/1D/2S, the role actually missing was Duelist, and following the banner
+  // would have talked them out of the right pick with two seconds left.
+  //
+  // So the readable roster decides, because it describes the draft as it stands
+  // now. The banner is corroboration when they agree and a fallback when the
+  // roster cannot be read, which is the case it is genuinely better at.
+  const role = computed || printed;
   if (!role) return null;
 
   // Never recommend a pick that makes the comp worse. pickHelps returns null
   // when the roster cannot be trusted, and null is not permission.
   if (pickHelps(locked, role) !== true) return null;
 
-  const agreed = !!(printed && computed && printed === computed);
   return {
     role,
-    agreed,
-    source: printed ? 'game' : 'comp',
+    // Both witnesses said the same thing, which is the confident case and worth
+    // saying out loud in the tip.
+    agreed: !!(printed && computed && printed === computed),
+    source: computed ? 'comp' : 'game',
+    // What the game said, kept even when it lost, so the interface can show a
+    // disagreement rather than quietly discarding one of the two readings.
+    printed: printed || null,
     why: reasonFor(role, counts, empty.includes(role)),
   };
 }
