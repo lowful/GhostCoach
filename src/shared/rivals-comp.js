@@ -137,3 +137,62 @@ function pickHelps(currentRoles, pickRole) {
 }
 
 module.exports = { ROLES, TEAM_SIZE, IDEAL, MIN, normaliseRole, countRoles, analyseComp, pickHelps };
+
+/**
+ * The role a scoreboard row PROVES, from its numbers rather than its icon.
+ *
+ * The model reads small role icons badly. On a real scoreboard it called a
+ * Duelist a Vanguard, and the review tip then framed the whole thing around
+ * damage blocked and holding space, which is Vanguard advice given to somebody
+ * playing damage.
+ *
+ * The columns settle it, but only partly, and the partly is the point:
+ *
+ *   HEALING separates Strategists absolutely. Measured across twelve real rows,
+ *   Strategists healed 13,068 to 33,213 and everybody else 0 to 567. A 24x gap
+ *   is not a threshold that needs tuning.
+ *
+ *   DAMAGE BLOCKED does NOT separate Vanguard from Duelist. Those same rows
+ *   overlap: the lowest Vanguard blocked 8,431 and the highest Duelist 12,283.
+ *   Any rule drawn through that is a coin flip wearing a number.
+ *
+ * So this returns 'Strategist' or null, and null means "the numbers do not say",
+ * which is different from the model's guess being right. Callers must treat null
+ * as unverified rather than as a Duelist.
+ */
+const HEALING_PROVES_STRATEGIST = 2000;   // an order of magnitude clear of both groups
+
+function roleFromStats(row) {
+  const r = row || {};
+  const healing = Number(r.healing);
+  if (!Number.isFinite(healing)) return null;
+  return healing >= HEALING_PROVES_STRATEGIST ? 'Strategist' : null;
+}
+
+/**
+ * Reconcile the model's role read against what the numbers prove.
+ *
+ * @returns { role, verified, corrected } where role is null when nothing is
+ *          certain, so a caller can decline to give role-shaped advice at all.
+ */
+function verifyRole(claimed, row) {
+  const said = normaliseRole(claimed);
+  const proven = roleFromStats(row);
+
+  // The numbers prove Strategist. Code wins, as everywhere else in this app.
+  if (proven === 'Strategist') {
+    return { role: 'Strategist', verified: true, corrected: said !== 'Strategist' };
+  }
+  // The numbers prove NOT a Strategist, so a claim of Strategist is refuted even
+  // though they cannot say which of the other two it is.
+  if (roleFromStats(row) === null && Number.isFinite(Number((row || {}).healing)) && said === 'Strategist') {
+    return { role: null, verified: false, corrected: true };
+  }
+  // Vanguard versus Duelist is unverifiable from the columns, so the claim is
+  // passed through UNVERIFIED rather than endorsed.
+  return { role: said, verified: false, corrected: false };
+}
+
+module.exports.roleFromStats = roleFromStats;
+module.exports.verifyRole = verifyRole;
+module.exports.HEALING_PROVES_STRATEGIST = HEALING_PROVES_STRATEGIST;

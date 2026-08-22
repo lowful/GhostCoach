@@ -76,5 +76,45 @@ check('  an unreadable pick gets no opinion', comp.pickHelps([V, V, D, D, S], 'f
 check('  an untrustworthy roster gets no opinion',
   comp.pickHelps([V, V, D, D, 'unknown'], S) === null);
 
-console.log(`\n${pass} passed, ${fail} failed`);
+// ── Roles proven from the scoreboard columns, not read off an icon ──────────
+// The model reads small role icons badly: on a real scoreboard it called a
+// Duelist a Vanguard, and the review tip then framed everything around damage
+// blocked and holding space, which is Vanguard advice given to a damage player.
+{
+  const check2 = (cond, name) => check(name, cond);
+  const { verifyRole, roleFromStats } = require(path.join(__dirname, '..', 'src', 'shared', 'rivals-comp.js'));
+
+  // Measured across twelve real rows: Strategists healed 13,068 to 33,213 and
+  // everybody else 0 to 567. A 24x gap needs no tuning.
+  check2(roleFromStats({ healing: 13068 }) === 'Strategist', 'high healing proves Strategist');
+  check2(roleFromStats({ healing: 33213 }) === 'Strategist', 'and so does the highest real value');
+  check2(roleFromStats({ healing: 567 }) === null, 'the highest non Strategist healing proves nothing');
+  check2(roleFromStats({ healing: 0 }) === null, 'nor does zero');
+  check2(roleFromStats({}) === null, 'nor does a missing column');
+
+  // Damage blocked was tried for Vanguard versus Duelist and CANNOT do it: on
+  // those same rows the lowest Vanguard blocked 8,431 and the highest Duelist
+  // 12,283. Anything drawn through that overlap is a coin flip wearing a number.
+  const rosu = verifyRole('Vanguard', { healing: 214, blocked: 7719 });
+  check2(rosu.role === 'Vanguard' && rosu.verified === false,
+    'a Vanguard claim is passed through UNVERIFIED rather than endorsed');
+
+  const promoted = verifyRole('Duelist', { healing: 13068 });
+  check2(promoted.role === 'Strategist' && promoted.verified === true && promoted.corrected === true,
+    'the numbers overrule a wrong role, since code beats the model here as everywhere');
+
+  const refuted = verifyRole('Strategist', { healing: 0 });
+  check2(refuted.role === null && refuted.corrected === true,
+    'a false Strategist claim is refuted, and the answer is null rather than a guess at which other role it was');
+
+  const agreed = verifyRole('Strategist', { healing: 17599 });
+  check2(agreed.role === 'Strategist' && agreed.verified === true && agreed.corrected === false,
+    'agreement is reported as verified without a correction');
+
+  check2(verifyRole('Vanguard', {}).verified === false, 'no healing column means nothing can be verified');
+  check2(verifyRole(null, { healing: 20000 }).role === 'Strategist', 'the numbers work with no claim at all');
+}
+
+console.log(`
+${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
