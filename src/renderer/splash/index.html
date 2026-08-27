@@ -2,58 +2,34 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <!-- font-src is required: theme.css loads the bundled Inter woff2 files, and
+  <!-- font-src is required: theme.css loads the bundled Geist woff2 files, and
        under default-src 'none' they were silently blocked and the wordmark fell
        back to Arial. Everything else stays denied. -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'self'; font-src 'self';" />
-  <title>GhostCoach</title>
+  <title>Occlara</title>
   <link rel="stylesheet" href="../shared/theme.css" />
   <link rel="stylesheet" href="splash.css" />
 </head>
 <body>
-  <!-- The ghost draws itself, then floods with colour, then names itself.
+  <!-- The aperture opens: the ring draws, the gaps appear, the pupil arrives.
        Three beats and nothing else: no grid, no rings, no progress bar. The
        silhouette is inlined so the outline and the fill can be separate paths,
        which is what makes the draw-on possible. Keep in sync with
-       assets/logo-ghost.svg if the logo changes. -->
+       assets/logo-mark.svg if the logo changes. -->
   <div class="stage">
-    <svg class="ghost" viewBox="0 0 120 140" width="104" height="121" role="img" aria-label="GhostCoach">
-      <defs>
-        <linearGradient id="body" x1="60" y1="8" x2="60" y2="132" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stop-color="#FF5E6B"/>
-          <stop offset="1" stop-color="#E8323F"/>
-        </linearGradient>
-        <!-- The fill rises from the feet up. Animating this rect's y is what
-             floods the silhouette. -->
-        <clipPath id="rise">
-          <rect class="rise-rect" x="0" y="140" width="120" height="140"/>
-        </clipPath>
-      </defs>
-
-      <!-- 1. the line draws itself. pathLength normalises the outline to 1, so
-              the dash maths does not depend on the real perimeter. -->
-      <path class="outline" pathLength="1" fill="none" stroke="#00F0FF" stroke-width="2"
-            stroke-linejoin="round" stroke-linecap="round" d="
-        M60 8 C33 8 16 28 16 56 V118 c0 6 7 9 11 5 l8-8 8 8c2 2 6 2 8 0
-        l8-8 8 8c2 2 6 2 8 0 l8-8 8 8c4 4 11 1 11-5 V56 C104 28 87 8 60 8 Z"/>
-
-      <!-- 2. the colour floods up through the shape -->
-      <g clip-path="url(#rise)">
-        <path class="fill" fill="url(#body)" d="
-          M60 8 C33 8 16 28 16 56 V118 c0 6 7 9 11 5 l8-8 8 8c2 2 6 2 8 0
-          l8-8 8 8c2 2 6 2 8 0 l8-8 8 8c4 4 11 1 11-5 V56 C104 28 87 8 60 8 Z"/>
-      </g>
-
-      <!-- 3. the eyes open last -->
-      <g class="eyes">
-        <circle cx="45" cy="58" r="8" fill="#0F1923"/>
-        <circle cx="75" cy="58" r="8" fill="#0F1923"/>
-        <circle cx="47.5" cy="55.5" r="2.6" fill="#00F0FF"/>
-        <circle cx="77.5" cy="55.5" r="2.6" fill="#00F0FF"/>
-      </g>
+    <!-- The aperture opens: the ring draws itself, then the pupil scales in.
+         An aperture OPENING is the whole argument of the mark, so the animation
+         has to move outward rather than flood or fade. -->
+    <svg class="mark" viewBox="0 0 64 64" width="96" height="96" role="img" aria-label="Occlara">
+      <!-- pathLength normalises the ring to 1, so the dash maths below does not
+           depend on the real circumference. -->
+      <circle class="ring" cx="32" cy="32" r="24" pathLength="1"
+              fill="none" stroke="currentColor" stroke-width="5"
+              stroke-linecap="round" transform="rotate(-90 32 32)"/>
+      <circle class="pupil" cx="32" cy="32" r="6.5" fill="currentColor"/>
     </svg>
 
-    <div class="wordmark">GHOSTCOACH</div>
+    <div class="wordmark">OCCLARA</div>
   </div>
 </body>
 </html>

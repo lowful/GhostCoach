@@ -24,7 +24,7 @@ header h2 { font-size: 15.5px; font-weight: 700; }
 .mix-text .sw.cyan { background: var(--cyan); }
 .mix-text .sw.mute { background: var(--red); }
 .mix-track { height: 6px; border-radius: 3px; background: rgba(138,160,178,0.35); overflow: hidden; }
-.mix-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--cyan), #57f7ff); border-radius: 3px; transition: width var(--t-med) var(--ease); }
+.mix-fill { height: 100%; width: 0%; background: var(--cyan); border-radius: 3px; transition: width var(--t-med) var(--ease); }
 
 .body { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
 .body::-webkit-scrollbar { width: 8px; }
@@ -95,5 +95,5 @@ header h2 { font-size: 15.5px; font-weight: 700; }
   transition: all var(--t-fast) var(--ease);
 }
 .fb-btn:hover { color: var(--text); }
-.fb-btn.send { background: linear-gradient(135deg, var(--red), var(--red-2)); color: #fff; border: none; }
+.fb-btn.send { background: var(--red); color: #fff; border: none; }
 .fb-btn.send:disabled { opacity: 0.4; cursor: default; }

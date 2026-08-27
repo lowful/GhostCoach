@@ -1,6 +1,6 @@
 {
   "name": "ghostcoach",
-  "version": "3.5.0",
+  "version": "4.0.0",
   "description": "Real-time Valorant AI coaching overlay",
   "main": "src/main/index.js",
   "scripts": {
@@ -56,7 +56,7 @@
   },
   "build": {
     "appId": "com.ghostcoach.app2",
-    "productName": "GhostCoach",
+    "productName": "Occlara",
     "artifactName": "GhostCoach 2.0 Setup.${ext}",
     "copyright": "Copyright © 2025 GhostCoach",
     "files": [
@@ -100,8 +100,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "GhostCoach",
-      "uninstallDisplayName": "GhostCoach",
+      "shortcutName": "Occlara",
+      "uninstallDisplayName": "Occlara",
       "include": "build/uninstaller.nsh"
     },
     "directories": {

@@ -156,7 +156,7 @@ header {
 .ask-input::placeholder { color: var(--text-mute); }
 .ask-send {
   flex: none; font-family: var(--font); font-size: 12px; font-weight: 700; color: #fff;
-  background: linear-gradient(135deg, var(--red), var(--red-2)); border: none;
+  background: var(--red); border: none;
   border-radius: 8px; padding: 0 14px; cursor: pointer;
   transition: filter var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
 }

@@ -14,7 +14,7 @@ body {
   height: 100%;
   border-radius: var(--r-lg);
   border: 1px solid var(--glass-border);
-  background: linear-gradient(160deg, var(--glass-fill) 0%, var(--bg-2) 100%);
+  background: var(--glass-fill);
   box-shadow: var(--shadow-win);
   overflow: hidden;
 }
@@ -149,7 +149,7 @@ h3 {
   height: 100%;
   width: 0;
   border-radius: 3px;
-  background: linear-gradient(90deg, var(--red) 0%, #ff8a5c 45%, var(--cyan) 100%);
+  background: var(--cyan);
   box-shadow: 0 0 10px rgba(var(--cyan-rgb),0.25);
   transition: width 900ms var(--ease-expo);
   transition-delay: calc(var(--i, 0) * 70ms);

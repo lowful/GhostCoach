@@ -1,0 +1,34 @@
+<!--
+  Occlara mark: an aperture.
+
+  A ring of three arcs with gaps between them, plus a solid pupil. The gaps are
+  the point. `occl-` reads as OCCLUDE, meaning to block vision, so the mark has
+  to argue the other way as loudly as possible: an aperture is an OPENING, and
+  it pairs with the `-clara` half of the name, clarus, clear.
+
+  The ring is a dashed circle rather than three hand-computed arc paths. The
+  circumference is 2*pi*24 = 150.796, so a dash plus gap of 50.265 repeats
+  EXACTLY three times. Hand-plotted arcs drift a fraction of a degree and the
+  gaps end up uneven, which is visible at large sizes and impossible to fix
+  later without redrawing.
+
+  currentColor with an explicit color="#FFFFFF" DEFAULT on the root, and the
+  default is load-bearing. Nearly every surface uses this file through an <img>
+  tag, and an external SVG loaded that way is its own document: currentColor
+  resolves against the SVG, not the page, so it falls back to black and the mark
+  renders invisible on the dark ground. Setting color here makes <img> render
+  white while inline copies can still override it by inheriting.
+
+  Sizes it must survive: 16px in the Windows tray and 20px in a panel header. At
+  16px the 5-unit stroke lands at about 1.25px and the pupil at about 3px, which
+  is why the stroke is this heavy in a 64 viewBox. Thinner disappears.
+-->
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none"
+     xmlns="http://www.w3.org/2000/svg" color="#FFFFFF" role="img" aria-label="Occlara">
+  <circle cx="32" cy="32" r="24"
+          fill="none" stroke="currentColor" stroke-width="5"
+          stroke-linecap="round"
+          stroke-dasharray="42.265 8"
+          transform="rotate(-90 32 32)"/>
+  <circle cx="32" cy="32" r="6.5" fill="currentColor"/>
+</svg>

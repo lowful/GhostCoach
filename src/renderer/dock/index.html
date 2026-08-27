@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;" />
-  <title>GhostCoach Dock</title>
+  <title>Occlara Dock</title>
   <link rel="stylesheet" href="../shared/theme.css" />
   <link rel="stylesheet" href="dock.css" />
 </head>
@@ -13,37 +13,14 @@
        restore is Ctrl+Shift+M or the tray. The logo SVG is inlined so the
        pupils can aim at the center of the screen from wherever the dock sits. -->
   <div class="dock">
-    <svg class="mark" width="30" height="35" viewBox="0 0 120 140" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="ghostBody" x1="60" y1="8" x2="60" y2="132" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stop-color="#FF5E6B"/>
-          <stop offset="1" stop-color="#E8323F"/>
-        </linearGradient>
-        <radialGradient id="ghostGlow" cx="0.5" cy="0.32" r="0.7">
-          <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.22"/>
-          <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
-        </radialGradient>
-        <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#FF4655" flood-opacity="0.35"/>
-        </filter>
-      </defs>
-
-      <path filter="url(#soft)" fill="url(#ghostBody)" d="
-        M60 8
-        C33 8 16 28 16 56
-        V118
-        c0 6 7 9 11 5
-        l8-8 8 8c2 2 6 2 8 0
-        l8-8 8 8c2 2 6 2 8 0
-        l8-8 8 8c4 4 11 1 11-5
-        V56
-        C104 28 87 8 60 8 Z"/>
-
-      <path fill="url(#ghostGlow)" d="M60 8C33 8 16 28 16 56v22c0-28 17-48 44-48s44 20 44 48V56C104 28 87 8 60 8Z"/>
-
-      <!-- Clean solid eyes, no pupils -->
-      <circle cx="45" cy="58" r="8" fill="#0F1923"/>
-      <circle cx="75" cy="58" r="8" fill="#0F1923"/>
+    <!-- The mark, inline rather than an img so it can inherit currentColor and
+         tint with the dock's own state. Kept identical in geometry to
+         assets/logo-mark.svg; change both or they drift. -->
+    <svg class="mark" width="26" height="26" viewBox="0 0 64 64" fill="none"
+         xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Occlara">
+      <circle cx="32" cy="32" r="24" fill="none" stroke="currentColor" stroke-width="5"
+              stroke-linecap="round" stroke-dasharray="42.265 8" transform="rotate(-90 32 32)"/>
+      <circle cx="32" cy="32" r="6.5" fill="currentColor"/>
     </svg>
   </div>
   <script src="../shared/i18n-apply.js"></script>

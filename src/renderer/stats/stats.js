@@ -630,7 +630,7 @@ function gradingRow(g) {
 
 // ── Shareable scorecard: a flashy PNG built on canvas ────────────────────────
 const cardLogo = new Image();
-cardLogo.src = '../../../assets/logo-ghost.svg';
+cardLogo.src = '../../../assets/logo-mark.svg';
 
 function rr(ctx, x, y, w, h, r) {
   ctx.beginPath();
@@ -682,7 +682,7 @@ async function rrChangeForMatch(m) {
 
 async function buildMatchCard(m) {
   if (!cardLogo.complete) await new Promise((res) => { cardLogo.onload = res; cardLogo.onerror = res; });
-  try { await document.fonts.ready; } catch {}   // Inter must be loaded before canvas text
+  try { await document.fonts.ready; } catch {}   // Geist must be loaded before canvas text
   const rrChange = await rrChangeForMatch(m);
   const icons = await loadAgentIcons();
   const entry = icons[String(m.agent || '').toLowerCase()];
@@ -695,9 +695,9 @@ async function buildMatchCard(m) {
     img.src = entry.portrait;
   }) : null;
 
-  // Display faces if the player has them installed, Inter otherwise.
-  const DISPLAY = 'Coolvetica, Konnect, Inter, sans-serif';
-  const BODY = 'Inter, sans-serif';
+  // The bundled brand face, used for the shareable card as well as the UI.
+  const DISPLAY = 'Geist, sans-serif';
+  const BODY = 'Geist, sans-serif';
 
   const W = 1000, H = 560, L = 48;   // L = the one left margin everything shares
   const cv = document.createElement('canvas');
@@ -746,7 +746,7 @@ async function buildMatchCard(m) {
 
   // Player name + context line
   const riot = (dashRiotId || '').trim();
-  const name = riot.split('#')[0] || 'GhostCoach Player';
+  const name = riot.split('#')[0] || 'Occlara Player';
   ctx.fillStyle = '#F4FBFF'; ctx.font = '800 56px ' + DISPLAY;
   ctx.fillText(name.slice(0, 16), L, 158);
   const dateStr = m.startedAt
@@ -756,7 +756,7 @@ async function buildMatchCard(m) {
   ctx.fillText([m.agent, m.map, m.queue, dateStr].filter(Boolean).join('  ·  ').toUpperCase(), L + 2, 196);
   shadowOff();
 
-  // The pill leads with the GhostCoach match rating (0-100, tracker-derived)
+  // The pill leads with the Occlara match rating (0-100, tracker-derived)
   const rating = Math.round(m.rating || 0);
   const pillCol = rating >= 70 ? ['#2BE58D', '#19c97a'] : rating >= 55 ? ['#ffd76a', '#eebc3f'] : ['#ff8a95', '#ff5f6e'];
   const pillW = 200, pillH = 80, pillY = 226;

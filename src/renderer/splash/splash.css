@@ -29,53 +29,48 @@ html, body {
 @keyframes stageIn  { from { opacity: 0; } to { opacity: 1; } }
 @keyframes stageOut { to { opacity: 0; } }
 
-.ghost {
-  /* Barely there, so the shape has some presence without a glow around it */
-  filter: drop-shadow(0 10px 26px rgba(var(--red-rgb), 0.28));
+.mark {
+  /* White on near black needs no glow. The old ghost carried a red drop shadow
+     to give it presence; the aperture gets its presence from the gaps. */
+  color: var(--text);
 }
 
-/* 1. The outline draws itself, one continuous stroke.
-      pathLength="1" on the element means the dash maths is just 0 to 1. */
-.outline {
+/* 1. The ring draws itself as one continuous stroke, then the gaps appear.
+      pathLength="1" on the element means the dash maths is just 0 to 1, so it
+      does not depend on the real circumference. */
+.ring {
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  opacity: 0.9;
   animation:
-    draw 820ms 160ms cubic-bezier(0.65, 0, 0.35, 1) forwards,
-    dim  420ms 900ms var(--ease) forwards;
+    draw 760ms 140ms cubic-bezier(0.65, 0, 0.35, 1) forwards,
+    open 420ms 900ms var(--ease-expo) forwards;
 }
 
 @keyframes draw { to { stroke-dashoffset: 0; } }
-/* The line steps back once the fill takes over, so it reads as a guide that
-   did its job rather than an outline sitting on top of the logo. */
-@keyframes dim  { to { opacity: 0.18; } }
 
-/* 2. Colour floods up from the feet. Animating the clip rect's y is the whole
-      trick: SVG geometry properties are animatable as CSS in Chromium. */
-.rise-rect {
-  animation: rise 620ms 860ms cubic-bezier(0.33, 1, 0.68, 1) forwards;
+/* The solid ring breaks into three arcs. This is the moment the mark becomes an
+   aperture rather than a circle, so it is the beat the whole animation is for.
+   0.28 of the normalised length, three times, lands the gaps at exact thirds. */
+@keyframes open {
+  from { stroke-dasharray: 1 0; }
+  to   { stroke-dasharray: 0.28 0.0533; }
 }
 
-@keyframes rise {
-  from { y: 140px; }
-  to   { y: 0px; }
+/* 2. The pupil scales in last, from nothing, so the eye reads as opening. */
+.pupil {
+  transform-origin: 32px 32px;
+  transform: scale(0);
+  animation: pupilIn 460ms 1180ms var(--ease-spring) forwards;
 }
 
-/* 3. Eyes open once the colour has reached them */
-.eyes {
-  opacity: 0;
-  transform-origin: 60px 58px;
-  animation: eyesOpen 380ms 1300ms var(--ease-spring) forwards;
-}
-
-@keyframes eyesOpen {
-  0%   { opacity: 0; transform: scaleY(0.1); }
-  100% { opacity: 1; transform: scaleY(1); }
+@keyframes pupilIn {
+  from { transform: scale(0); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
 }
 
 .wordmark {
   color: var(--text);
-  font-family: Inter, system-ui, sans-serif;
+  font-family: var(--font);
   font-size: 15px;
   font-weight: 700;
   letter-spacing: 6px;
@@ -92,8 +87,7 @@ html, body {
 /* Reduced motion: the finished state, held and faded. No drawing, no flooding. */
 @media (prefers-reduced-motion: reduce) {
   .stage { animation: stageIn 200ms both, stageOut 300ms 1600ms linear forwards; }
-  .outline { animation: none; stroke-dashoffset: 0; opacity: 0.18; }
-  .rise-rect { animation: none; y: 0px; }
-  .eyes { animation: none; opacity: 1; transform: none; }
+  .ring { animation: none; stroke-dashoffset: 0; stroke-dasharray: 0.28 0.0533; }
+  .pupil { animation: none; transform: scale(1); opacity: 1; }
   .wordmark { animation: none; opacity: 0.92; letter-spacing: 5px; }
 }

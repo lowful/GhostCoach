@@ -5,10 +5,13 @@ const path = require('path');
 const fs   = require('fs');
 
 // ── Distinct app identity (GhostCoach 2.0) ───────────────────────────────────
-// The product is called GhostCoach. The "2.0" was a build-generation marker
-// that leaked into the name users see, so the installer read "GhostCoach 2.0
-// 2.9.8", which names the generation twice and the release once.
-app.setName('GhostCoach');
+// The product is called Occlara. It was called GhostCoach, and the identity
+// underneath it deliberately still is: appId, artifactName, the releases repo
+// and the userData folder below all keep the old name, because they are what
+// electron-updater and every existing install match on. A brand is what users
+// see; an identity is what the software IS, and moving the second to follow the
+// first would orphan every install.
+app.setName('Occlara');
 // THE FOLDER NAME STAYS "GhostCoach 2.0" EVEN THOUGH THE APP NO LONGER DOES.
 // It is pinned to a literal rather than derived from the app name, which is the
 // only reason renaming the product is safe: every existing install keeps its

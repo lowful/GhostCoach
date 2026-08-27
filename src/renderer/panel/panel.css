@@ -5,19 +5,34 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
   margin: 10px; /* transparent gutter, gives --shadow-win room so it never clips */
   /* height is auto so the card fits its content; the window resizes to match
      (see ResizeObserver in panel.js), avoids an invisible click-catching strip */
-  border-radius: 16px;
-  padding: 13px 15px 14px;
-  display: flex; flex-direction: column; gap: 11px;
+  border-radius: 18px;
+  padding: 16px 18px 17px;
+  display: flex; flex-direction: column; gap: 13px;
+  /* The whole card arrives rather than appearing. 240ms is long enough to read
+     as deliberate and short enough that it never delays a player mid match. */
+  animation: panelIn 240ms var(--ease-expo) both;
   overflow: hidden;
 }
-.head { display: flex; align-items: center; justify-content: space-between; height: 24px; }
+@keyframes panelIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.995); }
+  to   { opacity: 1; transform: none; }
+}
+
+.head { display: flex; align-items: center; justify-content: space-between; height: 26px; }
 .brand { display: flex; align-items: center; gap: 9px; }
-.mark { filter: drop-shadow(0 2px 5px rgba(var(--red-rgb),0.45)); }
-.name { font-weight: 700; font-size: 14.5px; letter-spacing: -0.2px; }
+.mark { color: var(--text); opacity: 0.95; }
+/* Tighter tracking is most of what makes a wordmark read as designed rather
+   than typed. */
+.name { font-weight: 600; font-size: 15.5px; letter-spacing: -0.3px; }
 .head-actions { display: flex; gap: 2px; }
-/* Six header actions must fit the 360px panel: compact them evenly so the
-   row never overflows and the quit button never hangs off the edge. */
-.head-actions .icon-btn { width: 28px; height: 28px; }
+/* Six header actions. At 420 they no longer need compacting to fit, so they get
+   a real hit area and a hover state instead. */
+.head-actions .icon-btn {
+  width: 30px; height: 30px;
+  transition: background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+}
+.head-actions .icon-btn:hover { background: rgba(255,255,255,0.07); }
+.head-actions .icon-btn:active { transform: scale(0.93); }
 
 /* Agent check "chat bubble": exactly one visible row at a time */
 .agent-bubble {
@@ -87,14 +102,23 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
 #status-text.ended { color: var(--red); }
 
 .controls { display: flex; gap: 9px; align-items: stretch; }
-.toggle { flex: 1; height: 44px; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+/* THE COACHING BUTTON STAYS RED. It is the one control a player needs to find
+   without looking, and it is the only place the accent earns full saturation in
+   an otherwise white-on-black interface. */
+.toggle {
+  flex: 1; height: 52px; font-size: 15px; font-weight: 600; letter-spacing: -0.1px;
+  display: flex; align-items: center; justify-content: center; gap: 9px;
+  transition: transform var(--t-fast) var(--ease), box-shadow var(--t-med) var(--ease), background var(--t-fast) var(--ease);
+}
+.toggle:not(:disabled):hover  { transform: translateY(-1px); }
+.toggle:not(:disabled):active { transform: translateY(0) scale(0.985); }
 /* While coaching, a slow breathing glow behind the toggle so the panel reads
    as live at a glance. Deliberately slow and low contrast: this sits on screen
    for a whole match and must never pull the eye mid-round. */
 .toggle.active { animation: liveGlow 3.4s var(--ease) infinite; }
 @keyframes liveGlow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--cyan-rgb),0.00); }
-  50%      { box-shadow: 0 0 14px 0 rgba(var(--cyan-rgb),0.16); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--red-rgb),0.00); }
+  50%      { box-shadow: 0 0 18px 0 rgba(var(--red-rgb),0.20); }
 }
 .toggle .t-ico { font-size: 11px; }
 .toggle.active { background: rgba(255,255,255,0.07); border: 1px solid var(--glass-border); color: var(--text); }
@@ -103,14 +127,14 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
 .toggle:disabled { opacity: 0.55; cursor: default; filter: grayscale(0.35); }
 .toggle:disabled:hover { box-shadow: none; filter: grayscale(0.35); }
 
-.icon-btn.lg { width: 44px; height: 44px; font-size: 17px; border: 1px solid var(--glass-border); background: var(--glass-fill-2); }
+.icon-btn.lg { width: 52px; height: 52px; font-size: 18px; border: 1px solid var(--glass-border); background: var(--glass-fill-2); }
 .icon-btn[disabled] { opacity: 0.3; cursor: default; pointer-events: none; }
 
 .last-tip {
   display: flex; align-items: flex-start; gap: 9px; width: 100%; text-align: left;
-  font-family: var(--font); font-size: 12.5px; color: var(--text-dim); line-height: 1.42;
+  font-family: var(--font); font-size: 13.5px; color: var(--text-dim); line-height: 1.5;
   background: rgba(0,0,0,0.22); border: 1px solid var(--glass-border);
-  border-radius: 10px; padding: 10px 12px; cursor: pointer;
+  border-radius: 12px; padding: 12px 14px; cursor: pointer;
   transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
 }
 .last-tip:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.14); }
@@ -133,7 +157,7 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
   display: flex; align-items: flex-start; gap: 8px;
   margin-top: 10px;
   padding: 10px 11px;
-  background: linear-gradient(135deg, rgba(var(--cyan-rgb),0.13), rgba(var(--cyan-rgb),0.05));
+  background: rgba(var(--cyan-rgb), 0.07);
   border: 1px solid rgba(var(--cyan-rgb),0.34);
   border-radius: var(--r-md);
   box-shadow: 0 6px 18px rgba(0,0,0,0.38);

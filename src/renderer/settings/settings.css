@@ -39,7 +39,7 @@ section h3 { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
   padding: 9px 6px; border-radius: 9px; transition: all var(--t-fast) var(--ease);
 }
 .seg button:hover { color: var(--text); background: rgba(255,255,255,0.05); }
-.seg button.active { background: linear-gradient(135deg, var(--red), var(--red-2)); color: #fff; box-shadow: var(--glow-red); }
+.seg button.active { background: var(--red); color: #fff; box-shadow: var(--glow-red); }
 
 /* Tip frequency slider end labels */
 .freq-ends { display: flex; justify-content: space-between; margin-top: 4px; font-size: 10.5px; color: var(--text-mute); }
@@ -55,7 +55,7 @@ input[type="range"] {
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none; appearance: none;
   width: 16px; height: 16px; border-radius: 50%;
-  background: linear-gradient(135deg, var(--red), var(--red-2));
+  background: var(--red);
   border: 2px solid #fff2; box-shadow: 0 0 8px rgba(var(--red-rgb),0.4);
 }
 

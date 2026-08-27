@@ -2,7 +2,7 @@
 'use strict';
 /**
  * Generates assets/icon.png (256x256) and assets/icon.ico (multi-size)
- * from the GhostCoach ghost shape, no external dependencies required.
+ * from the Occlara aperture mark, no external dependencies required.
  *
  * Usage:  node scripts/generate-icon.js
  */
@@ -11,38 +11,52 @@ const zlib = require('zlib');
 const fs   = require('fs');
 const path = require('path');
 
-// ─── Ghost shape (SVG viewBox 0 0 24 24, scaled to any size) ─────────────────
+// ─── Occlara aperture (coordinate space 0 0 24 24, scaled to any size) ──────
+//
+// Geometry mirrors assets/logo-mark.svg exactly, converted from its 64 viewBox
+// by dividing by 64/24. If that file changes, this must change with it: they are
+// two hand-maintained copies of one drawing, which is precisely how the old
+// ghost ended up subtly different in five places.
+//
+// The gaps come from the SVG's stroke-dasharray of 42.265 on 8, against a
+// circumference of 2*pi*24 = 150.796. That is three dashes of 100.9 degrees
+// separated by three gaps of 19.1 degrees, starting at twelve o'clock because
+// the SVG carries rotate(-90).
 
-function isInsideGhost(gx, gy) {
-  // Upper dome, ellipse centred at (12, 11), rx=9, ry=9 (top half only)
-  if (gy <= 11) {
-    return ((gx - 12) / 9) ** 2 + ((gy - 11) / 9) ** 2 <= 1;
-  }
+const C = 12;              // centre, in the 24 unit space
+const RING_R = 9;          // 24 / (64/24)
+const RING_HALF = 0.94;    // half of stroke-width 5, converted
+const PUPIL_R = 2.44;      // 6.5, converted
+const GAPS = [[100.9, 120], [220.9, 240], [340.9, 360]];
 
-  // Lower body, rectangle x:[3,21], y:[11,waveBottom]
-  if (gx < 3 || gx > 21) return false;
+// A DARK TILE, not a bare white mark. The mark is white, and a white icon
+// disappears against a light desktop or a light taskbar. Every app that ships a
+// monochrome mark puts it on a tile for exactly this reason.
+const TILE = [0x12, 0x13, 0x16, 0xFF];
+const MARK = [0xFF, 0xFF, 0xFF, 0xFF];
+const CORNER_R = 5.4;      // ~22% of 24, the platform convention
 
-  // Wavy bottom: l3-3 3 3 3-3 3 3 3-3 starting from (3,22)
-  // 6 segments each 3 SVG-units wide alternating valley(22)→peak(19)
-  const t   = (gx - 3) / 3;
-  const seg = Math.min(Math.floor(t), 5);
-  const frac = t - seg;
-  const startY = (seg % 2 === 0) ? 22 : 19;
-  const endY   = (seg % 2 === 0) ? 19 : 22;
-  const waveY  = startY + (endY - startY) * frac;
-
-  return gy <= waveY;
+/** Rounded-square tile test, so the icon has defined edges at every size. */
+function isInsideTile(gx, gy) {
+  const dx = Math.max(CORNER_R - gx, 0, gx - (24 - CORNER_R));
+  const dy = Math.max(CORNER_R - gy, 0, gy - (24 - CORNER_R));
+  return dx * dx + dy * dy <= CORNER_R * CORNER_R;
 }
 
-function isInsideEye(gx, gy) {
-  // Left eye centred at (9.5, 10.5), r=1.5
-  if ((gx - 9.5) ** 2 + (gy - 10.5) ** 2 <= 1.5 ** 2) return true;
-  // Right eye centred at (14.5, 10.5), r=1.5
-  if ((gx - 14.5) ** 2 + (gy - 10.5) ** 2 <= 1.5 ** 2) return true;
-  return false;
+function isInsideMark(gx, gy) {
+  const dx = gx - C, dy = gy - C;
+  const d = Math.sqrt(dx * dx + dy * dy);
+  if (d <= PUPIL_R) return true;                                  // the pupil
+  if (d < RING_R - RING_HALF || d > RING_R + RING_HALF) return false;
+
+  // Angle from twelve o'clock, clockwise, matching the SVG's rotate(-90).
+  let a = Math.atan2(dx, -dy) * 180 / Math.PI;
+  if (a < 0) a += 360;
+  for (const [lo, hi] of GAPS) if (a >= lo && a < hi) return false;
+  return true;
 }
 
-function drawGhost(size) {
+function drawMark(size) {
   const pixels = Buffer.alloc(size * size * 4, 0); // all transparent
 
   for (let py = 0; py < size; py++) {
@@ -51,13 +65,8 @@ function drawGhost(size) {
       const gy = (py + 0.5) * 24 / size;
 
       let r = 0, g = 0, b = 0, a = 0;
-
-      if (isInsideGhost(gx, gy)) {
-        r = 0xFF; g = 0x46; b = 0x55; a = 0xFF; // #FF4655
-      }
-      if (isInsideEye(gx, gy)) {
-        r = 0x0F; g = 0x19; b = 0x23; a = 0xFF; // #0F1923 (dark)
-      }
+      if (isInsideTile(gx, gy)) [r, g, b, a] = TILE;
+      if (isInsideMark(gx, gy) && isInsideTile(gx, gy)) [r, g, b, a] = MARK;
 
       const i = (py * size + px) * 4;
       pixels[i]     = r;
@@ -159,9 +168,9 @@ if (!fs.existsSync(assetsDir)) fs.mkdirSync(assetsDir, { recursive: true });
 const sizes = [16, 32, 48, 64, 128, 256];
 const pngs  = {};
 
-console.log('Generating ghost icon…');
+console.log('Generating Occlara icon...');
 for (const sz of sizes) {
-  pngs[sz] = encodePNG(sz, drawGhost(sz));
+  pngs[sz] = encodePNG(sz, drawMark(sz));
   console.log(`  ${sz}x${sz} done`);
 }
 

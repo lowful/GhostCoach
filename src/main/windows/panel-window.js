@@ -10,7 +10,13 @@ const store = require('../services/store');
  * premium glass hub: Start/Stop, Pause, Force-tip, status, recent tips,
  * Settings + Quit. Draggable via CSS -webkit-app-region; position persisted.
  */
-const WIDTH = 360;
+// Widened from 360 in the rebrand. The panel is the surface a player looks at
+// between rounds, and at 360 every row was fighting for space: six header
+// actions were explicitly "compacted so the row never overflows", and the tip
+// text wrapped to three lines constantly. 420 buys back the breathing room the
+// dark minimal look depends on, and it still sits comfortably in the corner of
+// a 1920 display.
+const WIDTH = 420;
 const HEIGHT = 200; // initial only, the panel auto-resizes to its content (setContentHeight)
 
 /**

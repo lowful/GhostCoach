@@ -37,7 +37,7 @@ header h2 { font-size: 15px; font-weight: 700; }
 .msg.user {
   align-self: flex-end;
   color: #fff;
-  background: linear-gradient(135deg, rgba(var(--red-rgb),0.85), rgba(255,45,64,0.85));
+  background: rgba(var(--red-rgb), 0.90);
   border-bottom-right-radius: 5px;
 }
 .msg.coach {
@@ -68,7 +68,7 @@ header h2 { font-size: 15px; font-weight: 700; }
 .send {
   flex: none; width: 38px; height: 38px; border-radius: 12px; cursor: pointer;
   display: grid; place-items: center; color: #fff;
-  background: linear-gradient(135deg, var(--red), var(--red-2)); border: none;
+  background: var(--red); border: none;
   transition: filter var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
 }
 .send:hover { filter: brightness(1.08); box-shadow: var(--glow-red); }

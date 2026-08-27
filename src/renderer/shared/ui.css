@@ -22,7 +22,7 @@
 .btn-primary {
   position: relative;
   overflow: hidden;
-  background: linear-gradient(135deg, var(--red), var(--red-2));
+  background: var(--red);
   border-color: transparent;
   color: #fff;
   box-shadow: var(--edge-top);
@@ -116,7 +116,7 @@
 
 /* Numbers that should feel earned rather than printed. */
 .grad-num {
-  background: linear-gradient(135deg, #fff 10%, var(--cyan) 120%);
+  background: var(--cyan);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -236,3 +236,55 @@
   to   { opacity: 1; transform: none; }
 }
 .sheet-in { animation: sheetIn 420ms var(--ease-expo) both; }
+
+/* ── Motion, added in the rebrand ─────────────────────────────────────────────
+   Restraint is the point. The brief was sleek, and the fastest way to lose that
+   is motion that draws attention to itself while somebody is trying to play a
+   ranked game. So: short durations, small distances, and nothing that loops
+   except the one control that is deliberately signalling "live".
+
+   prefers-reduced-motion is honoured at the bottom rather than per rule, so a
+   new animation cannot forget to opt in. */
+
+/* Buttons acknowledge the press. This is the single cheapest thing that makes an
+   interface feel responsive rather than rendered. */
+.btn, .icon-btn, .seg button {
+  transition: background var(--t-fast) var(--ease),
+              border-color var(--t-fast) var(--ease),
+              transform var(--t-fast) var(--ease);
+}
+.btn:active, .icon-btn:active, .seg button:active { transform: scale(0.97); }
+
+/* Focus is visible and uses the white accent, not a browser default outline. */
+.btn:focus-visible, .icon-btn:focus-visible, .seg button:focus-visible,
+input:focus-visible, select:focus-visible {
+  outline: 2px solid rgba(var(--cyan-rgb), 0.55);
+  outline-offset: 2px;
+}
+
+/* Rows and cards that arrive after load fade up a few pixels. Six is enough to
+   read as movement and small enough never to look like a slide deck. */
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+.rise-in { animation: riseIn 240ms var(--ease-expo) both; }
+
+/* Staggering makes a list read as one gesture rather than six. Capped at six,
+   after which everything shares the last delay: a long list should not take a
+   second and a half to finish arriving. */
+.stagger > *          { animation: riseIn 240ms var(--ease-expo) both; }
+.stagger > *:nth-child(1) { animation-delay: 0ms; }
+.stagger > *:nth-child(2) { animation-delay: 40ms; }
+.stagger > *:nth-child(3) { animation-delay: 80ms; }
+.stagger > *:nth-child(4) { animation-delay: 120ms; }
+.stagger > *:nth-child(5) { animation-delay: 160ms; }
+.stagger > *:nth-child(n+6) { animation-delay: 200ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

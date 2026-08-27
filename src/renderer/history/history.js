@@ -4,7 +4,7 @@ const listEl  = document.getElementById('list');
 const emptyEl = document.getElementById('empty');
 const countEl = document.getElementById('count');
 
-const SRC_LABEL = { ai: 'Coach', library: 'Tip', system: 'GhostCoach' };
+const SRC_LABEL = { ai: 'Coach', library: 'Tip', system: 'Occlara' };
 
 function fmtTime(ts) {
   if (!ts) return '';
@@ -24,7 +24,7 @@ function rowFor(tip) {
   meta.className = 'meta';
   const src = document.createElement('span');
   src.className = 'src';
-  src.textContent = tip.death ? '💀 Death Review' : (SRC_LABEL[tip.source] || 'GhostCoach');
+  src.textContent = tip.death ? '💀 Death Review' : (SRC_LABEL[tip.source] || 'Occlara');
   const time = document.createElement('span');
   time.className = 'time';
   time.textContent = fmtTime(tip.time);

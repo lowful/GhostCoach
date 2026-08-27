@@ -18,7 +18,7 @@ const MAX_VISIBLE = 4;
 function sourceLabel(src) {
   if (src === 'ai') return 'Coach';
   if (src === 'library') return 'Tip';
-  return 'GhostCoach';
+  return 'Occlara';
 }
 
 let tipsVisible = true;   // "Show tips" setting: hidden tips are still recorded
