@@ -1,24 +1,23 @@
 <!--
-  Occlara mark: a two-ring aperture.
+  Occlara mark: an aperture, reduced to two elements.
 
-  The first version was one ring of three arcs and a pupil. Correct, but inert:
-  a single ring reads as a circle with bites taken out of it. Two rings whose
-  gaps are OFFSET read as an iris, because that is what a real aperture is,
-  overlapping blades at different depths. It also gives the mark something to do
-  when it animates: the rings counter-rotate as it opens.
+  Third version, and the simplest. One ring of three arcs was inert; two rings
+  with offset gaps had depth but was busy at 16px, where six arc ends and a
+  pupil turn into noise. This is one ring, one gap, one pupil.
 
-  `occl-` reads as OCCLUDE, to block vision, so the gaps are the whole argument.
-  An aperture is an OPENING, and it pairs with the `-clara` half, clarus, clear.
+  The single gap does all the work. A ring plus a dot is a target or a reticle;
+  break the ring once and it becomes an aperture, an eye, a lens. That matters
+  because `occl-` reads as OCCLUDE, to block vision, so the mark has to argue
+  OPENING as plainly as it can, and it pairs with the `-clara` half, clarus,
+  clear.
 
-  Both rings are dashed circles rather than hand-plotted arc paths. The
-  circumferences divide EXACTLY into three:
-    outer  2*pi*26 = 163.363,  dash 45.454 + gap 9 = 54.454, x3
-    inner  2*pi*15 =  94.248,  dash 24.416 + gap 7 = 31.416, x3
-  Hand-plotted arcs drift a fraction of a degree and the gaps end up uneven,
-  which is visible at large sizes and cannot be fixed later without redrawing.
+  The gap is 48 degrees, sitting from roughly one o'clock to two. Placing it off
+  the vertical axis is deliberate: a gap at the top reads as a broken circle,
+  and a gap on the diagonal reads as an aperture blade pulling back.
 
-  The inner ring is rotated a further 60 degrees so its gaps sit behind the
-  outer ring's arcs. Aligned gaps would cut a wedge straight through the mark.
+  Dashes rather than a hand-plotted arc. Circumference is 2*pi*24 = 150.796, so
+  a 48 degree gap is 20.106 and the remaining stroke is 130.690. Hand-plotting
+  the arc drifts a fraction of a degree and the ends stop looking parallel.
 
   color="#FFFFFF" on the root is load-bearing. Nearly every surface uses this
   file through an <img>, and an external SVG loaded that way is its own
@@ -26,19 +25,15 @@
   default it falls back to black and the mark is invisible on the dark ground.
 
   Sizes it must survive: 16px in the Windows tray, 20px in a panel header. At
-  16px the outer stroke lands near 1.1px and the pupil near 2.5px, which is why
-  the strokes are this heavy in a 64 viewBox. Thinner disappears.
+  16px the stroke lands near 1.25px and the pupil near 3px. Two elements is what
+  makes that legible.
 -->
 <svg width="64" height="64" viewBox="0 0 64 64" fill="none"
      xmlns="http://www.w3.org/2000/svg" color="#FFFFFF" role="img" aria-label="Occlara">
-  <circle cx="32" cy="32" r="26"
-          fill="none" stroke="currentColor" stroke-width="4.5"
-          stroke-linecap="round" stroke-dasharray="45.454 9"
-          transform="rotate(-90 32 32)"/>
-  <circle cx="32" cy="32" r="15"
-          fill="none" stroke="currentColor" stroke-width="3.5"
-          stroke-linecap="round" stroke-dasharray="24.416 7"
-          opacity="0.55"
-          transform="rotate(-30 32 32)"/>
-  <circle cx="32" cy="32" r="5" fill="currentColor"/>
+  <circle cx="32" cy="32" r="24"
+          fill="none" stroke="currentColor" stroke-width="5"
+          stroke-linecap="round"
+          stroke-dasharray="130.690 20.106"
+          transform="rotate(-54 32 32)"/>
+  <circle cx="32" cy="32" r="6" fill="currentColor"/>
 </svg>

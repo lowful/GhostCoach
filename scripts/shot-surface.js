@@ -27,7 +27,7 @@ const OUT = path.join(ROOT, 'dist-surface-shots');
 // rather than an arbitrary window. Height is generous and the page is captured
 // at its own content height where it reports one.
 const SIZES = {
-  panel: [420, 460], settings: [560, 760], stats: [980, 760], history: [560, 640],
+  panel: [420, 268], settings: [560, 760], stats: [980, 760], history: [560, 640],
   ailog: [900, 640], chat: [520, 600], weekly: [560, 700], onboarding: [720, 620],
   activation: [460, 560], dock: [220, 120], overlay: [520, 400], splash: [420, 420],
 };

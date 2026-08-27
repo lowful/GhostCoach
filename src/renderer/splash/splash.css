@@ -43,49 +43,40 @@ html, body {
   color: var(--text);
 }
 
-/* 1. Both rings draw themselves, then break open into arcs.
+/* 1. The ring draws itself, then opens.
       pathLength="1" means the dash maths is just 0 to 1, independent of the
       real circumference. */
 .ring {
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
+  animation: draw 780ms 140ms cubic-bezier(0.65,0,0.35,1) forwards,
+             open 460ms 940ms var(--ease-expo) forwards;
 }
-.r-out { animation: draw 760ms 140ms cubic-bezier(0.65,0,0.35,1) forwards,
-                    openOut 480ms 900ms var(--ease-expo) forwards; }
-.r-in  { animation: draw 640ms 300ms cubic-bezier(0.65,0,0.35,1) forwards,
-                    openIn 480ms 980ms var(--ease-expo) forwards;
-         opacity: 0.55; }
 
 @keyframes draw { to { stroke-dashoffset: 0; } }
 
-/* THE MOMENT THE MARK BECOMES AN APERTURE. Each solid ring breaks into three
-   arcs, and because the two rings are rotated 60 degrees apart their gaps land
-   behind each other's arcs rather than cutting a wedge through the mark.
-   0.2782 of the normalised length repeats exactly three times on the outer
-   ring; 0.2591 does the same on the inner. */
-@keyframes openOut {
+/* THE MOMENT THE MARK BECOMES AN APERTURE. The solid ring opens a single gap,
+   which is the entire idea of the brand played once. 0.8667 of the normalised
+   length leaves a 48 degree opening, matching assets/logo-mark.svg. */
+@keyframes open {
   from { stroke-dasharray: 1 0; }
-  to   { stroke-dasharray: 0.2782 0.0551; }
-}
-@keyframes openIn {
-  from { stroke-dasharray: 1 0; }
-  to   { stroke-dasharray: 0.2591 0.0743; }
+  to   { stroke-dasharray: 0.8667 0.1333; }
 }
 
-/* The whole mark settles out of a slight rotation as it opens, which is what an
-   iris actually does.
+/* The mark settles out of a slight rotation as it opens, which is what an
+   aperture blade actually does.
 
    transform-origin is stated EXPLICITLY. On an SVG element it defaults to 0 0,
    the top left corner, not the centre as it does for an HTML element, so the
-   first version pivoted the mark around its corner and threw the rings and the
+   first version pivoted the mark around its corner and threw the ring and the
    pupil off centre. It looked like a geometry bug in the SVG and was a CSS
    default. */
 .mark {
   transform-origin: 50% 50%;
-  animation: settle 1100ms 820ms var(--ease-expo) both;
+  animation: settle 1100ms 860ms var(--ease-expo) both;
 }
 @keyframes settle {
-  from { transform: rotate(-14deg); }
+  from { transform: rotate(-16deg); }
   to   { transform: rotate(0deg); }
 }
 
@@ -138,9 +129,8 @@ html, body {
 /* Reduced motion: the finished state, held and faded. No drawing, no flooding. */
 @media (prefers-reduced-motion: reduce) {
   .stage { animation: stageIn 200ms both, stageOut 300ms 1600ms linear forwards; }
-  .r-out { animation: none; stroke-dashoffset: 0; stroke-dasharray: 0.2782 0.0551; }
-  .r-in  { animation: none; stroke-dashoffset: 0; stroke-dasharray: 0.2591 0.0743; }
-  .mark  { animation: none; transform: none; }
+  .ring { animation: none; stroke-dashoffset: 0; stroke-dasharray: 0.8667 0.1333; }
+  .mark { animation: none; transform: none; }
   .pupil { animation: none; transform: scale(1); opacity: 1; }
   .stage::after { animation: none; opacity: 0; }
   .wordmark { animation: none; opacity: 0.92; letter-spacing: 5px; }

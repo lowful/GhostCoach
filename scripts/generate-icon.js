@@ -26,35 +26,20 @@ const path = require('path');
 const C = 12;                 // centre, in the 24 unit space
 const SCALE = 64 / 24;        // the SVG is authored in a 64 viewBox
 
-// Outer ring
-const R1 = 26 / SCALE, W1 = (4.5 / SCALE) / 2;
-// Inner ring, drawn at 55% opacity in the SVG
-const R2 = 15 / SCALE, W2 = (3.5 / SCALE) / 2;
-const PUPIL_R = 5 / SCALE;
+const RING_R = 24 / SCALE;
+const RING_HALF = (5 / SCALE) / 2;
+const PUPIL_R = 6 / SCALE;
 
-// Gap angles, derived from the SVG's dash arrays rather than eyeballed.
-//   outer: dash 45.454 + gap 9 on a circumference of 163.363, starting at 12
-//          o'clock because the SVG carries rotate(-90)
-//   inner: dash 24.416 + gap 7 on 94.248, starting 60 degrees later because the
-//          SVG carries rotate(-30), which is what offsets the gaps so they sit
-//          behind the outer arcs instead of cutting a wedge through the mark
-const GAPS_1 = [[100.2, 120], [220.2, 240], [340.2, 360]];
-const GAPS_2 = [[153.3, 180], [273.3, 300], [33.3, 60]];
+// One gap of 48 degrees. The SVG carries rotate(-54), so measuring clockwise
+// from twelve o'clock the stroke starts 54 degrees anticlockwise of the top,
+// which puts the gap between 306 and 354 degrees: roughly one to two o'clock.
+const GAPS = [[306, 354]];
 
 const TILE = [0x12, 0x13, 0x16, 0xFF];
 const MARK = [0xFF, 0xFF, 0xFF, 0xFF];
-// The inner ring is 55% opaque in the SVG, composited here against the tile so
-// the .ico needs no alpha blending of its own.
-const MARK_DIM = [
-  round(0x12 + (0xFF - 0x12) * 0.55),
-  round(0x13 + (0xFF - 0x13) * 0.55),
-  round(0x16 + (0xFF - 0x16) * 0.55),
-  0xFF,
-];
-function round(n) { return Math.round(n); }
 const CORNER_R = 5.4;         // ~22% of 24, the platform convention
 
-/** Is this point on a dashed ring: right radius, and not inside a gap. */
+/** Is this point on the dashed ring: right radius, and not inside the gap. */
 function onRing(dx, dy, r, halfW, gaps) {
   const d = Math.sqrt(dx * dx + dy * dy);
   if (d < r - halfW || d > r + halfW) return false;
@@ -75,8 +60,7 @@ function isInsideTile(gx, gy) {
 function markAt(gx, gy) {
   const dx = gx - C, dy = gy - C;
   if (Math.sqrt(dx * dx + dy * dy) <= PUPIL_R) return MARK;       // the pupil
-  if (onRing(dx, dy, R1, W1, GAPS_1)) return MARK;                // outer ring
-  if (onRing(dx, dy, R2, W2, GAPS_2)) return MARK_DIM;            // inner ring
+  if (onRing(dx, dy, RING_R, RING_HALF, GAPS)) return MARK;       // the ring
   return null;
 }
 
