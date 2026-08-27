@@ -113,8 +113,43 @@
   cursor: pointer;
   transition: all var(--t-fast) var(--ease);
 }
-.icon-btn:hover { color: var(--text); background: rgba(255,255,255,0.07); border-color: var(--glass-border); }
-.icon-btn:active { transform: scale(0.94); }
+/* The header controls sit at rest on a faint surface with a hairline, rather
+   than fully transparent. Invisible-until-hovered buttons look tidy in a
+   mockup and read as empty space in use: a row of six of them gave no hint
+   there was anything to click. */
+.icon-btn {
+  background: rgba(255, 255, 255, 0.028);
+  border-color: rgba(255, 255, 255, 0.055);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  transition: color var(--t-fast) var(--ease),
+              background var(--t-fast) var(--ease),
+              border-color var(--t-fast) var(--ease),
+              transform var(--t-fast) var(--ease),
+              box-shadow var(--t-med) var(--ease);
+}
+.icon-btn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.085);
+  border-color: rgba(255, 255, 255, 0.16);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 4px 12px rgba(0, 0, 0, 0.42);
+}
+.icon-btn:active {
+  transform: translateY(0) scale(0.95);
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.32);
+}
+/* Quit is the one destructive control in the row, so it earns the accent on
+   hover and only on hover. */
+.icon-btn.danger:hover {
+  color: var(--red);
+  border-color: rgba(var(--red-rgb), 0.42);
+  background: rgba(var(--red-rgb), 0.10);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 4px 14px rgba(var(--red-rgb), 0.18);
+}
 
 .input {
   -webkit-app-region: no-drag;
@@ -266,7 +301,7 @@
   transition: box-shadow var(--t-med) var(--ease);
   pointer-events: none;
 }
-.icon-btn:hover::after { box-shadow: 0 0 0 3px rgba(var(--cyan-rgb), 0.14); }
+.icon-btn:focus-visible::after { box-shadow: 0 0 0 3px rgba(var(--cyan-rgb), 0.18); }
 
 /* Numbers that count up rather than snapping into place. */
 @keyframes countIn {
@@ -305,7 +340,7 @@
               border-color var(--t-fast) var(--ease),
               transform var(--t-fast) var(--ease);
 }
-.btn:active, .icon-btn:active, .seg button:active { transform: scale(0.97); }
+.seg button:active { transform: scale(0.97); }
 
 /* Focus is visible and uses the white accent, not a browser default outline. */
 .btn:focus-visible, .icon-btn:focus-visible, .seg button:focus-visible,

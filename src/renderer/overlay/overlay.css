@@ -113,12 +113,11 @@ html, body { width: 100%; height: 100%; background: transparent !important; over
 .tip-card.out { animation: cardOut 240ms var(--ease) both; }
 
 .tip-card .meta { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; font-size: 10px; text-transform: uppercase; letter-spacing: 1.4px; color: var(--text-dim); font-weight: 700; }
-.tip-card .src-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 7px currentColor; flex: none; }
 .tip-card .meta .when { margin-left: auto; font-weight: 600; letter-spacing: 0.5px; color: var(--text-mute); }
-.tip-card.ai .meta      { color: var(--cyan); }
-.tip-card.library .meta { color: var(--red); }
-.tip-card.system .meta  { color: var(--red); }
-.tip-card .text { font-size: 14px; line-height: 1.5; color: var(--text); overflow-wrap: anywhere; }
+/* Pure white, not the slightly warm --text. A tip is read for about a second
+   and a half over a moving game frame, so it takes the highest contrast
+   available and 15px rather than 14. */
+.tip-card .text { font-size: 15px; line-height: 1.5; color: #FFFFFF; font-weight: 500; overflow-wrap: anywhere; letter-spacing: -0.005em; }
 
 /* auto-dismiss progress bar */
 .tip-card .progress { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: currentColor; opacity: 0.5; transform-origin: left; animation: drain linear forwards; }
@@ -129,7 +128,6 @@ html, body { width: 100%; height: 100%; background: transparent !important; over
 /* Death review: white skull card explaining the mistake behind a death */
 .tip-card.death .meta     { color: #ffffff; }
 .tip-card.death .progress { color: #ffffff; }
-.tip-card .src-skull { font-size: 12px; line-height: 1; flex: none; filter: drop-shadow(0 0 6px rgba(255,255,255,0.55)); }
 @keyframes drain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 
 /* Entry and exit flow FROM the spot the stack lives in: top-right slides in

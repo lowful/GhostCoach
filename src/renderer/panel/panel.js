@@ -9,6 +9,20 @@ const toggleBtn = document.getElementById('toggle');
 const toggleIco = toggleBtn.querySelector('.t-ico');
 const toggleLbl = toggleBtn.querySelector('.t-label');
 const pauseBtn  = document.getElementById('pause');
+// Icons as markup constants rather than glyph characters. These strings are
+// entirely app-authored, never user or model text, so innerHTML is safe here in
+// a way it deliberately is not for a tip.
+//
+// This also fixes a real break: the markup now ships an <svg> inside the toggle
+// and the pause button, and assigning .textContent to those elements wiped it
+// and replaced it with a character.
+const ICO = {
+  play:  '<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" stroke="none"><path d="M8 5.2v13.6a.6.6 0 0 0 .93.5l10.2-6.8a.6.6 0 0 0 0-1l-10.2-6.8A.6.6 0 0 0 8 5.2z"/></svg>',
+  stop:  '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" stroke="none"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg>',
+  pause: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 5v14"/><path d="M15 5v14"/></svg>',
+  check: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5.5 5.5L20 7"/></svg>',
+};
+
 const dotEl     = document.getElementById('dot');
 const statusEl  = document.getElementById('status-text');
 const tipCountEl = document.getElementById('tipcount');
@@ -63,14 +77,14 @@ function render() {
   tipCountEl.textContent = `${tipCount} ${tipCount === 1 ? 'tip' : 'tips'}`;
 
   toggleLbl.textContent = tr(isCoaching ? 'panel.stop' : 'panel.start');
-  toggleIco.textContent = isCoaching ? '■' : '▶';
+  toggleIco.innerHTML = isCoaching ? ICO.stop : ICO.play;
   toggleBtn.classList.toggle('active', isCoaching);
   // The session block carries the live class, so the status dot only breathes
   // while coaching is actually running.
   const sessionEl = document.querySelector('.session');
   if (sessionEl) sessionEl.classList.toggle('live', isCoaching);
   pauseBtn.disabled = !isCoaching;
-  pauseBtn.textContent = isPaused ? '▶' : '⏸';
+  pauseBtn.innerHTML = isPaused ? ICO.play : ICO.pause;
 }
 
 // ── Controls ─────────────────────────────────────────────────────────────────
@@ -145,7 +159,8 @@ function showDoneAndHide(name) {
   agentAnswered = true;
   formActive = false;
   abQuick.hidden = true;
-  abDoneName.textContent = '✓ ' + name;
+  abDoneName.innerHTML = ICO.check + ' ';
+  abDoneName.append(name);
   showRow('done');
   if (doneTimer) clearTimeout(doneTimer);
   doneTimer = setTimeout(hideAgentUI, 1600);

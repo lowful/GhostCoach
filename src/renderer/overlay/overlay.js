@@ -15,10 +15,13 @@ const reviewEl = document.getElementById('review');
 const TIP_TTL = 11000;     // auto-dismiss after 11s
 const MAX_VISIBLE = 4;
 
+/* Kept for the match review card, which genuinely benefits from a source. Tip
+   cards no longer use it: a player mid round does not need to be told which
+   part of the app produced the sentence. */
 function sourceLabel(src) {
   if (src === 'ai') return 'Coach';
   if (src === 'library') return 'Tip';
-  return 'Occlara';
+  return 'Review';
 }
 
 let tipsVisible = true;   // "Show tips" setting: hidden tips are still recorded
@@ -34,17 +37,29 @@ function addTip(tip) {
 
   const card = document.createElement('div');
   card.className = `tip-card ${tip.source || 'system'}${tip.death ? ' death' : ''}`;
-  const meta = document.createElement('div');
-  meta.className = 'meta';
-  meta.innerHTML = tip.death ? '<span class="src-skull">💀</span>' : '<span class="src-dot"></span>';
-  meta.append(tip.death ? ovT('overlay.deathReview') : sourceLabel(tip.source));
+  // THE CARD IS THE TIP, and nothing else.
+  //
+  // It used to open with a coloured dot and the word "Occlara" or "Coach" above
+  // every single line of advice. On screen mid round that is two pieces of
+  // furniture in front of the one sentence a player has about a second and a
+  // half to read, and the source was never information they could act on. A
+  // death review still gets a label, because "this is about the death you just
+  // took" changes how the sentence should be read, but it is a word rather than
+  // an emoji.
   const text = document.createElement('div');
   text.className = 'text';
   text.textContent = tip.text;
+  let meta = null;
+  if (tip.death) {
+    meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.textContent = ovT('overlay.deathReview');
+  }
   const progress = document.createElement('div');
   progress.className = 'progress';
   progress.style.animationDuration = TIP_TTL + 'ms';
-  card.append(meta, text, progress);
+  if (meta) card.append(meta);
+  card.append(text, progress);
 
   tipsEl.prepend(card);
   while (tipsEl.children.length > MAX_VISIBLE) dismiss(tipsEl.lastElementChild);
@@ -171,7 +186,7 @@ function showReview(data) {
   const closeBtn = document.createElement('button');
   closeBtn.className = 'review-close';
   closeBtn.title = 'Dismiss';
-  closeBtn.textContent = '✕';
+  closeBtn.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg>';
   h.append(closeBtn);
   const body = document.createElement('div');
   body.className = 'body';

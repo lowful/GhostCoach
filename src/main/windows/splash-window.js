@@ -17,11 +17,11 @@ const registry = require('./registry');
  * if something in startup hangs.
  */
 
-// The CSS sequence runs about 1.9s. Anything faster than MIN_MS cuts the
+// The CSS sequence runs about 2.4s. Anything faster than MIN_MS cuts the
 // animation off mid stride, which looks broken rather than snappy; MAX_MS is
 // the backstop so a stalled startup never leaves it on screen.
-const MIN_MS = 1900;
-const MAX_MS = 4000;
+const MIN_MS = 2400;
+const MAX_MS = 4500;
 
 let shownAt = 0;
 let hardTimer = null;

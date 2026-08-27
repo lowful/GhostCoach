@@ -1,7 +1,7 @@
-/* Launch animation, about 1.9s.
-   Three beats: the line draws, the colour floods, the name arrives. The panel,
-   grid, rings and progress bar from the first version are all gone; on a splash
-   this short they were decoration competing with the one thing worth watching. */
+/* Launch animation, about 2.4s.
+   Four beats: the ring draws, it breaks open into an aperture, the pupil
+   arrives, the name settles. It is the brand's own argument played once, since
+   an aperture OPENING is the whole point of the mark. */
 
 html, body {
   margin: 0;
@@ -13,6 +13,7 @@ html, body {
 }
 
 .stage {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -22,8 +23,15 @@ html, body {
   /* A soft pool of darkness rather than a card. It gives the wordmark
      something to sit on over any desktop, without an edge or a shadow that
      announces itself as a window. */
-  background: radial-gradient(ellipse 62% 58% at 50% 46%, rgba(9, 15, 22, 0.97) 40%, rgba(9, 15, 22, 0) 100%);
-  animation: stageIn 420ms var(--ease) both, stageOut 340ms 1580ms var(--ease) forwards;
+  /* A soft pool of darkness rather than a card, now on the rebrand's neutral
+     near-black rather than the old navy. This is the one radial that survives
+     the no-gradient rule, because it is doing a job: masking the edge of a
+     transparent window so the splash has no visible border on any desktop. */
+  background: radial-gradient(ellipse 64% 60% at 50% 46%, rgba(8, 9, 10, 0.98) 42%, rgba(8, 9, 10, 0) 100%);
+  /* The fade-out starts AFTER the last beat lands, not during it. It used to
+     begin at 1580ms while the pupil and wordmark were still arriving, so the
+     sequence was dimming before it finished. */
+  animation: stageIn 380ms var(--ease) both, stageOut 320ms 2080ms var(--ease) forwards;
 }
 
 @keyframes stageIn  { from { opacity: 0; } to { opacity: 1; } }
@@ -63,6 +71,24 @@ html, body {
   animation: pupilIn 460ms 1180ms var(--ease-spring) forwards;
 }
 
+/* One ring pushes outward as the aperture opens, then is gone. A single pulse
+   on the beat that matters reads as intent; a looping one reads as a spinner. */
+.mark::after { content: none; }
+.stage::after {
+  content: '';
+  position: absolute;
+  width: 96px; height: 96px;
+  border-radius: 50%;
+  border: 1px solid var(--text);
+  opacity: 0;
+  animation: shockwave 900ms 900ms var(--ease-expo) forwards;
+  pointer-events: none;
+}
+@keyframes shockwave {
+  0%   { transform: scale(0.55); opacity: 0.5; }
+  100% { transform: scale(2.4);  opacity: 0; }
+}
+
 @keyframes pupilIn {
   from { transform: scale(0); opacity: 0; }
   to   { transform: scale(1); opacity: 1; }
@@ -89,5 +115,6 @@ html, body {
   .stage { animation: stageIn 200ms both, stageOut 300ms 1600ms linear forwards; }
   .ring { animation: none; stroke-dashoffset: 0; stroke-dasharray: 0.28 0.0533; }
   .pupil { animation: none; transform: scale(1); opacity: 1; }
+  .stage::after { animation: none; opacity: 0; }
   .wordmark { animation: none; opacity: 0.92; letter-spacing: 5px; }
 }

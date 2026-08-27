@@ -24,7 +24,7 @@ function rowFor(tip) {
   meta.className = 'meta';
   const src = document.createElement('span');
   src.className = 'src';
-  src.textContent = tip.death ? '💀 Death Review' : (SRC_LABEL[tip.source] || 'Occlara');
+  src.textContent = tip.death ? 'Death Review' : (SRC_LABEL[tip.source] || 'Occlara');
   const time = document.createElement('span');
   time.className = 'time';
   time.textContent = fmtTime(tip.time);
@@ -44,7 +44,7 @@ function rowFor(tip) {
       row.classList.add(`rated-${rated}`);
       const badge = document.createElement('span');
       badge.className = `rate-badge ${rated}`;
-      badge.textContent = rated === 'good' ? '✓ helpful' : '✗ not for me';
+      badge.textContent = rated === 'good' ? 'Helpful' : 'Not for me';
       meta.append(badge);
     } else {
       const actions = document.createElement('div');
@@ -52,11 +52,11 @@ function rowFor(tip) {
       const good = document.createElement('button');
       good.className = 'rate-btn good';
       good.title = 'Good tip';
-      good.textContent = '✓';
+      good.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5.5 5.5L20 7"/></svg>';
       const bad = document.createElement('button');
       bad.className = 'rate-btn bad';
       bad.title = 'Bad tip, show fewer like this';
-      bad.textContent = '✗';
+      bad.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg>';
       good.addEventListener('click', () => {
         ratings[tip.text] = 'good';               // instant local feedback
         window.ghost.rateTip({ text: tip.text, source: tip.source, rating: 'good' });

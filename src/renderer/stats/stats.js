@@ -279,7 +279,7 @@ function matchRow(m) {
   top.className = 'top';
   const chev = document.createElement('span');
   chev.className = 'chev';
-  chev.textContent = '▶';
+  chev.innerHTML = '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
   const place = document.createElement('span');
   place.className = 'place';
   place.textContent = m.map || 'Unknown';
@@ -497,7 +497,7 @@ function sessionRow(s, i) {
   top.className = 'top';
   const chev = document.createElement('span');
   chev.className = 'chev';
-  chev.textContent = '▶';
+  chev.innerHTML = '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
   const place = document.createElement('span');
   place.className = 'place';
   place.textContent = fmtDate(s.at);
