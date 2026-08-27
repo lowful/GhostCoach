@@ -38,9 +38,9 @@ function normalize(data = {}) {
 }
 
 const STATUS_MESSAGES = {
-  expired:        'Your license has expired. Renew at ghostcoachai.com.',
-  cancelled:      'Your subscription was cancelled. Resubscribe at ghostcoachai.com.',
-  payment_failed: 'Payment failed. Update your payment method at ghostcoachai.com.',
+  expired:        'Your license has expired. Renew at occlara.app.',
+  cancelled:      'Your subscription was cancelled. Resubscribe at occlara.app.',
+  payment_failed: 'Payment failed. Update your payment method at occlara.app.',
   device_mismatch:'This key is active on another device. Deactivate it there first.',
   invalid:        'That license key is not valid.',
 };

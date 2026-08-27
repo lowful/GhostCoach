@@ -316,7 +316,7 @@ async function chatCall({ prompt, imageB64, maxTokens, temperature, model: pinne
     headers: {
       'Content-Type':  'application/json',
       'Authorization': `Bearer ${AI.apiKey}`,
-      'HTTP-Referer':  'https://ghostcoachai.com', // OpenRouter attribution (ignored elsewhere)
+      'HTTP-Referer':  'https://occlara.app', // OpenRouter attribution (ignored elsewhere)
       'X-Title':       'GhostCoach',
     },
     body: JSON.stringify({

@@ -8,7 +8,7 @@ GhostCoach is a real-time AI coaching app for Valorant on Windows. It runs as a 
 
 - Desktop client: Electron app, Windows only, NSIS installer, auto-updates.
 - Backend: Node/Express server hosted on Railway at ghostcoach-production.up.railway.app. Auto-deploys when the main branch is pushed.
-- Business model: paid license keys (weekly, monthly, lifetime) sold through Stripe via the website ghostcoachai.com (site built on Lovable). The app activates with a license key and binds to a device ID.
+- Business model: paid license keys (weekly, monthly, lifetime) sold through Stripe via the website occlara.app (site built on Lovable). The app activates with a license key and binds to a device ID.
 - Repos: lowful/GhostCoach (source, client + server), lowful/GhostCoach-releases (public, hosts auto-update releases only).
 
 ## 2. The AI brain

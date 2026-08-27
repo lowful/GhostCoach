@@ -66,7 +66,7 @@ router.post('/portal', async (req, res) => {
   try {
     const session = await stripe.billingPortal.sessions.create({
       customer:   license.stripe_customer_id,
-      return_url: 'https://ghostcoachai.com/account',
+      return_url: 'https://occlara.app/account',
     });
     res.json({ url: session.url });
   } catch (err) {

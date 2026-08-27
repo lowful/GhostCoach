@@ -834,7 +834,7 @@ async function buildMatchCard(m) {
   ctx.fillText(tag, L, 536);
   const tagW = ctx.measureText(tag).width;
   ctx.fillStyle = 'rgba(175,205,225,0.6)'; ctx.font = '500 19px ' + BODY;
-  ctx.fillText('ghostcoachai.com', L + tagW + 28, 536);
+  ctx.fillText('occlara.app', L + tagW + 28, 536);
   shadowOff();
   return cv;
 }

@@ -15,7 +15,7 @@ const API = {
   MATCH_REVIEW: '/api/coach/match-review',
 };
 
-const PURCHASE_URL = 'https://ghostcoachai.com';
+const PURCHASE_URL = 'https://occlara.app';
 
 // ── Brand ───────────────────────────────────────────────────────────────────
 const BRAND = {

@@ -35,6 +35,15 @@ app.use(helmet());
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
 const allowedOrigins = [
+  // The new brand. www is listed separately because an Origin header carries
+  // the exact host, and occlara.app and www.occlara.app are different origins.
+  'https://occlara.app',
+  'https://www.occlara.app',
+  // The old brand, KEPT ON PURPOSE. A rename is a transition rather than a
+  // switch: the previous site stays reachable while DNS settles and while
+  // anybody still has it open, and removing it here would break checkout for
+  // them the moment this deploys. Delete these once occlara.app has served
+  // every path for a while and the old domain redirects.
   'https://ghostcoachai.com',
   'https://www.ghostcoachai.com',
   'https://ghostcoach-production.up.railway.app',
