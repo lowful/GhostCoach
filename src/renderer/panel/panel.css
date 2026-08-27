@@ -38,14 +38,59 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
    than typed. */
 .name { font-weight: 600; font-size: 15.5px; letter-spacing: -0.3px; }
 .head-actions { display: flex; gap: 2px; }
-/* Six header actions. At 420 they no longer need compacting to fit, so they get
-   a real hit area and a hover state instead. */
-.head-actions .icon-btn {
-  width: 30px; height: 30px;
-  transition: background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+/* ── The header control strip ─────────────────────────────────────────────
+   ONE CONTINUOUS CONTROL, not six.
+
+   Each action used to be its own rounded square with its own border, so the
+   header read as six separate objects competing for the same corner. Six copies
+   of one shape in a 420px row is noise, and the radius on each one fought the
+   radius on the panel behind it.
+
+   Now they share a single strip divided by hairlines: the group carries the
+   border, the cells carry the dividers, and hovering fills a cell edge to edge
+   rather than lighting up a floating tile. Nothing lifts and nothing casts a
+   shadow, because at this size those are effects on top of an object rather
+   than the object itself. */
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid var(--glass-border);
+  border-radius: 9px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.022);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
-.head-actions .icon-btn:hover { background: rgba(255,255,255,0.07); }
-.head-actions .icon-btn:active { transform: scale(0.93); }
+.head-actions .icon-btn {
+  width: 32px; height: 30px;
+  border: 0;
+  border-left: 1px solid var(--glass-border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-mute);
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.head-actions .icon-btn:first-child { border-left: 0; }
+.head-actions .icon-btn:hover {
+  background: rgba(255, 255, 255, 0.075);
+  color: var(--text);
+  transform: none;
+  box-shadow: none;
+}
+.head-actions .icon-btn:active {
+  background: rgba(255, 255, 255, 0.12);
+  transform: none;
+  box-shadow: none;
+}
+/* Quit is the one destructive control in the strip, so it tints rather than
+   lifts, and only on hover. */
+.head-actions .icon-btn.danger:hover {
+  background: rgba(var(--red-rgb), 0.16);
+  color: var(--red);
+  box-shadow: none;
+}
+.head-actions .icon-btn::after { content: none; }
 
 /* Agent check "chat bubble": exactly one visible row at a time */
 .agent-bubble {

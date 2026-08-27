@@ -23,18 +23,46 @@ const path = require('path');
 // separated by three gaps of 19.1 degrees, starting at twelve o'clock because
 // the SVG carries rotate(-90).
 
-const C = 12;              // centre, in the 24 unit space
-const RING_R = 9;          // 24 / (64/24)
-const RING_HALF = 0.94;    // half of stroke-width 5, converted
-const PUPIL_R = 2.44;      // 6.5, converted
-const GAPS = [[100.9, 120], [220.9, 240], [340.9, 360]];
+const C = 12;                 // centre, in the 24 unit space
+const SCALE = 64 / 24;        // the SVG is authored in a 64 viewBox
 
-// A DARK TILE, not a bare white mark. The mark is white, and a white icon
-// disappears against a light desktop or a light taskbar. Every app that ships a
-// monochrome mark puts it on a tile for exactly this reason.
+// Outer ring
+const R1 = 26 / SCALE, W1 = (4.5 / SCALE) / 2;
+// Inner ring, drawn at 55% opacity in the SVG
+const R2 = 15 / SCALE, W2 = (3.5 / SCALE) / 2;
+const PUPIL_R = 5 / SCALE;
+
+// Gap angles, derived from the SVG's dash arrays rather than eyeballed.
+//   outer: dash 45.454 + gap 9 on a circumference of 163.363, starting at 12
+//          o'clock because the SVG carries rotate(-90)
+//   inner: dash 24.416 + gap 7 on 94.248, starting 60 degrees later because the
+//          SVG carries rotate(-30), which is what offsets the gaps so they sit
+//          behind the outer arcs instead of cutting a wedge through the mark
+const GAPS_1 = [[100.2, 120], [220.2, 240], [340.2, 360]];
+const GAPS_2 = [[153.3, 180], [273.3, 300], [33.3, 60]];
+
 const TILE = [0x12, 0x13, 0x16, 0xFF];
 const MARK = [0xFF, 0xFF, 0xFF, 0xFF];
-const CORNER_R = 5.4;      // ~22% of 24, the platform convention
+// The inner ring is 55% opaque in the SVG, composited here against the tile so
+// the .ico needs no alpha blending of its own.
+const MARK_DIM = [
+  round(0x12 + (0xFF - 0x12) * 0.55),
+  round(0x13 + (0xFF - 0x13) * 0.55),
+  round(0x16 + (0xFF - 0x16) * 0.55),
+  0xFF,
+];
+function round(n) { return Math.round(n); }
+const CORNER_R = 5.4;         // ~22% of 24, the platform convention
+
+/** Is this point on a dashed ring: right radius, and not inside a gap. */
+function onRing(dx, dy, r, halfW, gaps) {
+  const d = Math.sqrt(dx * dx + dy * dy);
+  if (d < r - halfW || d > r + halfW) return false;
+  let a = Math.atan2(dx, -dy) * 180 / Math.PI;   // from 12 o'clock, clockwise
+  if (a < 0) a += 360;
+  for (const [lo, hi] of gaps) if (a >= lo && a < hi) return false;
+  return true;
+}
 
 /** Rounded-square tile test, so the icon has defined edges at every size. */
 function isInsideTile(gx, gy) {
@@ -43,17 +71,13 @@ function isInsideTile(gx, gy) {
   return dx * dx + dy * dy <= CORNER_R * CORNER_R;
 }
 
-function isInsideMark(gx, gy) {
+/** Which part of the mark a point belongs to, or null for the tile. */
+function markAt(gx, gy) {
   const dx = gx - C, dy = gy - C;
-  const d = Math.sqrt(dx * dx + dy * dy);
-  if (d <= PUPIL_R) return true;                                  // the pupil
-  if (d < RING_R - RING_HALF || d > RING_R + RING_HALF) return false;
-
-  // Angle from twelve o'clock, clockwise, matching the SVG's rotate(-90).
-  let a = Math.atan2(dx, -dy) * 180 / Math.PI;
-  if (a < 0) a += 360;
-  for (const [lo, hi] of GAPS) if (a >= lo && a < hi) return false;
-  return true;
+  if (Math.sqrt(dx * dx + dy * dy) <= PUPIL_R) return MARK;       // the pupil
+  if (onRing(dx, dy, R1, W1, GAPS_1)) return MARK;                // outer ring
+  if (onRing(dx, dy, R2, W2, GAPS_2)) return MARK_DIM;            // inner ring
+  return null;
 }
 
 function drawMark(size) {
@@ -65,8 +89,11 @@ function drawMark(size) {
       const gy = (py + 0.5) * 24 / size;
 
       let r = 0, g = 0, b = 0, a = 0;
-      if (isInsideTile(gx, gy)) [r, g, b, a] = TILE;
-      if (isInsideMark(gx, gy) && isInsideTile(gx, gy)) [r, g, b, a] = MARK;
+      if (isInsideTile(gx, gy)) {
+        [r, g, b, a] = TILE;
+        const m = markAt(gx, gy);
+        if (m) [r, g, b, a] = m;
+      }
 
       const i = (py * size + px) * 4;
       pixels[i]     = r;
