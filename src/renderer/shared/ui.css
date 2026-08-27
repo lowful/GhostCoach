@@ -1,23 +1,50 @@
 /* Shared UI primitives, buttons, inputs, chips. */
 
+/* WHAT MAKES A BUTTON READ AS PREMIUM is a top edge that catches light. A real
+   physical control is lit from above, so its upper edge is brighter than its
+   face. One inset box-shadow reproduces that in a single line, and unlike a
+   gradient it survives any background colour underneath it.
+
+   Depth is TWO shadows, not one. A tight dark shadow at 1px seats the control
+   against the surface, and a wider soft one at 10px lifts it off the page. A
+   single mid shadow reads as a drop shadow; two read as an object. */
 .btn {
   -webkit-app-region: no-drag;
   font-family: var(--font);
   font-size: 13px;
   font-weight: 600;
+  letter-spacing: -0.01em;
   color: var(--text);
   background: var(--glass-fill-2);
   border: 1px solid var(--glass-border);
   border-radius: var(--r-md);
-  padding: 9px 14px;
+  padding: 10px 15px;
   cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.055),
+    0 1px 2px rgba(0, 0, 0, 0.40);
   transition: transform var(--t-fast) var(--ease),
               background var(--t-fast) var(--ease),
-              box-shadow var(--t-fast) var(--ease),
+              box-shadow var(--t-med) var(--ease),
               border-color var(--t-fast) var(--ease);
 }
-.btn:hover  { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.16); }
-.btn:active { transform: scale(0.97); }
+.btn:hover {
+  background: rgba(255,255,255,0.075);
+  border-color: rgba(255,255,255,0.155);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 1px 2px rgba(0, 0, 0, 0.45),
+    0 6px 18px rgba(0, 0, 0, 0.42);
+}
+/* Pressing returns it to the surface and takes the lift shadow away, so the
+   control genuinely looks pushed in rather than merely scaled. */
+.btn:active {
+  transform: translateY(0) scale(0.985);
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.30),
+    0 1px 1px rgba(0, 0, 0, 0.35);
+}
 
 .btn-primary {
   position: relative;
@@ -25,9 +52,27 @@
   background: var(--red);
   border-color: transparent;
   color: #fff;
-  box-shadow: var(--edge-top);
+  /* The same lit top edge, brighter because the face is saturated, plus a
+     coloured shadow so the red appears to sit in its own light. */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 1px 2px rgba(0, 0, 0, 0.45),
+    0 4px 14px rgba(var(--red-rgb), 0.26);
 }
-.btn-primary:hover { box-shadow: var(--glow-red), var(--edge-top); filter: brightness(1.06); }
+.btn-primary:hover {
+  background: var(--red-2);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.34),
+    0 1px 2px rgba(0, 0, 0, 0.45),
+    0 8px 26px rgba(var(--red-rgb), 0.38);
+}
+.btn-primary:active {
+  transform: translateY(0) scale(0.985);
+  box-shadow:
+    inset 0 2px 6px rgba(0, 0, 0, 0.26),
+    0 1px 2px rgba(0, 0, 0, 0.40);
+}
 /* A light sweep across the primary action on hover. Transform only, so it
    stays on the compositor and never triggers layout. */
 .btn-primary::after {
@@ -47,8 +92,15 @@
   100% { transform: translateX(360%); opacity: 0; }
 }
 
-.btn-ghost { background: transparent; border-color: transparent; color: var(--text-dim); }
-.btn-ghost:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+.btn-ghost {
+  background: transparent; border-color: transparent; color: var(--text-dim);
+  box-shadow: none;
+}
+.btn-ghost:hover {
+  color: var(--text); background: rgba(255,255,255,0.06);
+  transform: none; box-shadow: none;
+}
+.btn-ghost:active { transform: scale(0.97); box-shadow: none; }
 
 .icon-btn {
   -webkit-app-region: no-drag;

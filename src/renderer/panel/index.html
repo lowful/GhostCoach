@@ -61,11 +61,20 @@
       </div>
     </div>
 
-    <div class="statusline">
-      <span class="dot" id="dot"></span>
-      <span id="status-text">Idle</span>
-      <span class="sep">·</span>
-      <span id="tipcount" class="muted">0 tips</span>
+    <!-- The session readout. Was a single line of text reading
+         "Idle . 0 tips"; it is now a bordered block with the live state on the
+         left and the count as a labelled figure on the right. Structuring the
+         same two facts is most of what separates a tool from a widget, and it
+         gives the count somewhere to grow as more of them arrive. -->
+    <div class="session">
+      <div class="s-state">
+        <span class="dot" id="dot"></span>
+        <span id="status-text">Idle</span>
+      </div>
+      <div class="s-stat">
+        <b id="tipcount">0 tips</b>
+        <span class="s-lbl">this session</span>
+      </div>
     </div>
 
     <div class="controls">

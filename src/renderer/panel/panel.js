@@ -65,6 +65,10 @@ function render() {
   toggleLbl.textContent = tr(isCoaching ? 'panel.stop' : 'panel.start');
   toggleIco.textContent = isCoaching ? '■' : '▶';
   toggleBtn.classList.toggle('active', isCoaching);
+  // The session block carries the live class, so the status dot only breathes
+  // while coaching is actually running.
+  const sessionEl = document.querySelector('.session');
+  if (sessionEl) sessionEl.classList.toggle('live', isCoaching);
   pauseBtn.disabled = !isCoaching;
   pauseBtn.textContent = isPaused ? '▶' : '⏸';
 }
