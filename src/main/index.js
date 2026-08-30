@@ -1640,7 +1640,7 @@ function enterLicenseEnded(reason) {
   console.warn('[license] subscription ended:', state.licenseReason);
   if (state.isCoaching) controller.stop();   // kills the engine: no more tips at all
   const msg = licenseService.messageForStatus(state.licenseReason) ||
-    'Your GhostCoach subscription has ended. Renew to keep coaching.';
+    'Your Occlara subscription has ended. Renew to keep coaching.';
   pushTip({ text: msg, source: 'system' });  // one notice explaining why tips stopped
   registry.broadcast(C.PUSH_STATE, buildState());
 }

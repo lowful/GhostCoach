@@ -1,7 +1,7 @@
 {
   "name": "ghostcoach-server",
   "version": "1.0.0",
-  "description": "GhostCoach backend API server",
+  "description": "Occlara backend API server",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

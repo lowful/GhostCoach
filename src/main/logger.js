@@ -4,7 +4,7 @@ const path = require('path');
 const fs   = require('fs');
 
 /**
- * Tees console.{log,warn,error} to %APPDATA%\ghostcoach\debug.log.
+ * Tees console.{log,warn,error} to debug.log inside the userData folder.
  * Main-process stdout is invisible in installed builds, so this is the only
  * way to debug production. Truncated on each launch.
  */
@@ -14,7 +14,7 @@ function init(app) {
   try {
     logPath = path.join(app.getPath('userData'), 'debug.log');
     try {
-      fs.writeFileSync(logPath, `=== GhostCoach session ${new Date().toISOString()} ===\n`);
+      fs.writeFileSync(logPath, `=== Occlara session ${new Date().toISOString()} ===\n`);
     } catch {}
 
     const wrap = (level, orig) => (...args) => {

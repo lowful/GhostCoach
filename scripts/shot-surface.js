@@ -20,16 +20,32 @@ const { app, BrowserWindow } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
+// loadFile intermittently rejects with ERR_FAILED here, most often on any
+// window after the first in a process. It succeeds on a retry, so retry rather
+// than reporting a surface as broken.
+async function loadWithRetry(win, file, tries = 6) {
+  for (let i = 0; i < tries; i++) {
+    try { await win.loadFile(file); return true; }
+    catch { await new Promise((r) => setTimeout(r, 400)); }
+  }
+  return false;
+}
+
 const ROOT = path.join(__dirname, '..');
 const OUT = path.join(ROOT, 'dist-surface-shots');
 
-// Width each surface is actually shown at, so the shot matches what ships
-// rather than an arbitrary window. Height is generous and the page is captured
-// at its own content height where it reports one.
+// The size each surface is ACTUALLY shown at, read from src/main/windows/*.
+// These were previously rough guesses, and the guesses were not harmless: at
+// 720x620 the onboarding card composites its glass layer differently and the
+// white logo captured as rgb(46,47,48), a bug that does not exist at the real
+// 480x528. A screenshot tool that invents defects is worse than none, so keep
+// this table in sync with the window modules.
+//
+// panel height is its initial 200 plus room for the content it auto-resizes to.
 const SIZES = {
-  panel: [420, 268], settings: [560, 760], stats: [980, 760], history: [560, 640],
-  ailog: [900, 640], chat: [520, 600], weekly: [560, 700], onboarding: [720, 620],
-  activation: [460, 560], dock: [220, 120], overlay: [520, 400], splash: [420, 420],
+  panel: [420, 268], settings: [520, 620], stats: [560, 720], history: [440, 560],
+  ailog: [900, 640], chat: [420, 600], weekly: [520, 680], onboarding: [480, 528],
+  activation: [424, 524], dock: [84, 84], overlay: [520, 400], splash: [360, 340],
 };
 
 const args = process.argv.slice(2).filter((a) => !a.startsWith('--'));
@@ -48,17 +64,26 @@ app.whenReady().then(async () => {
     const win = new BrowserWindow({
       width: w, height: h, show: false, frame: false,
       // The surfaces are transparent by design and composite onto the desktop.
-      // A screenshot needs an opaque ground or the card renders on black-on-black
+      // A screenshot needs an opaque ground or the card renders black-on-black
       // and the whole point of looking is lost.
       backgroundColor: '#08090A',
-      webPreferences: { contextIsolation: true, nodeIntegration: false, offscreen: false },
+      webPreferences: { contextIsolation: true, nodeIntegration: false },
     });
 
     try {
-      await win.loadFile(file);
+      if (!await loadWithRetry(win, file)) { console.log(`FAILED ${name}: could not load`); continue; }
       // Let fonts settle and entrance animations finish, or every shot catches
       // the interface mid-fade and looks broken.
-      await new Promise((r) => setTimeout(r, 1800));
+      //
+      // 1800ms was not enough and the way it failed was nasty: onboarding
+      // stacks float + countIn on the logo inside a hero running riseIn, and at
+      // 1800ms the mark captured as rgb(46,47,48) instead of white. That reads
+      // as a dead logo rather than as a half-finished animation, so it looks
+      // exactly like the currentColor bug this repo has actually had. At 2200ms
+      // the same pixel is rgb(255,255,255). 3000ms buys margin on a slow
+      // machine: a screenshot tool that reports a bug that is not there costs
+      // far more than a second per surface.
+      await new Promise((r) => setTimeout(r, 3000));
       const img = await win.capturePage();
       const out = path.join(OUT, `${name}.png`);
       fs.writeFileSync(out, img.toPNG());

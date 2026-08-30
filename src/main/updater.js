@@ -52,8 +52,8 @@ function init() {
     try {
       const { response } = await dialog.showMessageBox({
         type: 'info',
-        title: 'GhostCoach update ready',
-        message: `GhostCoach ${info.version} is ready to install.`,
+        title: 'Occlara update ready',
+        message: `Occlara ${info.version} is ready to install.`,
         detail: 'Restart now to update, or keep playing and it installs when you close the app.',
         buttons: ['Restart now', 'Later'],
         defaultId: 0,

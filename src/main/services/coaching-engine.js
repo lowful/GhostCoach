@@ -469,7 +469,7 @@ class CoachingEngine extends EventEmitter {
   onCaptureFailed(force = false) {
     if (!this.warnedCapture) {
       this.warnedCapture = true;
-      this.emitTip('Windows blocked screen capture. Add GhostCoach to your antivirus exclusions (Windows Security, Virus and threat protection, Exclusions), then restart coaching.', 'system');
+      this.emitTip('Windows blocked screen capture. Add Occlara to your antivirus exclusions (Windows Security, Virus and threat protection, Exclusions), then restart coaching.', 'system');
       if (!force) return;
     }
     this.emitLibraryTip({ force, ignoreRatio: true }); // capture down → ratio doesn't apply
@@ -1800,7 +1800,7 @@ const WELCOME_MESSAGES = [
   'Locked in with you, let’s get some frags. Play smart out there.',
   'Coach is live. Trust your reads and stay tradeable.',
   'Watching every round with you. Let’s climb.',
-  'GhostCoach on. Breathe, lock in, play your game.',
+  'Occlara on. Breathe, lock in, play your game.',
   'We’re live, time to cook. GLHF.',
 ];
 function welcomeMessage() {

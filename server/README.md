@@ -1,4 +1,4 @@
-# GhostCoach Backend Server
+# Occlara Backend Server
 
 Express API server handling Stripe payments, license key generation and validation,
 Stripe webhook processing, and the AI coaching routes the desktop client calls.
@@ -49,20 +49,20 @@ stripe prices create \
   --unit-amount 499 \
   --currency usd \
   --recurring[interval]=week \
-  --product-data[name]="GhostCoach Weekly"
+  --product-data[name]="Occlara Weekly"
 
 # Monthly subscription
 stripe prices create \
   --unit-amount 1499 \
   --currency usd \
   --recurring[interval]=month \
-  --product-data[name]="GhostCoach Monthly"
+  --product-data[name]="Occlara Monthly"
 
 # Lifetime one-time payment
 stripe prices create \
   --unit-amount 5999 \
   --currency usd \
-  --product-data[name]="GhostCoach Lifetime"
+  --product-data[name]="Occlara Lifetime"
 ```
 
 Copy the returned `price_xxx` IDs into your `.env` file.

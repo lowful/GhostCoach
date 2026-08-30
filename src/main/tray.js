@@ -18,7 +18,7 @@ function create(actions) {
       : nativeImage.createEmpty();
 
     tray = new Tray(icon);
-    tray.setToolTip('GhostCoach');
+    tray.setToolTip('Occlara');
     update(false, actions);
     tray.on('double-click', () => actions.toggleOverlay());
   } catch (err) {
@@ -40,10 +40,10 @@ function update(isCoaching, actions) {
     { label: 'Tip History…',        click: () => actions.openHistory() },
     { label: 'Settings…',           click: () => actions.openSettings() },
     { type: 'separator' },
-    { label: 'Quit GhostCoach',     click: () => actions.quit() },
+    { label: 'Quit Occlara',        click: () => actions.quit() },
   ]);
   tray.setContextMenu(menu);
-  tray.setToolTip(isCoaching ? 'GhostCoach, Coaching' : 'GhostCoach');
+  tray.setToolTip(isCoaching ? 'Occlara, Coaching' : 'Occlara');
 }
 
 function destroy() {

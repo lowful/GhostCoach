@@ -88,7 +88,7 @@ const STRINGS = {
     'settings.max': 'Max',
     'settings.default': 'Default',
 
-    'onboarding.welcome': 'Welcome to GhostCoach',
+    'onboarding.welcome': 'Welcome to Occlara',
     'onboarding.chooseLanguage': 'Choose your language',
     'onboarding.getStarted': 'Get started',
     'onboarding.finish': 'Start coaching',
@@ -139,7 +139,7 @@ const STRINGS = {
     'settings.max': 'Max',
     'settings.default': 'Standard',
 
-    'onboarding.welcome': 'Willkommen bei GhostCoach',
+    'onboarding.welcome': 'Willkommen bei Occlara',
     'onboarding.chooseLanguage': 'Wähle deine Sprache',
     'onboarding.getStarted': 'Loslegen',
     'onboarding.finish': 'Coaching starten',
@@ -190,7 +190,7 @@ const STRINGS = {
     'settings.max': 'Máx',
     'settings.default': 'Predeterminado',
 
-    'onboarding.welcome': 'Bienvenido a GhostCoach',
+    'onboarding.welcome': 'Bienvenido a Occlara',
     'onboarding.chooseLanguage': 'Elige tu idioma',
     'onboarding.getStarted': 'Empezar',
     'onboarding.finish': 'Iniciar coaching',
@@ -241,7 +241,7 @@ const STRINGS = {
     'settings.max': 'Máx',
     'settings.default': 'Padrão',
 
-    'onboarding.welcome': 'Bem-vindo ao GhostCoach',
+    'onboarding.welcome': 'Bem-vindo ao Occlara',
     'onboarding.chooseLanguage': 'Escolha seu idioma',
     'onboarding.getStarted': 'Começar',
     'onboarding.finish': 'Iniciar coaching',
@@ -292,7 +292,7 @@ const STRINGS = {
     'settings.max': 'Max',
     'settings.default': 'Par défaut',
 
-    'onboarding.welcome': 'Bienvenue sur GhostCoach',
+    'onboarding.welcome': 'Bienvenue sur Occlara',
     'onboarding.chooseLanguage': 'Choisis ta langue',
     'onboarding.getStarted': 'Commencer',
     'onboarding.finish': 'Démarrer le coaching',

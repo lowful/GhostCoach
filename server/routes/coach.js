@@ -317,7 +317,7 @@ async function chatCall({ prompt, imageB64, maxTokens, temperature, model: pinne
       'Content-Type':  'application/json',
       'Authorization': `Bearer ${AI.apiKey}`,
       'HTTP-Referer':  'https://occlara.app', // OpenRouter attribution (ignored elsewhere)
-      'X-Title':       'GhostCoach',
+      'X-Title':       'Occlara',
     },
     body: JSON.stringify({
       model,
@@ -1652,7 +1652,7 @@ router.post('/recap', async (req, res) => {
 // ─── Player stats providers ───────────────────────────────────────────────────
 async function henrikGet(pathPart) {
   const r = await fetch('https://api.henrikdev.xyz' + pathPart, {
-    headers: { Authorization: process.env.HENRIKDEV_API_KEY, 'User-Agent': 'GhostCoach/2.0' },
+    headers: { Authorization: process.env.HENRIKDEV_API_KEY, 'User-Agent': 'Occlara/4.0' },
   });
   const text = await r.text();
   let json = null; try { json = JSON.parse(text); } catch {}
@@ -1748,7 +1748,7 @@ async function trackerStats(name, tag) {
   try {
     const url = `https://api.tracker.gg/api/v2/valorant/standard/profile/riot/${encodeURIComponent(name)}%23${encodeURIComponent(tag)}`;
     const response = await fetch(url, {
-      headers: { 'User-Agent': 'GhostCoach/2.0', 'TRN-Api-Key': process.env.TRACKER_API_KEY },
+      headers: { 'User-Agent': 'Occlara/4.0', 'TRN-Api-Key': process.env.TRACKER_API_KEY },
     });
     const text = await response.text();
     let data = null; try { data = JSON.parse(text); } catch {}
@@ -2759,7 +2759,7 @@ Reading the numbers: 20%+ headshots is good aim. KPR 0.8+ is strong fragging, un
         })()
       : '';
 
-    const prompt = `You are GhostCoach, a Radiant-level Valorant coach talking directly with your player after (or during) a session. Be honest, specific, and encouraging, like a real coach in a VOD review. Casual tone, no fluff.
+    const prompt = `You are Occlara, a Radiant-level Valorant coach talking directly with your player after (or during) a session. Be honest, specific, and encouraging, like a real coach in a VOD review. Casual tone, no fluff.
 
 ${statsLine}
 ${trendLine}

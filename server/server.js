@@ -145,7 +145,7 @@ app.use((err, _, res, __) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`[server] GhostCoach API running on port ${PORT}`);
+  console.log(`[server] Occlara API running on port ${PORT}`);
   console.log(`[server] Stripe mode: ${process.env.STRIPE_SECRET_KEY?.startsWith('sk_live') ? 'LIVE' : 'TEST'}`);
   console.log(`[server] Supabase: ${process.env.SUPABASE_URL || '(not configured)'}`);
   console.log(`[server] AI provider: ${process.env.AI_API_KEY

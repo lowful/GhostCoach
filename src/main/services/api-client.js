@@ -3,7 +3,7 @@
 const { SERVER_BASE_URL, TIMING } = require('../../shared/config');
 
 /**
- * Minimal POST helper for the GhostCoach backend. Always JSON, always sends the
+ * Minimal POST helper for the Occlara backend. Always JSON, always sends the
  * X-License-Key header when a key is supplied, always bounded by a timeout.
  *
  * Returns { ok, status, data }. Network/timeout failures throw so callers can

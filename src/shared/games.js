@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * The games GhostCoach can coach.
+ * The games Occlara can coach.
  *
  * One place that answers "what is this app currently about": the name shown to
  * the player, the palette, and, importantly, whether coaching for it actually

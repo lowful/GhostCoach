@@ -379,7 +379,7 @@ function matchRow(m) {
     saveBtn.addEventListener('click', (ev) => {
       ev.stopPropagation();
       const a = document.createElement('a');
-      a.download = `ghostcoach-${(m.map || 'match').toLowerCase()}-${m.kills}-${m.deaths}.png`;
+      a.download = `occlara-${(m.map || 'match').toLowerCase()}-${m.kills}-${m.deaths}.png`;
       a.href = card.toDataURL('image/png');
       a.click();
       flashBtn(saveBtn, 'Saved!');
@@ -737,12 +737,12 @@ async function buildMatchCard(m) {
     ctx.fillStyle = fade; ctx.fillRect(W * 0.4, 0, W * 0.28, H);
   }
 
-  // Header: the one ghost logo with the wordmark beside it
+  // Header: the mark with the wordmark beside it
   if (cardLogo.naturalWidth) ctx.drawImage(cardLogo, L, 34, 30, 36);
   ctx.textAlign = 'left';
   shadowOn();
   ctx.fillStyle = '#ECF9FF'; ctx.font = '800 26px ' + DISPLAY;
-  ctx.fillText('GHOSTCOACH', L + 42, 60);
+  ctx.fillText('OCCLARA', L + 42, 60);
 
   // Player name + context line
   const riot = (dashRiotId || '').trim();
