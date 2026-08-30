@@ -191,13 +191,21 @@ and this repo is public. Never commit a key.
 `npm run sync:valorant` from valorant-api.com. Do not hand-edit it.
 
 **The name is Occlara; the identity is still ghostcoach.** `appId`
-(`com.ghostcoach.app2`), `artifactName` (`GhostCoach 2.0 Setup.exe`), the
-`GhostCoach-releases` repo and the `%APPDATA%\GhostCoach 2.0` userData folder
-all deliberately keep the old name. They are what electron-updater and every
-existing install match on, so moving them orphans every user: no updates, no
-licence, no history. A brand is what users see; an identity is what the software
-is. The userData path is pinned to a literal in `src/main/index.js` rather than
-derived from `app.setName`, which is the only reason renaming was safe at all.
+(`com.ghostcoach.app2`), the `GhostCoach-releases` repo and the
+`%APPDATA%\GhostCoach 2.0` userData folder all deliberately keep the old name.
+They are what electron-updater and every existing install match on, so moving
+them orphans every user: no updates, no licence, no history. A brand is what
+users see; an identity is what the software is. The userData path is pinned to a
+literal in `src/main/index.js` rather than derived from `app.setName`, which is
+the only reason renaming was safe at all.
+
+`artifactName` was on that list and is not any more: it moved to
+`Occlara Setup.${ext}` in 4.7.0. It was never actually load-bearing.
+electron-updater resolves the installer through `latest.yml`, which is
+regenerated every build and names whatever the artifact is currently called, and
+nothing in `src/` hard-codes an installer filename. Verify that before assuming
+any other name here is safe to move: the test is whether something outside this
+repo has the string baked in.
 
 **The logo is an aperture, and it exists in four places.** `assets/logo-mark.svg`
 is the source; `splash/index.html` and `dock/index.html` inline their own copies
@@ -219,9 +227,20 @@ Built with electron-builder and updated via electron-updater. Installers are
 published to the separate `lowful/GhostCoach-releases` repo, which keeps the old
 name on purpose: electron-updater reads it, and the code repo being renamed does
 not make it safe to rename. The code repo itself is `lowful/Occlara`, renamed
-from `lowful/GhostCoach` on 2026-08-30. When swapping the
-asset on the main repo release, the file name must stay exactly
-`GhostCoach.2.0.Setup.exe` or existing clients stop auto-updating.
+from `lowful/GhostCoach` on 2026-08-30.
+
+The main repo's single release (id 296500148) carries the **public download**,
+and `scripts/publish-download.js` refreshes it as the second half of
+`npm run release`. It publishes the same bytes under **two** names:
+
+- `Occlara-Setup.exe`, which every new link should use
+- `GhostCoach.2.0.Setup.exe`, which must never be removed
+
+The old name stays because GitHub bakes the filename into the download URL and
+offers no redirect for it, so every link already in the wild, in Discord, in
+someone's bookmarks, dies the moment it goes. This is about existing links, not
+about auto-update, which reads `latest.yml` and does not care what the file is
+called.
 
 ## The website
 

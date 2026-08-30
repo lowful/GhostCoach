@@ -1,6 +1,6 @@
 {
   "name": "occlara",
-  "version": "4.6.0",
+  "version": "4.7.0",
   "description": "Occlara, an AI coaching overlay for Valorant and Marvel Rivals. Reads the screen, never the game.",
   "main": "src/main/index.js",
   "scripts": {
@@ -57,7 +57,7 @@
   "build": {
     "appId": "com.ghostcoach.app2",
     "productName": "Occlara",
-    "artifactName": "GhostCoach 2.0 Setup.${ext}",
+    "artifactName": "Occlara Setup.${ext}",
     "copyright": "Copyright © 2025 GhostCoach",
     "files": [
       "src/**/*",

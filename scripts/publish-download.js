@@ -34,6 +34,16 @@ const RELEASE_ID = process.env.GHOST_DOWNLOAD_RELEASE_ID || 296500148;
 const ASSET_NAME = 'GhostCoach.2.0.Setup.exe';
 const BACKUP_NAME = 'GhostCoach.2.0.Setup.replacing.exe';
 
+// The rebrand name, published ALONGSIDE the old one and never instead of it.
+// Every download link that exists today points at GhostCoach.2.0.Setup.exe and
+// GitHub bakes the filename into the URL, so removing it breaks all of them
+// with no redirect. New links (the site, the README) use this name, and a
+// first-time visitor gets a file called Occlara rather than one named after a
+// product they have never heard of. Both are the same bytes from the same
+// build, kept in step because this script writes both every release.
+const NEW_ASSET_NAME = 'Occlara-Setup.exe';
+const NEW_BACKUP_NAME = 'Occlara-Setup.replacing.exe';
+
 const DIST = path.join(__dirname, '..', 'dist');
 const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
 
@@ -91,6 +101,65 @@ function findInstaller(manifest) {
   return candidates[0].p;
 }
 
+/**
+ * Replace one named asset on the release with the bytes just built.
+ *
+ * Runs once per published name. The ordering is deliberately paranoid and is
+ * unchanged from when this handled a single asset: step the old one aside
+ * rather than delete it, upload, verify the byte count, and only then drop the
+ * backup. A failed upload therefore leaves the previous installer recoverable
+ * instead of leaving a download link pointing at nothing.
+ */
+async function swapAsset({ assetName, backupName, body, manifest, assets }) {
+  const existing = assets.find((a) => a.name === assetName);
+  // A leftover backup from a previous failed run would block the rename.
+  const staleBackup = assets.find((a) => a.name === backupName);
+  if (staleBackup) {
+    console.log(`[download] ${assetName}: removing a leftover backup from an earlier run`);
+    await gh(api(`/repos/${OWNER}/${REPO}/releases/assets/${staleBackup.id}`), { method: 'DELETE', headers: headers() });
+  }
+
+  if (existing && existing.size === manifest.size) {
+    console.log(`[download] ${assetName} already matches this build, nothing to do`);
+    return;
+  }
+
+  // Step back rather than delete: if the upload fails the old installer is
+  // still there under BACKUP_NAME and can be renamed back.
+  if (existing) {
+    const r = await gh(api(`/repos/${OWNER}/${REPO}/releases/assets/${existing.id}`), {
+      method: 'PATCH', headers: headers({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ name: backupName }),
+    });
+    if (!r.ok) throw new Error(`could not step ${assetName} aside: HTTP ${r.status} ${r.json && r.json.message}`);
+  }
+
+  const up = await gh(
+    `https://uploads.github.com/repos/${OWNER}/${REPO}/releases/${RELEASE_ID}/assets?name=${encodeURIComponent(assetName)}`,
+    { method: 'POST', headers: headers({ 'Content-Type': 'application/octet-stream', 'Content-Length': String(body.length) }), body },
+  );
+
+  if (!up.ok) {
+    if (existing) {
+      console.error(`[download] ${assetName}: upload failed, restoring the previous installer`);
+      await gh(api(`/repos/${OWNER}/${REPO}/releases/assets/${existing.id}`), {
+        method: 'PATCH', headers: headers({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ name: assetName }),
+      });
+    }
+    throw new Error(`upload of ${assetName} failed: HTTP ${up.status} ${up.json && up.json.message}`);
+  }
+
+  if (up.json.size !== manifest.size) {
+    throw new Error(`uploaded ${up.json.size} bytes for ${assetName} but the build is ${manifest.size}`);
+  }
+
+  if (existing) {
+    await gh(api(`/repos/${OWNER}/${REPO}/releases/assets/${existing.id}`), { method: 'DELETE', headers: headers() });
+  }
+  console.log(`[download] ${assetName} now serves v${manifest.version} (${up.json.size} bytes)`);
+}
+
 async function main() {
   if (!token) {
     console.log('[download] no GH_TOKEN set, skipping the main-repo download swap');
@@ -105,54 +174,12 @@ async function main() {
   if (!rel.ok) throw new Error(`could not read the release: HTTP ${rel.status} ${rel.json && rel.json.message}`);
 
   const assets = rel.json.assets || [];
-  const existing = assets.find((a) => a.name === ASSET_NAME);
-  // A leftover backup from a previous failed run would block the rename.
-  const staleBackup = assets.find((a) => a.name === BACKUP_NAME);
-  if (staleBackup) {
-    console.log('[download] removing a leftover backup from an earlier run');
-    await gh(api(`/repos/${OWNER}/${REPO}/releases/assets/${staleBackup.id}`), { method: 'DELETE', headers: headers() });
-  }
-
-  if (existing && existing.size === manifest.size) {
-    console.log('[download] the published asset already matches this build, nothing to do');
-    return;
-  }
-
-  // Step back rather than delete: if the upload fails the old installer is
-  // still there under BACKUP_NAME and can be renamed back.
-  if (existing) {
-    const r = await gh(api(`/repos/${OWNER}/${REPO}/releases/assets/${existing.id}`), {
-      method: 'PATCH', headers: headers({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ name: BACKUP_NAME }),
-    });
-    if (!r.ok) throw new Error(`could not step the old asset aside: HTTP ${r.status} ${r.json && r.json.message}`);
-  }
-
+  // Read the installer once; it is ~100MB and both names get the same bytes.
   const body = fs.readFileSync(installer);
-  const up = await gh(
-    `https://uploads.github.com/repos/${OWNER}/${REPO}/releases/${RELEASE_ID}/assets?name=${encodeURIComponent(ASSET_NAME)}`,
-    { method: 'POST', headers: headers({ 'Content-Type': 'application/octet-stream', 'Content-Length': String(body.length) }), body },
-  );
 
-  if (!up.ok) {
-    if (existing) {
-      console.error('[download] upload failed, restoring the previous installer');
-      await gh(api(`/repos/${OWNER}/${REPO}/releases/assets/${existing.id}`), {
-        method: 'PATCH', headers: headers({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ name: ASSET_NAME }),
-      });
-    }
-    throw new Error(`upload failed: HTTP ${up.status} ${up.json && up.json.message}`);
+  for (const [assetName, backupName] of [[ASSET_NAME, BACKUP_NAME], [NEW_ASSET_NAME, NEW_BACKUP_NAME]]) {
+    await swapAsset({ assetName, backupName, body, manifest, assets });
   }
-
-  if (up.json.size !== manifest.size) {
-    throw new Error(`uploaded ${up.json.size} bytes but the build is ${manifest.size}`);
-  }
-
-  if (existing) {
-    await gh(api(`/repos/${OWNER}/${REPO}/releases/assets/${existing.id}`), { method: 'DELETE', headers: headers() });
-  }
-  console.log(`[download] ${ASSET_NAME} now serves v${manifest.version} (${up.json.size} bytes)`);
 }
 
 main().catch((e) => {
