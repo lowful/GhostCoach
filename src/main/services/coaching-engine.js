@@ -136,10 +136,12 @@ class CoachingEngine extends EventEmitter {
     this.pendingMode = null;
     this.standardEvidence = 0;
     this.swapEvidence = 0;
+    // The overlay turns this into its live indicator: the mark, pulsed twice
+    // and gone. This used to ALSO emit a welcome tip ("Coach is live. Trust
+    // your reads and stay tradeable"), a sentence that is read once, is never
+    // useful again, and held one of the four visible card slots for eleven
+    // seconds while the player was still loading into the round.
     this.emit('status', 'coaching');
-
-    this.timers.push(setTimeout(() =>
-      this.isRunning && this.emitTip(welcomeMessage(), 'system'), TIMING.welcomeDelay));
 
     this.timers.push(setTimeout(() => this.isRunning && this.detectAgent(), TIMING.agentDetectFirst));
     this.agentTimer = setInterval(() => {
@@ -1795,17 +1797,6 @@ function topicOf(text) {
 
 // PREAMBLE and TRUNCATION moved to tip-hygiene.js: both describe how a model
 // truncates or pads a reply, which is not a Valorant fact.
-
-const WELCOME_MESSAGES = [
-  'Locked in with you, let’s get some frags. Play smart out there.',
-  'Coach is live. Trust your reads and stay tradeable.',
-  'Watching every round with you. Let’s climb.',
-  'Occlara on. Breathe, lock in, play your game.',
-  'We’re live, time to cook. GLHF.',
-];
-function welcomeMessage() {
-  return WELCOME_MESSAGES[Math.floor(Math.random() * WELCOME_MESSAGES.length)];
-}
 
 // Tidy a raw enemy-spot token into a readable callout, e.g. "a_main" → "A Main".
 function prettySpot(spot) {

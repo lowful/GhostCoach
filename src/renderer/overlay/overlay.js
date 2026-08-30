@@ -77,7 +77,43 @@ function dismiss(card) {
 
 // The old bottom-left status pill is gone for good: the overlay shows tips
 // and the match review, nothing else. Status lives on the panel.
-function setStatus() {}
+//
+// Coaching going live is the one exception, and it is not a pill. The coach
+// used to announce itself in a full tip card ("Coach is live. Trust your
+// reads"), which is a sentence the player reads once, never needs again, and
+// gets while loading into a round. It also burned one of the four visible card
+// slots. This shows the mark instead: it appears, pulses twice, and leaves.
+//
+// It is appended INSIDE #tips rather than positioning itself, so it lands
+// wherever the player put their tips and follows the position setting for
+// free, including the centre stack.
+const LIVE_MS = 2900;
+
+function flashLive() {
+  if (!tipsVisible) return;                       // tips hidden means show nothing
+  const existing = tipsEl.querySelector('.live');
+  if (existing) existing.remove();                // never stack two
+
+  const el = document.createElement('div');
+  el.className = 'live';
+  const img = document.createElement('img');
+  // The one mark file, not a fifth inline copy of it.
+  img.src = '../../../assets/logo-mark.svg';
+  img.width = 26; img.height = 26; img.alt = '';
+  el.appendChild(img);
+  tipsEl.appendChild(el);
+  setTimeout(() => el.remove(), LIVE_MS);
+}
+
+// Only the transition INTO coaching is worth showing. PUSH_STATUS re-broadcasts
+// the current status whenever anything else about the state changes, so without
+// this the mark would flash again every time the player paused, changed a
+// setting, or finished a round.
+let lastStatus = null;
+function setStatus(status) {
+  if (status === 'coaching' && lastStatus !== 'coaching') flashLive();
+  lastStatus = status;
+}
 
 function setTipPosition(pos) {
   if (pos) tipsEl.dataset.pos = pos;

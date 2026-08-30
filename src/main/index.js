@@ -801,9 +801,11 @@ const controller = {
   finishOnboarding() {
     store.set('onboardingCompleted', true);
     onboardingWindow.close();
-    // First run: the app surfaces were held back until the tour finished, so
-    // build them now. A no-op if they already exist (tour re-run from Settings).
-    createAppSurfaces();
+    // First run: the surfaces were held back until the tour finished, so open
+    // them now, through the loader like every other launch. Before this, the
+    // very first launch was the one that skipped the animation entirely.
+    // A no-op if they already exist (tour re-run from Settings).
+    openAppWithSplash();
   },
   onConfigChanged() {
     if (engine) engine.setPerformanceMode(store.get('performanceMode'));
@@ -1765,12 +1767,30 @@ function launchMainApp() {
     console.log('[main] first run, waiting on onboarding before opening the app');
     return;
   }
-  // THE LOADER OWNS THE SCREEN ALONE, then hands over to the app.
-  //
-  // The surfaces are still built immediately, because that is the startup cost
-  // the animation is there to cover, but the panel is created hidden and only
-  // revealed once the splash is gone. Building it first means the reveal is
-  // instant and the panel is never seen part way through rendering.
+  openAppWithSplash();
+}
+
+/**
+ * THE LOADER OWNS THE SCREEN ALONE, then hands over to the app.
+ *
+ * The surfaces are still built immediately, because that is the startup cost
+ * the animation is there to cover, but the panel is created hidden and only
+ * revealed once the splash is gone. Building it first means the reveal is
+ * instant and the panel is never seen part way through rendering.
+ *
+ * Used by EVERY path into the app. This lived inline in launchMainApp(),
+ * which returns early on first run to show the tour, and finishOnboarding()
+ * then built the surfaces directly. So a brand new user, the one person
+ * seeing the app for the very first time, was the only one who never saw the
+ * launch animation.
+ */
+function openAppWithSplash() {
+  // Re-running the tour from Settings leaves every surface already up and the
+  // panel loaded long ago, so did-finish-load would never fire again and the
+  // loader would sit there until its own hard timeout. There is no startup
+  // cost left to cover either. Just make sure the panel is showing.
+  if (surfacesUp) { panelWindow.reveal(); return; }
+
   splashWindow.open();
   splashWindow.onTimeout(() => panelWindow.reveal());   // never strand a hidden panel
   createAppSurfaces({ deferShow: true });

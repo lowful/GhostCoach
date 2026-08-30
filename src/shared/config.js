@@ -54,7 +54,6 @@ const CAPTURE = {
 
 // ── Engine timing (ms) ──────────────────────────────────────────────────────
 const TIMING = {
-  welcomeDelay:        1500,
   agentDetectFirst:    3000,   // detect early so the agent bubble fills in fast
   agentDetectRetry:    30000,
   firstAnalyze:        8000,   // first AI look comes fast after Start
