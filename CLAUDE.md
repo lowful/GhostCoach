@@ -216,7 +216,10 @@ picture.
 ## Releases
 
 Built with electron-builder and updated via electron-updater. Installers are
-published to the separate `lowful/GhostCoach-releases` repo. When swapping the
+published to the separate `lowful/GhostCoach-releases` repo, which keeps the old
+name on purpose: electron-updater reads it, and the code repo being renamed does
+not make it safe to rename. The code repo itself is `lowful/Occlara`, renamed
+from `lowful/GhostCoach` on 2026-08-30. When swapping the
 asset on the main repo release, the file name must stay exactly
 `GhostCoach.2.0.Setup.exe` or existing clients stop auto-updating.
 

@@ -4,7 +4,7 @@
  * Replace the public download on the MAIN repo with the installer just built.
  *
  * electron-builder publishes to lowful/GhostCoach-releases, which is what
- * electron-updater reads. It does NOT touch lowful/GhostCoach, whose single
+ * electron-updater reads. It does NOT touch lowful/Occlara, whose single
  * release carries the file the website and the README link to. That asset used
  * to be swapped by hand after every release, so it silently drifted a version
  * behind. This runs as the second half of `npm run release`.
@@ -23,7 +23,11 @@ const fs = require('fs');
 const path = require('path');
 
 const OWNER = 'lowful';
-const REPO = 'GhostCoach';
+// The main repo, renamed from GhostCoach to Occlara on 2026-08-30. GitHub
+// redirects the old name, so this kept working, but the redirect is a courtesy
+// and not something to depend on. The RELEASE ID below is stable across the
+// rename, which is why the download link survived it.
+const REPO = 'Occlara';
 // The "GhostCoach v2" release. Overridable so the upload path can be exercised
 // against a throwaway draft release instead of the live download link.
 const RELEASE_ID = process.env.GHOST_DOWNLOAD_RELEASE_ID || 296500148;
