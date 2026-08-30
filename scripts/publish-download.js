@@ -80,7 +80,7 @@ function readBuildManifest() {
 
 /**
  * The installer is found by SIZE, not by filename. The local artifact keeps
- * spaces ("GhostCoach 2.0 Setup.exe") while the published one uses hyphens, the
+ * spaces ("Occlara Setup.exe") while the published one uses hyphens, the
  * naming has changed across versions, and stale installers from older builds
  * sit in dist/ too. The size from latest.yml describes the file that was just
  * built, so it identifies the right one without depending on any of that.

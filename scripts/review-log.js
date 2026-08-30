@@ -27,7 +27,8 @@ const { polishText } = require(path.join(__dirname, '..', 'src', 'main', 'servic
 const { __test } = require(path.join(__dirname, '..', 'src', 'main', 'services', 'coaching-engine.js'));
 
 const APPDATA = process.env.APPDATA || path.join(process.env.HOME || '', 'AppData', 'Roaming');
-const LOGS = path.join(APPDATA, 'GhostCoach 2.0', 'ai-log');
+const { profileDir } = require('./profile-path');
+const LOGS = path.join(profileDir(APPDATA), 'ai-log');
 
 const arg = process.argv.slice(2).find((a) => !a.startsWith('-'));
 let dir = arg;

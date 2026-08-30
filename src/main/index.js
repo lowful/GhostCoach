@@ -4,27 +4,32 @@ const { app, globalShortcut } = require('electron');
 const path = require('path');
 const fs   = require('fs');
 
-// ── Distinct app identity (GhostCoach 2.0) ───────────────────────────────────
-// The product is called Occlara. It was called GhostCoach, and the identity
-// underneath it deliberately still is: appId, artifactName, the releases repo
-// and the userData folder below all keep the old name, because they are what
-// electron-updater and every existing install match on. A brand is what users
-// see; an identity is what the software IS, and moving the second to follow the
-// first would orphan every install.
-app.setName('Occlara');
-// THE FOLDER NAME STAYS "GhostCoach 2.0" EVEN THOUGH THE APP NO LONGER DOES.
-// It is pinned to a literal rather than derived from the app name, which is the
-// only reason renaming the product is safe: every existing install keeps its
-// licence, settings, session history and AI logs exactly where they are.
-// Deriving this from setName would have pointed a renamed build at an empty
-// directory, and to the player that looks like the app wiped their account.
-// Renaming it would need a migration, and it is not worth one for a folder.
+// ── App identity and the profile folder ─────────────────────────────
+// The product is called Occlara. Two things underneath it deliberately still
+// say ghostcoach, and they are NOT cosmetic leftovers: appId is what Windows
+// and electron-updater match an install on, and the releases repo URL is
+// compiled into every client already in the field. Moving either orphans
+// every existing user. A brand is what users see; an identity is what the
+// software IS.
 //
+// The profile folder is not in that category, because it can be moved WITH the
+// data inside it. It used to be pinned to '%APPDATA%\GhostCoach 2.0' precisely
+// because renaming it without moving the contents would point a renamed build
+// at an empty directory, and to a player that looks exactly like the app wiped
+// their account: no licence, no history, no settings.
+app.setName('Occlara');
+
+const LEGACY_USER_DATA = path.join(app.getPath('appData'), 'GhostCoach 2.0');
+const USER_DATA        = path.join(app.getPath('appData'), 'Occlara');
+
+// Extracted so it can be tested against real temp directories rather than
+// trusted: this is the one piece of startup that can lose a player's licence.
+const profileMigration = require('./services/profile-migration');
+
 // GHOST_DEV_USERDATA is a dev-only escape hatch: it runs this build against a
 // throwaway profile, so a smoke test can boot alongside an installed copy
 // without touching its config, license, or session history.
-app.setPath('userData', process.env.GHOST_DEV_USERDATA
-  || path.join(app.getPath('appData'), 'GhostCoach 2.0'));
+app.setPath('userData', process.env.GHOST_DEV_USERDATA || profileMigration.migrate(LEGACY_USER_DATA, USER_DATA, console));
 
 const logger   = require('./logger');
 const store    = require('./services/store');

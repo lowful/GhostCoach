@@ -70,10 +70,10 @@ npm run dist:win        # NSIS installer in dist/
 
 ## Notes
 
-- Config and licence cache live in `electron-store` under `%APPDATA%\GhostCoach 2.0\`.
+- Config and licence cache live in `electron-store` under `%APPDATA%\Occlara\`. Installs from before the rename are moved there automatically on first launch.
   That folder name is deliberate and frozen: the app is called Occlara, but the
   path is pinned to a literal so a renamed build still finds every existing
   user's licence, settings and history.
-- A session log is written to `%APPDATA%\GhostCoach 2.0\debug.log` (truncated each run).
+- A session log is written to `%APPDATA%\Occlara\debug.log` (truncated each run).
 - If Windows Defender ever flags the screen-capture step, add a folder exclusion for
   the install directory (screen capture is a normal `.NET` API but can trip heuristics).

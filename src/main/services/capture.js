@@ -4,7 +4,7 @@
  * Screen capture in a Worker Thread + child process, entirely OFF the main and
  * render threads and off the game's render path, so it never causes an in-game
  * hitch. The capture itself is the fast GDI CopyFromScreen primitive, run from
- * a small compiled helper exe (GhostCoachCapture.exe) rather than powershell.
+ * a small compiled helper exe (OcclaraCapture.exe) rather than powershell.
  * That is deliberate: the identical PowerShell script matched Windows Defender's
  * PowerShell Empire "Get-Screenshot" signature and got flagged as a HackTool on
  * users' machines. The compiled exe is the same speed with none of that. The
@@ -25,6 +25,11 @@ let pending = null;
 // Dev: the compiled exe sits in the repo's native/ folder.
 function resolveHelperExe() {
   const candidates = [
+    path.join(process.resourcesPath || '', 'OcclaraCapture.exe'),
+    path.join(__dirname, '..', '..', '..', 'native', 'OcclaraCapture.exe'),
+    // The pre-rename name, still tried last. An interrupted update can leave
+    // the old helper in resources, and falling back to powershell capture there
+    // would trip the Defender signature this exe exists to avoid.
     path.join(process.resourcesPath || '', 'GhostCoachCapture.exe'),
     path.join(__dirname, '..', '..', '..', 'native', 'GhostCoachCapture.exe'),
   ];

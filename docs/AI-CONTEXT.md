@@ -1,15 +1,15 @@
-# GhostCoach, Full Context for AI Assistants
+# Occlara, Full Context for AI Assistants
 
 Last updated: July 21, 2026 (v2.2.0). Everything below is accurate to the shipped product.
 
-## 1. What GhostCoach is
+## 1. What Occlara is
 
-GhostCoach is a real-time AI coaching app for Valorant on Windows. It runs as a transparent, click-through overlay on top of the game, takes screenshots on a timer, sends them to a vision AI, and shows short coaching tips as cards on screen while the player plays. Think of it as a Radiant-level coach watching your screen live.
+Occlara is a real-time AI coaching app for Valorant on Windows. It runs as a transparent, click-through overlay on top of the game, takes screenshots on a timer, sends them to a vision AI, and shows short coaching tips as cards on screen while the player plays. Think of it as a Radiant-level coach watching your screen live.
 
 - Desktop client: Electron app, Windows only, NSIS installer, auto-updates.
 - Backend: Node/Express server hosted on Railway at ghostcoach-production.up.railway.app. Auto-deploys when the main branch is pushed.
 - Business model: paid license keys (weekly, monthly, lifetime) sold through Stripe via the website occlara.app (site built on Lovable). The app activates with a license key and binds to a device ID.
-- Repos: lowful/GhostCoach (source, client + server), lowful/GhostCoach-releases (public, hosts auto-update releases only).
+- Repos: lowful/Occlara (source, client + server), lowful/GhostCoach-releases (public, hosts auto-update releases only, deliberately keeps the old name because installed clients have that URL compiled in).
 
 ## 2. The AI brain
 
@@ -51,7 +51,7 @@ Anti-repeat gate (three rules, added in 2.2.0 because back-to-back repeats kept 
 
 These are the traps another AI should not re-suggest:
 
-1. PowerShell screen capture gets flagged by Windows Defender as HackTool:PowerShell/EmpireGetScreenshot (it matches PowerShell Empire's Get-Screenshot signature). FIXED by replacing it with a tiny compiled C# helper (native/GhostCoachCapture.exe, built with the csc.exe that ships in Windows, GDI CopyFromScreen, base64 JPEG to stdout, about 66ms, no temp files). Do not go back to PowerShell or to Electron's desktopCapturer (the in-process capturer stutters fullscreen games).
+1. PowerShell screen capture gets flagged by Windows Defender as HackTool:PowerShell/EmpireGetScreenshot (it matches PowerShell Empire's Get-Screenshot signature). FIXED by replacing it with a tiny compiled C# helper (native/OcclaraCapture.exe, built with the csc.exe that ships in Windows, GDI CopyFromScreen, base64 JPEG to stdout, about 66ms, no temp files). Do not go back to PowerShell or to Electron's desktopCapturer (the in-process capturer stutters fullscreen games).
 2. The NSIS uninstaller runs during EVERY auto-update, not just uninstalls. It used to wipe coached sessions on every update. FIXED with the `${ifNot} ${isUpdated}` guard in build/uninstaller.nsh. Config (license, Riot ID) is always kept.
 3. Vision models misread game HUDs regularly. Do not trust single-frame reads for anything consequential. Every accuracy problem (side, alive/dead, callouts, team direction, ability availability) was fixed with either deterministic client-side logic or strict prompt rules with a "when unsure, be general or silent" fallback. Specific-but-wrong is always worse than general-but-right.
 4. Economy was un-gradeable as a category (the coach is banned from economy tips and trackers have no economy data). Replaced with Impact.
@@ -73,7 +73,7 @@ These are the traps another AI should not re-suggest:
 
 ## 6. Release and ops process
 
-- Client release: bump package.json version, commit "release: vX.Y.Z", push, then `npm run release` with a GH_TOKEN scoped to GhostCoach-releases (builds and publishes installer + blockmap + latest.yml). Then the public download on the main repo's release (asset name must stay exactly `GhostCoach.2.0.Setup.exe` so website links survive) is swapped to the same build.
+- Client release: bump package.json version, commit "release: vX.Y.Z", push, then `npm run release` with a GH_TOKEN scoped to GhostCoach-releases (builds and publishes installer + blockmap + latest.yml). Then the public download on the main repo's release (published under BOTH `Occlara-Setup.exe` for new links and `GhostCoach.2.0.Setup.exe`, which must never be removed because GitHub bakes the filename into the URL and every existing link points at it) is swapped to the same build.
 - Backend deploys automatically on push to main; only client changes need a release.
 - Server keys live in Railway env vars: AI_API_KEY (OpenRouter), AI_VISION_MODEL, GEMINI_API_KEY (audio), HENRIKDEV_API_KEY, Stripe keys, JWT_SECRET.
 - The user-facing writing rule for this project: never use em or en dashes anywhere (tips, UI, docs); use commas instead.

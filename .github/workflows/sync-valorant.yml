@@ -1,7 +1,7 @@
 name: Sync Valorant data
 
 # Runs the game-data sync (agents, roles, abilities, maps, callouts) from
-# valorant-api.com on a schedule so GhostCoach's data never drifts after a
+# valorant-api.com on a schedule so Occlara's data never drifts after a
 # Valorant patch. If the generated data actually changed, it commits the update
 # (the server picks it up on the next Railway deploy) and opens an issue so a
 # human cuts a client release, since the client bundles this data.

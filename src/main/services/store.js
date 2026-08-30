@@ -22,7 +22,7 @@ const { STORE_DEFAULTS } = require('../../shared/config');
  * Now: settings reset to defaults instead, the bad file is kept alongside for
  * diagnosis, and in the worst case the app still starts on an in-memory store.
  */
-const OPTIONS = { name: 'ghostcoach-config', defaults: STORE_DEFAULTS, clearInvalidConfig: true };
+const OPTIONS = { name: 'occlara-config', defaults: STORE_DEFAULTS, clearInvalidConfig: true };
 
 function configPath() {
   try { return path.join(app.getPath('userData'), OPTIONS.name + '.json'); }

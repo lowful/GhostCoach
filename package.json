@@ -52,13 +52,14 @@
     "test:costrollover": "node scripts/test-cost-rollover.js",
     "test:deathhp": "node scripts/test-death-hp.js",
     "test:newmatch": "node scripts/test-new-match-reset.js",
-    "test:agentdetect": "node scripts/test-agent-detect.js"
+    "test:agentdetect": "node scripts/test-agent-detect.js",
+    "test:profilemigration": "node scripts/test-profile-migration.js"
   },
   "build": {
     "appId": "com.ghostcoach.app2",
     "productName": "Occlara",
     "artifactName": "Occlara Setup.${ext}",
-    "copyright": "Copyright © 2025 GhostCoach",
+    "copyright": "Copyright © 2025 Occlara",
     "files": [
       "src/**/*",
       "assets/**/*",
@@ -67,8 +68,8 @@
     ],
     "extraResources": [
       {
-        "from": "native/GhostCoachCapture.exe",
-        "to": "GhostCoachCapture.exe"
+        "from": "native/OcclaraCapture.exe",
+        "to": "OcclaraCapture.exe"
       }
     ],
     "win": {
@@ -131,6 +132,6 @@
     "overlay",
     "coach"
   ],
-  "author": "GhostCoach",
+  "author": "Occlara",
   "license": "MIT"
 }

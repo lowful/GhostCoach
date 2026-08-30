@@ -250,7 +250,7 @@ const dead = (tell, extra) => at(tell, extra);
 // ── Against the real log, if there is one ───────────────────────────────────
 // Every session recorded so far is a single match on a single map, and each was
 // misreported as two or three maps before this existed.
-const root = path.join(process.env.APPDATA || '', 'GhostCoach 2.0', 'ai-log');
+const root = path.join(require('./profile-path').profileDir(), 'ai-log');
 if (fs.existsSync(root)) {
   for (const id of fs.readdirSync(root).filter((f) => /^session-/.test(f))) {
     const p = path.join(root, id, 'log.json');

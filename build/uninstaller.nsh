@@ -1,4 +1,4 @@
-; GhostCoach 2.0 uninstall cleanup.
+; Occlara uninstall cleanup.
 ; Deletes the player's local data (coached sessions, performance history,
 ; match summaries, logs, and Electron caches) but deliberately KEEPS the
 ; config file, which holds the license, the Riot ID, and the cached Valorant
@@ -9,6 +9,26 @@
 ; real uninstall cleans up.
 !macro customUnInstall
   ${ifNot} ${isUpdated}
+    ; The current profile folder.
+    RMDir /r "$APPDATA\Occlara\sessions"
+    RMDir /r "$APPDATA\Occlara\match-summaries"
+    Delete "$APPDATA\Occlara\performance.json"
+    Delete "$APPDATA\Occlara\debug.log"
+    RMDir /r "$APPDATA\Occlara\Cache"
+    RMDir /r "$APPDATA\Occlara\Code Cache"
+    RMDir /r "$APPDATA\Occlara\GPUCache"
+    RMDir /r "$APPDATA\Occlara\DawnGraphiteCache"
+    RMDir /r "$APPDATA\Occlara\DawnWebGPUCache"
+    RMDir /r "$APPDATA\Occlara\blob_storage"
+    RMDir /r "$APPDATA\Occlara\Local Storage"
+    RMDir /r "$APPDATA\Occlara\Session Storage"
+    RMDir /r "$APPDATA\Occlara\Shared Dictionary"
+    RMDir /r "$APPDATA\Occlara\Dictionaries"
+    RMDir /r "$APPDATA\Occlara\logs"
+
+    ; And the pre-rename one. A player who uninstalls without ever having
+    ; launched a build new enough to migrate still has everything under the
+    ; old name, and uninstall should not strand it on their disk.
     RMDir /r "$APPDATA\GhostCoach 2.0\sessions"
     RMDir /r "$APPDATA\GhostCoach 2.0\match-summaries"
     Delete "$APPDATA\GhostCoach 2.0\performance.json"

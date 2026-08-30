@@ -34,7 +34,8 @@ const { __test } = require(path.join(__dirname, '..', 'src', 'main', 'services',
 
 const SERVER = process.env.GHOSTCOACH_SERVER || 'https://ghostcoach-production.up.railway.app';
 const APPDATA = process.env.APPDATA || path.join(process.env.HOME || '', 'AppData', 'Roaming');
-const ROOT = path.join(APPDATA, 'GhostCoach 2.0');
+const { profileDir, configPath } = require('./profile-path');
+const ROOT = profileDir(APPDATA);
 
 const args = process.argv.slice(2);
 const flag = (n, d) => { const i = args.indexOf(`--${n}`); return i >= 0 ? args[i + 1] : d; };
@@ -49,7 +50,7 @@ const MIN_GUARD_INPUT = 80; // % of frames carrying locLabel, the field the map 
 const MIN_ACCURACY = 95;      // % of SURVIVING tips that break no checkable rule
 const MIN_SURVIVOR_RATE = 70; // % of written tips the guards do not have to block
 
-const cfgPath = path.join(ROOT, 'ghostcoach-config.json');
+const cfgPath = configPath(ROOT);
 if (!fs.existsSync(cfgPath)) { console.log(`No config at ${cfgPath}`); process.exit(0); }
 const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
 

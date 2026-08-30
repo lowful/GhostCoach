@@ -4,7 +4,7 @@
  * Screen capture, runs entirely inside a Worker Thread so the main process (and
  * therefore the game) never stalls on the capture spawn or the JPEG encode.
  *
- * Primary path: GhostCoachCapture.exe, a tiny compiled helper that does the
+ * Primary path: OcclaraCapture.exe, a tiny compiled helper that does the
  * fast GDI CopyFromScreen, downscales, JPEG-encodes, and writes base64 to
  * stdout, no temp files. It replaces the old powershell.exe screenshot script,
  * which was structurally identical to PowerShell Empire's Get-Screenshot and so

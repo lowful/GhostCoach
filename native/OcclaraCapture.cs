@@ -1,4 +1,4 @@
-// GhostCoach screen capture helper.
+// Occlara screen capture helper.
 //
 // Same fast GDI CopyFromScreen primitive the app always used, but compiled to
 // a native exe instead of run through powershell.exe. That matters for two
@@ -9,11 +9,11 @@
 //
 // Build (compiler ships with Windows, no SDK needed):
 //   C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe ^
-//     /target:winexe /optimize+ /out:GhostCoachCapture.exe ^
+//     /target:winexe /optimize+ /out:OcclaraCapture.exe ^
 //     /reference:System.Drawing.dll /reference:System.Windows.Forms.dll ^
-//     GhostCoachCapture.cs
+//     OcclaraCapture.cs
 //
-// Usage: GhostCoachCapture.exe <width> <height> <jpegQuality>
+// Usage: OcclaraCapture.exe <width> <height> <jpegQuality>
 //   -> base64 JPEG on stdout, or "ERR:<message>" on stderr with exit code 1.
 
 using System;
@@ -22,7 +22,7 @@ using System.Drawing.Imaging;
 using System.IO;
 using System.Windows.Forms;
 
-static class GhostCoachCapture
+static class OcclaraCapture
 {
     static int Main(string[] args)
     {

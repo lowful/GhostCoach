@@ -44,7 +44,8 @@ const path = require('path');
 
 const SERVER = process.env.GHOSTCOACH_SERVER || 'https://ghostcoach-production.up.railway.app';
 const APPDATA = process.env.APPDATA || path.join(process.env.HOME || '', 'AppData', 'Roaming');
-const ROOT = path.join(APPDATA, 'GhostCoach 2.0');
+const { profileDir, configPath } = require('./profile-path');
+const ROOT = profileDir(APPDATA);
 
 const args = process.argv.slice(2);
 const flag = (name, def) => {
@@ -71,7 +72,7 @@ if (!SESSION) {
 if (!SESSION) { console.log(`no usable session in ${logDir}`); process.exit(1); }
 
 const dir = path.join(logDir, SESSION);
-const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'ghostcoach-config.json'), 'utf8'));
+const cfg = JSON.parse(fs.readFileSync(configPath(ROOT), 'utf8'));
 const log = JSON.parse(fs.readFileSync(path.join(dir, 'log.json'), 'utf8'));
 const { __test } = require(path.join(__dirname, '..', 'src', 'main', 'services', 'coaching-engine.js'));
 const geo = require(path.join(__dirname, '..', 'src', 'shared', 'valorant-data.generated.json')).mapGeometry || {};
