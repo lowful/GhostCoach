@@ -26,12 +26,11 @@
      cyan used to do.
 
      --cyan is deliberately NOT renamed even though it is now white. It is
-     consumed 225 times across 15 files, and :root[data-game="rivals"] already
-     repurposes --red as gold, so the established meaning of these two tokens is
-     "primary accent" and "secondary accent" rather than the colours they are
-     named after. Renaming is a 225 site mechanical edit for no user visible
-     gain, and check:palette exists because that class of edit has gone wrong
-     here before. */
+     consumed 225 times across 15 files, so the established meaning of these two
+     tokens is "primary accent" and "secondary accent" rather than the colours
+     they are named after. Renaming is a 225 site mechanical edit for no user
+     visible gain, and check:palette exists because that class of edit has gone
+     wrong here before. */
   --red:   #FF4655;
   --red-2: #ff2d40;
   --cyan:  #FFFFFF;
@@ -48,11 +47,10 @@
      changed almost nothing on screen. */
   --red-rgb:  255, 70, 85;
   --cyan-rgb: 255, 255, 255;
-  /* The label colour ON the accent, which is NOT always white.
-     .btn-primary hardcoded #fff over var(--red), and --red is repurposed per
-     game: under [data-game="rivals"] it is gold #FFC42E, where white text
-     measures 1.59:1 and is effectively unreadable. The accent and the thing
-     written on it have to move together, so they are both tokens. */
+  /* The label colour ON the accent. A token rather than a hardcoded #fff in
+     .btn-primary, so the accent and the thing written on it can only ever move
+     together. That mattered when the accent was repointed per game and white
+     measured 1.59:1 on the gold one; it is cheap insurance now. */
   --on-accent: #FFFFFF;
 
   /* Status. These describe an OUTCOME, not the brand, so they stay the same
@@ -145,39 +143,20 @@
   --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Consolas, monospace;
 }
 
-/* ── Per-game palettes ──────────────────────────────────────────────────────
-   The app sets data-game on <html> and ONLY the brand tokens are re-pointed.
-   Everything structural above (geometry, motion, the font) stays shared, which
-   is the whole reason this block sits AFTER the base :root rather than being
-   spliced into the middle of it. Splicing it in was the first attempt and it
-   silently swallowed --r-sm, --ease, --lift and --font into the Rivals block,
-   so Valorant would have lost its radii, easing and typeface. The brace count
-   still balanced perfectly, which is exactly why balance is not a check.
+/* ── One palette ────────────────────────────────────────────────────────────
+   There used to be a :root[data-game="rivals"] block here that repointed the
+   brand tokens to navy and gold, and it is gone: the app looks the same
+   whichever game it is coaching.
 
-   --good, --bad and --warn deliberately do NOT appear here: they describe an
-   outcome, so a win stays green whatever is being played.
+   i18n-apply.js still sets data-game on <html>, which is worth keeping. It
+   costs nothing, it is how a surface can tell what is being coached, and it is
+   the hook a future palette would attach to. There simply is not one now.
 
-   The token names stay --red and --cyan even where the colour is gold. They
-   are identifiers, and renaming them would mean touching all 600 references
-   for no behavioural gain. The name is historical; the value is what matters.
-
-   Marvel Rivals: navy, gold and white. Chosen to EVOKE the game rather than
-   reproduce it, because shipping Marvel or NetEase brand assets would be a
-   trademark problem rather than a design decision. */
-:root[data-game="rivals"] {
-  --bg:        #0A1330;
-  --bg-2:      #060C22;
-  --red:       #FFC42E;
-  --red-2:     #F2A50C;
-  --red-rgb:   255, 196, 46;
-  --cyan:      #5FA8FF;
-  --cyan-rgb:  95, 168, 255;
-  --text:      #EEF3FF;
-  --text-dim:  #93A4C8;
-  --text-mute: #61729A;
-  --glass-fill:   rgba(10, 19, 48, 0.90);
-  --glass-fill-2: rgba(16, 27, 62, 0.80);
-}
+   If a per-game palette ever comes back, two rules from the first attempt are
+   worth keeping. It must sit AFTER the base :root rather than being spliced
+   into it, because splicing swallowed --r-sm, --ease, --lift and --font while
+   the brace count still balanced perfectly. And --good, --bad and --warn stay
+   out of it: they describe an outcome, so a win is green in every game. */
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 

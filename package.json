@@ -1,6 +1,6 @@
 {
   "name": "occlara",
-  "version": "5.1.0",
+  "version": "5.2.0",
   "description": "Occlara, an AI coaching overlay for Valorant and Marvel Rivals. Reads the screen, never the game.",
   "main": "src/main/index.js",
   "scripts": {

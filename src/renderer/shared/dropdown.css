@@ -71,8 +71,9 @@
   box-shadow: var(--lift);
   animation: ddIn 140ms var(--ease-expo) both;
 }
-/* Flipped by place() when there is more room above than below. */
-.dd-up .dd-list { transform-origin: bottom; }
+/* Flipped by place() when there is more room above than below. The class goes
+   on the LIST, not the mount, because while open the list hangs off body. */
+.dd-list.dd-up-list { transform-origin: bottom; }
 @keyframes ddIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 
 .dd-opt {

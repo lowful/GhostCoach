@@ -33,23 +33,12 @@ const GAMES = {
   rivals: {
     id: 'rivals',
     label: 'Marvel Rivals',
-    // Navy, gold and white. Deliberately evocative rather than lifted: the
-    // product must not ship Marvel or NetEase assets, and using their exact
-    // brand assets would be a trademark problem rather than a styling choice.
-    palette: {
-      '--bg':        '#0A1330',
-      '--bg-2':      '#060C22',
-      '--red':       '#FFC42E',   // primary accent, gold
-      '--red-2':     '#F2A50C',
-      '--red-rgb':   '255, 196, 46',
-      '--cyan':      '#5FA8FF',   // secondary accent, a lighter blue
-      '--cyan-rgb':  '95, 168, 255',
-      '--text':      '#EEF3FF',
-      '--text-dim':  '#93A4C8',
-      '--text-mute': '#61729A',
-      '--glass-fill':   'rgba(10, 19, 48, 0.90)',
-      '--glass-fill-2': 'rgba(16, 27, 62, 0.80)',
-    },
+    // No palette. Rivals used to repaint the whole app navy and gold; it now
+    // looks the same whichever game is being coached, so this is null exactly
+    // like Valorant's and the :root[data-game="rivals"] block in theme.css is
+    // gone. data-game is still set on <html>, so a palette could come back
+    // without touching anything but the stylesheet.
+    palette: null,
     // Draft advice and post-match review, not a live tip stream. A 6v6 hero
     // shooter is decided by the hero select screen and by knowing when to
     // switch, and neither is a per-second decision.

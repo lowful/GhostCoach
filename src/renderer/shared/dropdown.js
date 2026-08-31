@@ -132,6 +132,14 @@
      * where the panel ended. Fixed coordinates computed from the button's rect
      * are the only thing that works in both a scrolling page and the short
      * panel window.
+     *
+     * Which is why the list is PORTALLED TO document.body while it is open.
+     * transform, filter and backdrop-filter all make an element the containing
+     * block for fixed-position descendants, and every card in this app is
+     * .glass, which is backdrop-filter. Left inside its mount the list was
+     * offset by the card's own position: 11px out in Settings, exactly the
+     * sheet's margin plus its border. Hanging it off body is the only place
+     * with nothing above it to resolve against.
      */
     function place() {
       const r = btn.getBoundingClientRect();
@@ -150,7 +158,7 @@
       const below = window.innerHeight - r.bottom - GAP;
       const above = r.top - GAP;
       const up = below < h && above > below;
-      mount.classList.toggle('dd-up', up);
+      list.classList.toggle('dd-up-list', up);
 
       let left = r.left;
       // Right-align when the trigger sits near the right edge, which is where
@@ -171,6 +179,9 @@
       list.hidden = false;
       mount.classList.add(OPEN_CLASS);
       btn.setAttribute('aria-expanded', 'true');
+      // Out of the card and onto body BEFORE measuring, or the measurement is
+      // taken in the wrong coordinate space. See place().
+      document.body.appendChild(list);
       place();
       // Any ancestor scrolling moves the trigger out from under the list, so
       // follow it. Capture phase catches scroll on every ancestor, not just
@@ -185,7 +196,11 @@
       window.removeEventListener('scroll', place, true);
       window.removeEventListener('resize', place);
       list.hidden = true;
-      mount.classList.remove(OPEN_CLASS, 'dd-up');
+      // Back into the mount so nothing accumulates on body, and so a mount that
+      // is removed from the DOM takes its list with it.
+      mount.appendChild(list);
+      mount.classList.remove(OPEN_CLASS);
+      list.classList.remove('dd-up-list');
       btn.setAttribute('aria-expanded', 'false');
       if (openInstance === api) openInstance = null;
       if (refocus) btn.focus();
@@ -228,7 +243,7 @@
     // Close on any click elsewhere, and when the window loses focus: the panel
     // sits over a game, so an open list must never be left behind on alt-tab.
     document.addEventListener('mousedown', (e) => {
-      if (!mount.contains(e.target)) close(false);
+      if (!mount.contains(e.target) && !list.contains(e.target)) close(false);
     });
     window.addEventListener('blur', () => close(false));
 
