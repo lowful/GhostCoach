@@ -89,17 +89,17 @@ function render() {
 
 // ── Controls ─────────────────────────────────────────────────────────────────
 toggleBtn.addEventListener('click', () => {
-  if (isCoaching) window.ghost.stopCoaching();
-  else            window.ghost.startCoaching();
+  if (isCoaching) window.occlara.stopCoaching();
+  else            window.occlara.startCoaching();
 });
-pauseBtn.addEventListener('click', () => window.ghost.pauseResume());
-document.getElementById('chat').addEventListener('click', () => window.ghost.openChat());
-document.getElementById('stats').addEventListener('click', () => window.ghost.openStats());
-document.getElementById('history').addEventListener('click', () => window.ghost.openHistory());
-document.getElementById('minimize').addEventListener('click', () => window.ghost.minimize());
-document.getElementById('settings').addEventListener('click', () => window.ghost.openSettings());
-document.getElementById('quit').addEventListener('click', () => window.ghost.quit());
-lastTipEl.addEventListener('click', () => window.ghost.openHistory());
+pauseBtn.addEventListener('click', () => window.occlara.pauseResume());
+document.getElementById('chat').addEventListener('click', () => window.occlara.openChat());
+document.getElementById('stats').addEventListener('click', () => window.occlara.openStats());
+document.getElementById('history').addEventListener('click', () => window.occlara.openHistory());
+document.getElementById('minimize').addEventListener('click', () => window.occlara.minimize());
+document.getElementById('settings').addEventListener('click', () => window.occlara.openSettings());
+document.getElementById('quit').addEventListener('click', () => window.occlara.quit());
+lastTipEl.addEventListener('click', () => window.occlara.openHistory());
 
 // ── Agent check bubble ─────────────────────────────────────────────────────────
 // Pops up once when coaching starts so the player confirms (or types) their agent
@@ -131,7 +131,7 @@ function renderQuickPicks() {
     b.textContent = name;
     b.title = name;   // names can ellipsis at four across
     b.addEventListener('click', () => {
-      window.ghost.setAgent(name).catch(() => {});   // success returns via PUSH_AGENT
+      window.occlara.setAgent(name).catch(() => {});   // success returns via PUSH_AGENT
     });
     abQuickBtns.append(b);
   }
@@ -166,13 +166,13 @@ function showDoneAndHide(name) {
   doneTimer = setTimeout(hideAgentUI, 1600);
 }
 
-document.getElementById('ab-yes').addEventListener('click', () => window.ghost.confirmAgent());
+document.getElementById('ab-yes').addEventListener('click', () => window.occlara.confirmAgent());
 document.getElementById('ab-no').addEventListener('click', showForm);
 abForm.addEventListener('submit', (e) => {
   e.preventDefault();
   const val = abInput.value.trim();
   if (!val) return;
-  window.ghost.setAgent(val).then((res) => {
+  window.occlara.setAgent(val).then((res) => {
     if (!res || !res.ok) {
       abInput.classList.add('bad');
       abInput.value = '';
@@ -183,7 +183,7 @@ abForm.addEventListener('submit', (e) => {
   }).catch(() => {});
 });
 
-window.ghost.onAgent((info) => {
+window.occlara.onAgent((info) => {
   if (!isCoaching || agentAnswered) return;
   info = info || {};
   if (info.agent && info.confirmed) { showDoneAndHide(info.agent); return; }
@@ -224,10 +224,10 @@ function showNudge() {
   nudgeTimer = setTimeout(hideNudge, 11000);   // long enough to read, short enough to forget
 }
 document.getElementById('nudge-x').addEventListener('click', hideNudge);
-window.ghost.onNudge((n) => { if (n && n.kind === 'minimize') showNudge(); });
+window.occlara.onNudge((n) => { if (n && n.kind === 'minimize') showNudge(); });
 
-window.ghost.onState(applyState);
-window.ghost.onStatus(({ status }) => {
+window.occlara.onState(applyState);
+window.occlara.onStatus(({ status }) => {
   if (status === 'coaching') {
     isCoaching = true; isPaused = false;
     if (!sessionActive) {                 // a fresh start (not a resume from pause)
@@ -243,7 +243,7 @@ window.ghost.onStatus(({ status }) => {
   }
   render();
 });
-window.ghost.onTip((tip) => {
+window.occlara.onTip((tip) => {
   if (!tip || !tip.text) return;
   // Same glyphs as the overlay: the panel shows the last tip, and a callout
   // marked one way on screen and another way here would read as two systems.
@@ -254,7 +254,7 @@ window.ghost.onTip((tip) => {
   setTimeout(() => lastTipEl.classList.remove('flash'), 500);
 });
 
-window.ghost.getState().then(applyState).catch(() => {});
+window.occlara.getState().then(applyState).catch(() => {});
 render();
 
 // Keep the window sized to the panel's content (bubble show/hide, tip length),
@@ -263,60 +263,10 @@ const panelEl = document.querySelector('.panel');
 let lastSentH = 0;
 function syncHeight() {
   const h = Math.ceil(panelEl.getBoundingClientRect().height) + 20; // + 10px top/bottom margin
-  if (Math.abs(h - lastSentH) > 1) { lastSentH = h; window.ghost.resizePanel(h); }
+  if (Math.abs(h - lastSentH) > 1) { lastSentH = h; window.occlara.resizePanel(h); }
 }
 if (window.ResizeObserver) new ResizeObserver(syncHeight).observe(panelEl);
 window.addEventListener('load', syncHeight);
 setTimeout(syncHeight, 60);
-
-/* ── Game switcher ─────────────────────────────────────────────────────────
-   Which game is being coached changes what every other control in the app
-   means, so it belongs in the header beside the tools rather than four scrolls
-   down in Settings.
-
-   Only appears when there is a real choice: with a single available game the
-   mount stays hidden, so nothing takes header space to say "Valorant" forever.
-   Settings still owns the devGames flag that reveals unfinished games, and this
-   picker simply reflects whatever that decides. */
-(function initGamePicker() {
-  const mount = document.getElementById('gamepick');
-  if (!mount || !window.Dropdown || !window.ghost.games) return;
-
-  let dd = null;
-
-  function paint(cfg) {
-    const games = window.ghost.games.list(!!(cfg && cfg.devGames));
-    // One game is not a choice.
-    if (games.length < 2) { mount.hidden = true; return; }
-    mount.hidden = false;
-
-    const opts = games.map((g) => ({
-      value: g.id,
-      label: g.label,
-      // The header trigger has about 90px. The list keeps the full name.
-      short: g.label.length > 9 ? g.label.split(' ').pop() : g.label,
-      // An unfinished coach is said plainly rather than hidden behind a colour.
-      tag: g.coaching ? '' : 'preview',
-      note: g.coaching ? '' : 'The look and layout are real. Coaching for this game is not built yet.',
-    }));
-    const current = (cfg && cfg.game) || opts[0].value;
-
-    if (!dd) {
-      dd = window.Dropdown.create(mount, {
-        label: 'Game',
-        options: opts,
-        value: current,
-        onChange: (id) => window.ghost.setConfig({ game: id }).catch(() => {}),
-      });
-    } else {
-      dd.setOptions(opts, true).setValue(current);
-    }
-  }
-
-  window.ghost.getConfig().then(paint).catch(() => {});
-  // Another surface (Settings) can change the game, so re-read on every state
-  // push rather than trusting the value this window last wrote.
-  window.ghost.onState(() => window.ghost.getConfig().then(paint).catch(() => {}));
-}());
 
 console.log('[panel] ready');

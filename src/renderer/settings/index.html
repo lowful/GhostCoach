@@ -17,6 +17,10 @@
         <img src="../../../assets/logo-mark.svg" alt="" width="18" height="18" />
         <h2 data-i18n="settings.title">Settings</h2>
       </div>
+      <!-- Which game is being coached. In the header rather than a section
+           halfway down the page, because it changes what most of the controls
+           below it mean. Hidden when only one game is available. -->
+      <div id="gamepick" class="gamepick no-drag" hidden></div>
       <button id="close" class="icon-btn no-drag" title="Close"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
     </header>
 
@@ -115,12 +119,6 @@
 
       <!-- Game picker. Hidden entirely unless more than one game can actually
            be coached, so it never appears as a control with one option. -->
-      <section id="game-section" hidden>
-        <h3 data-i18n="settings.game">Game</h3>
-        <p class="hint">Which game Occlara is coaching. The app changes colour to match.</p>
-        <div class="seg" id="gameseg"></div>
-      </section>
-
       <section>
         <h3 data-i18n="settings.performance">Performance</h3>
         <p class="hint">Screenshots are sent at 720p so the coach can read your health, the round timer, the score and the location label. Turn this on to send smaller frames on an older PC or a slow connection. It uses less bandwidth, and the coach reads the HUD less reliably.</p>

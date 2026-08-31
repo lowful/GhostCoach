@@ -32,7 +32,7 @@ const path = require('path');
 const { polishText } = require(path.join(__dirname, '..', 'src', 'main', 'services', 'tip-hygiene.js'));
 const { __test } = require(path.join(__dirname, '..', 'src', 'main', 'services', 'coaching-engine.js'));
 
-const SERVER = process.env.GHOSTCOACH_SERVER || 'https://ghostcoach-production.up.railway.app';
+const SERVER = process.env.OCCLARA_SERVER || 'https://ghostcoach-production.up.railway.app';
 const APPDATA = process.env.APPDATA || path.join(process.env.HOME || '', 'AppData', 'Roaming');
 const { profileDir, configPath } = require('./profile-path');
 const ROOT = profileDir(APPDATA);

@@ -71,7 +71,7 @@ async function start() {
     setInterval(() => {
       try {
         const b64 = snapshotWavB64();
-        if (b64) window.ghost.pushClip(b64);
+        if (b64) window.occlara.pushClip(b64);
       } catch (err) { console.error('[audio] snapshot failed:', err.message); }
     }, PUSH_EVERY_MS);
     console.log('[audio] loopback listening at', ctx.sampleRate, 'Hz');

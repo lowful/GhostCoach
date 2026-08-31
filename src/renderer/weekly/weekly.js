@@ -171,14 +171,14 @@ function renderHabits(habits) {
   section.hidden = false;
 }
 
-$('close').addEventListener('click', () => window.ghost.close());
-$('stats').addEventListener('click', () => { window.ghost.openStats(); window.ghost.close(); });
-$('ask').addEventListener('click',   () => { window.ghost.openChat();  window.ghost.close(); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') window.ghost.close(); });
+$('close').addEventListener('click', () => window.occlara.close());
+$('stats').addEventListener('click', () => { window.occlara.openStats(); window.occlara.close(); });
+$('ask').addEventListener('click',   () => { window.occlara.openChat();  window.occlara.close(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') window.occlara.close(); });
 
 console.log('[weekly] ready');
 
-window.ghost.getReport()
+window.occlara.getReport()
   .then(render)
   .catch((err) => {
     $('loading').hidden = true;

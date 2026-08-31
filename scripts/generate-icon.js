@@ -16,7 +16,7 @@ const path = require('path');
 // Geometry mirrors assets/logo-mark.svg exactly, converted from its 64 viewBox
 // by dividing by 64/24. If that file changes, this must change with it: they are
 // two hand-maintained copies of one drawing, which is precisely how the old
-// ghost ended up subtly different in five places.
+// mark ended up subtly different in five places.
 //
 // The gaps come from the SVG's stroke-dasharray of 42.265 on 8, against a
 // circumference of 2*pi*24 = 150.796. That is three dashes of 100.9 degrees

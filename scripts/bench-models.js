@@ -42,7 +42,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const SERVER = process.env.GHOSTCOACH_SERVER || 'https://ghostcoach-production.up.railway.app';
+const SERVER = process.env.OCCLARA_SERVER || 'https://ghostcoach-production.up.railway.app';
 const APPDATA = process.env.APPDATA || path.join(process.env.HOME || '', 'AppData', 'Roaming');
 const { profileDir, configPath } = require('./profile-path');
 const ROOT = profileDir(APPDATA);

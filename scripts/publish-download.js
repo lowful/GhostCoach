@@ -30,7 +30,7 @@ const OWNER = 'lowful';
 const REPO = 'Occlara';
 // The "GhostCoach v2" release. Overridable so the upload path can be exercised
 // against a throwaway draft release instead of the live download link.
-const RELEASE_ID = process.env.GHOST_DOWNLOAD_RELEASE_ID || 296500148;
+const RELEASE_ID = process.env.OCCLARA_DOWNLOAD_RELEASE_ID || 296500148;
 const ASSET_NAME = 'GhostCoach.2.0.Setup.exe';
 const BACKUP_NAME = 'GhostCoach.2.0.Setup.replacing.exe';
 
@@ -52,7 +52,7 @@ function headers(extra) {
   return Object.assign({
     Authorization: `Bearer ${token}`,
     Accept: 'application/vnd.github+json',
-    'User-Agent': 'ghostcoach-release',
+    'User-Agent': 'occlara-release',
   }, extra || {});
 }
 

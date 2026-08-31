@@ -56,7 +56,7 @@ src/
 - **Single-source-of-truth IPC**, main and every preload import `shared/channels.js`,
   so channel names can never drift out of sync.
 - **`contextIsolation: true`, `nodeIntegration: false`** on every window; preloads
-  expose a minimal `window.ghost` API. Renderer consoles are teed into `debug.log`
+  expose a minimal `window.occlara` API. Renderer consoles are teed into `debug.log`
   so a broken bridge can never fail silently.
 - **Capture runs in a Worker Thread** (PowerShell `Graphics.CopyFromScreen`) so the
   game never stalls on a screenshot.

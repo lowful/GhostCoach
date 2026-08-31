@@ -48,7 +48,7 @@ async function loadMatches(mode) {
   matchEmptyEl.hidden = false;
   matchEmptyEl.textContent = 'Loading matches...';
   try {
-    const res = await window.ghost.matchesFor(mode);
+    const res = await window.occlara.matchesFor(mode);
     if (seq !== matchSeq || mode !== matchMode) return;   // superseded by a newer click
     renderMatches(res);
   } catch {
@@ -143,7 +143,7 @@ async function renderRankGraph(host, opts) {
   wrap.innerHTML = '<div class="rg-loading">Loading your rank journey...</div>';
   host.prepend(wrap);
   let res = null;
-  try { res = await window.ghost.rankHistory(!!(opts && opts.force)); } catch {}
+  try { res = await window.occlara.rankHistory(!!(opts && opts.force)); } catch {}
   let points = (res && !res.error && Array.isArray(res.points)) ? res.points : [];
   // Placements and act resets make elo leap by hundreds and fake absurd RR
   // gains (+1535 from "Unrated" to Diamond). Keep only rated games, then cut
@@ -443,7 +443,7 @@ refreshBtn.addEventListener('click', async () => {
   refreshBtn.textContent = 'Refreshing';
   try {
     const seq = ++matchSeq;
-    const res = await window.ghost.refreshMatches(matchMode);
+    const res = await window.occlara.refreshMatches(matchMode);
     if (!(res && res.refreshBlockedFor)) refreshBlockedUntil = Date.now() + 3 * 60 * 1000;
     if (seq === matchSeq && (!res.mode || res.mode === matchMode)) renderMatches(res);
   } catch {}
@@ -549,7 +549,7 @@ function sessionRow(s, i) {
   ask.textContent = 'Ask Coach about this';
   ask.addEventListener('click', (e) => {
     e.stopPropagation();
-    window.ghost.askAboutSession({
+    window.occlara.askAboutSession({
       date: fmtDate(s.at), map: s.map, overall: s.overall,
       scores: s.scores, strengths: s.strengths, weaknesses: s.weaknesses,
     });
@@ -664,7 +664,7 @@ let rrPointsCache = null;
 async function rrPoints(force) {
   if (rrPointsCache && !force) return rrPointsCache;
   try {
-    const r = await window.ghost.rankHistory(force);
+    const r = await window.occlara.rankHistory(force);
     rrPointsCache = (r && !r.error && Array.isArray(r.points)) ? r.points : [];
   } catch { rrPointsCache = []; }
   return rrPointsCache;
@@ -948,7 +948,7 @@ let dashSeq = 0;
 async function refreshDashboardForMode(mode, force) {
   const seq = ++dashSeq;
   try {
-    const d = await window.ghost.getDashboard(mode, !!force);
+    const d = await window.occlara.getDashboard(mode, !!force);
     if (!d || seq !== dashSeq || mode !== matchMode) return;   // superseded
     renderCards(d);
     renderAgents(d.topAgents);
@@ -973,7 +973,7 @@ async function load() {
   matchEmptyEl.hidden = false;
   matchEmptyEl.textContent = 'Loading matches...';
   try {
-    const d = await window.ghost.getDashboard(matchMode);
+    const d = await window.occlara.getDashboard(matchMode);
     if (!d) return;
     if (typeof d.riotId === 'string') dashRiotId = d.riotId;
     renderCards(d);
@@ -1001,9 +1001,9 @@ function watchGrading(active) {
   }
 }
 
-document.getElementById('weekly').addEventListener('click', () => window.ghost.openWeekly());
-document.getElementById('ailog').addEventListener('click', () => window.ghost.openAiLog());
-document.getElementById('askcoach').addEventListener('click', () => window.ghost.openChat());
+document.getElementById('weekly').addEventListener('click', () => window.occlara.openWeekly());
+document.getElementById('ailog').addEventListener('click', () => window.occlara.openAiLog());
+document.getElementById('askcoach').addEventListener('click', () => window.occlara.openChat());
 document.getElementById('close').addEventListener('click', () => window.close());
 
 // Follow a Riot ID switch made in Settings while this window is open: the
@@ -1011,7 +1011,7 @@ document.getElementById('close').addEventListener('click', () => window.close())
 // caches, snap back to Competitive, and reload every panel from the new
 // account. Guarded so the frequent state pushes during coaching are no-ops.
 let lastSeenRiot = null;
-window.ghost.onState((s) => {
+window.occlara.onState((s) => {
   if (!s || typeof s.riotId !== 'string') return;
   if (lastSeenRiot === null) { lastSeenRiot = s.riotId; return; }
   if (s.riotId === lastSeenRiot) return;

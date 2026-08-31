@@ -5,7 +5,7 @@
 // within a second of launch.
 let ovLang = 'en';
 function ovT(key) {
-  try { return window.ghost.i18n.t(ovLang, key); } catch { return key === 'overlay.deathReview' ? 'Death Review' : key; }
+  try { return window.occlara.i18n.t(ovLang, key); } catch { return key === 'overlay.deathReview' ? 'Death Review' : key; }
 }
 
 
@@ -251,15 +251,15 @@ function showReview(data) {
   let timer;
   const dismiss = () => {
     clearTimeout(timer);
-    window.ghost.setInteractive(false);   // always hand the mouse back to the game
+    window.occlara.setInteractive(false);   // always hand the mouse back to the game
     card.classList.add('out');
     setTimeout(() => { reviewEl.hidden = true; reviewEl.innerHTML = ''; }, 300);
   };
   closeBtn.addEventListener('click', dismiss);
   // The overlay is click-through; while the cursor is over the card, main
   // accepts mouse input so the ✕ is clickable, released on leave.
-  card.addEventListener('mouseenter', () => window.ghost.setInteractive(true));
-  card.addEventListener('mouseleave', () => window.ghost.setInteractive(false));
+  card.addEventListener('mouseenter', () => window.occlara.setInteractive(true));
+  card.addEventListener('mouseleave', () => window.occlara.setInteractive(false));
   timer = setTimeout(dismiss, 22000);
 }
 
@@ -294,8 +294,8 @@ function speakTip(tip) {
 }
 
 // ── Subscriptions ────────────────────────────────────────────────────────────
-window.ghost.onTip((tip) => { addTip(tip); speakTip(tip); });
-window.ghost.onStatus(({ status }) => setStatus(status));
+window.occlara.onTip((tip) => { addTip(tip); speakTip(tip); });
+window.occlara.onStatus(({ status }) => setStatus(status));
 function applyState(s) {
   if (!s) return;
   setStatus(s.status); setTipPosition(s.tipPosition); setTipScale(s.tipScale); setShowTips(s.showTips);
@@ -303,21 +303,21 @@ function applyState(s) {
   voiceCfg = { enabled: s.voiceCoach === true, style: s.voiceStyle || 'normal',
                volume: s.voiceVolume != null ? s.voiceVolume : 0.9 };
 }
-window.ghost.onState(applyState);
+window.occlara.onState(applyState);
 // Hydrate immediately rather than waiting for the first push, so the saved
 // position, size and card style are already correct on the very first tip.
-window.ghost.getState().then(applyState).catch(() => {});
-window.ghost.onMatchReview(showReview);
-window.ghost.onVisibility(({ visible }) => {
+window.occlara.getState().then(applyState).catch(() => {});
+window.occlara.onMatchReview(showReview);
+window.occlara.onVisibility(({ visible }) => {
   document.body.classList.toggle('hidden-overlay', !visible);
 });
 
 console.log('[overlay] ready');
 
-if (window.ghost && window.ghost.getConfig) {
-  const syncLang = () => window.ghost.getConfig()
+if (window.occlara && window.occlara.getConfig) {
+  const syncLang = () => window.occlara.getConfig()
     .then((c) => { ovLang = (c && c.language) || 'en'; })
     .catch(() => {});
   syncLang();
-  if (typeof window.ghost.onState === 'function') window.ghost.onState(syncLang);
+  if (typeof window.occlara.onState === 'function') window.occlara.onState(syncLang);
 }

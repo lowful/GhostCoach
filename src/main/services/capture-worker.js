@@ -47,8 +47,8 @@ function captureViaHelper(prof) {
 // Fallback: the legacy PowerShell script (only when the exe is absent).
 function captureViaPowershell(prof) {
   const stamp   = `${process.pid}_${Date.now()}`;
-  const outPath = path.join(os.tmpdir(), `ghostcoach_${stamp}.jpg`);
-  const psPath  = path.join(os.tmpdir(), `ghostcoach_${stamp}.ps1`);
+  const outPath = path.join(os.tmpdir(), `occlara_${stamp}.jpg`);
+  const psPath  = path.join(os.tmpdir(), `occlara_${stamp}.ps1`);
   const ps =
     'Add-Type -AssemblyName System.Windows.Forms\n' +
     'Add-Type -AssemblyName System.Drawing\n' +

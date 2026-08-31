@@ -1,5 +1,5 @@
 {
-  "name": "ghostcoach-server",
+  "name": "occlara-server",
   "version": "1.0.0",
   "description": "Occlara backend API server",
   "main": "server.js",

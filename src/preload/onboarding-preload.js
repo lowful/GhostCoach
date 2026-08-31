@@ -8,7 +8,7 @@ const I18N = require('../shared/i18n');
  * Onboarding bridge: dismiss the welcome card for good, and save the
  * fundamental-tips answer (the curated library mix) straight to config.
  */
-contextBridge.exposeInMainWorld('ghost', {
+contextBridge.exposeInMainWorld('occlara', {
   // i18n: the catalogue is required here (preloads have Node) and handed to the
   // renderer as a plain translator, so no surface needs Node access to be
   // translated. Read at call time, so a language change repaints correctly.

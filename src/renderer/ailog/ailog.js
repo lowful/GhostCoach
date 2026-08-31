@@ -208,7 +208,7 @@ async function ask(question) {
   askLog.scrollTop = askLog.scrollHeight;
 
   try {
-    const res = await window.ghost.ask({
+    const res = await window.occlara.ask({
       session: from,        // or main would answer from the newest session's frames
       index: at,
       question: q,
@@ -233,12 +233,12 @@ for (const b of document.querySelectorAll('.hint')) {
   b.addEventListener('click', () => ask(b.dataset.q));
 }
 
-$('close').addEventListener('click', () => window.ghost.close());
+$('close').addEventListener('click', () => window.occlara.close());
 $('prev').addEventListener('click', () => go(idx - 1));
 $('next').addEventListener('click', () => go(idx + 1));
 $('slider').addEventListener('input', (e) => go(Number(e.target.value)));
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') window.ghost.close();
+  if (e.key === 'Escape') window.occlara.close();
   else if (e.key === 'ArrowLeft') go(idx - 1);
   else if (e.key === 'ArrowRight') go(idx + 1);
 });
@@ -284,7 +284,7 @@ function paintPicker(sessions) {
 function loadSession(id) {
   picker.disabled = true;
   $('subtitle').textContent = 'Loading frames...';
-  return window.ghost.getLog(id).then((log) => {
+  return window.occlara.getLog(id).then((log) => {
     records = (log && Array.isArray(log.records)) ? log.records : [];
     segments = (log && Array.isArray(log.segments)) ? log.segments : [];
     deaths = (log && Array.isArray(log.deaths)) ? log.deaths : [];
@@ -337,8 +337,8 @@ picker.addEventListener('change', () => loadSession(picker.value));
 function confirmDeaths(forSession) {
   const box = $('confirm');
   box.hidden = true;
-  if (!window.ghost.confirm) return;
-  window.ghost.confirm(forSession).then((rec) => {
+  if (!window.occlara.confirm) return;
+  window.occlara.confirm(forSession).then((rec) => {
     if (!rec || forSession !== sessionId) return;          // switched away meanwhile
     if (rec.status === 'unavailable' || !rec.summary) return;
     box.hidden = false;

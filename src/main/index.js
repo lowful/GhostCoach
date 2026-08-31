@@ -26,10 +26,10 @@ const USER_DATA        = path.join(app.getPath('appData'), 'Occlara');
 // trusted: this is the one piece of startup that can lose a player's licence.
 const profileMigration = require('./services/profile-migration');
 
-// GHOST_DEV_USERDATA is a dev-only escape hatch: it runs this build against a
+// OCCLARA_DEV_USERDATA is a dev-only escape hatch: it runs this build against a
 // throwaway profile, so a smoke test can boot alongside an installed copy
 // without touching its config, license, or session history.
-app.setPath('userData', process.env.GHOST_DEV_USERDATA || profileMigration.migrate(LEGACY_USER_DATA, USER_DATA, console));
+app.setPath('userData', process.env.OCCLARA_DEV_USERDATA || profileMigration.migrate(LEGACY_USER_DATA, USER_DATA, console));
 
 const logger   = require('./logger');
 const store    = require('./services/store');
@@ -493,7 +493,7 @@ const controller = {
   },
   setOverlayInteractive(on) { overlayWindow.setInteractive(!!on); },
   toggleMinimizePanel() {
-    // Minimized shows the small floating ghost (icon only, click-through,
+    // Minimized shows the small floating mark (icon only, click-through,
     // no status dot); Ctrl+Shift+M or the tray restores the panel.
     if (!panelWindow.isMinimized()) {
       const anchor = panelWindow.getDockAnchor(dockWindow.SIZE); // capture before hiding
@@ -1904,13 +1904,13 @@ if (!app.requestSingleInstanceLock()) {
 
     // Dev-only self-test (never runs in normal use): bypasses the license server
     // and exercises launch → IPC round-trip, writing results to debug.log.
-    if (process.env.GHOST_DEV_AUTOLAUNCH === '1') {
+    if (process.env.OCCLARA_DEV_AUTOLAUNCH === '1') {
       setTimeout(() => {
         console.log('[dev] auto-launch (license bypassed) for self-test');
         launchMainApp();
         controller.start();
-        if (process.env.GHOST_DEV_OPEN_SETTINGS === '1') settingsWindow.open();
-        if (process.env.GHOST_DEV_FAKE_MIX === '1' && engine) {
+        if (process.env.OCCLARA_DEV_OPEN_SETTINGS === '1') settingsWindow.open();
+        if (process.env.OCCLARA_DEV_FAKE_MIX === '1' && engine) {
           ['Pre-aim the angle before you swing, do not react after.',
            'Trade your teammate, swing right as they take the duel.',
            'Reposition after the kill, never repeek the same spot.',
@@ -1919,19 +1919,19 @@ if (!app.requestSingleInstanceLock()) {
           engine.emitTip('Reset your mental, the next round is a fresh start.', 'library');
           engine.emitTip('Default first, take map control, then commit as five.', 'library');
         }
-        if (process.env.GHOST_DEV_OPEN_HISTORY === '1') historyWindow.open();
-        if (process.env.GHOST_DEV_OPEN_WEEKLY === '1') {
+        if (process.env.OCCLARA_DEV_OPEN_HISTORY === '1') historyWindow.open();
+        if (process.env.OCCLARA_DEV_OPEN_WEEKLY === '1') {
           console.log('[dev] weekly report:', JSON.stringify(buildWeeklyReport()).slice(0, 600));
           weeklyWindow.open();
         }
-        if (process.env.GHOST_DEV_OPEN_AILOG === '1') aiLogWindow.open();
-        if (process.env.GHOST_DEV_MINIMIZE === '1') setTimeout(() => controller.toggleMinimizePanel(), 1200);
+        if (process.env.OCCLARA_DEV_OPEN_AILOG === '1') aiLogWindow.open();
+        if (process.env.OCCLARA_DEV_MINIMIZE === '1') setTimeout(() => controller.toggleMinimizePanel(), 1200);
         const panel = panelWindow.get();
         if (panel) {
           panel.webContents.once('did-finish-load', () =>
             setTimeout(() => controller.forceTip(), 800));
         }
-        if (process.env.GHOST_DEV_NOQUIT !== '1') {
+        if (process.env.OCCLARA_DEV_NOQUIT !== '1') {
           setTimeout(() => { console.log('[dev] self-test: forcing quit'); cleanupAndQuit(); }, 4000);
         }
       }, 800);
@@ -1940,11 +1940,11 @@ if (!app.requestSingleInstanceLock()) {
 
     // Dev-only: drive the REAL license path (service → live server → persist →
     // launch) with a key from the env. Lets us verify activation from the CLI.
-    if (process.env.GHOST_DEV_ACTIVATE_KEY) {
+    if (process.env.OCCLARA_DEV_ACTIVATE_KEY) {
       if (!licenseService.isLocallyValid()) activationWindow.create();
-      license.activate(process.env.GHOST_DEV_ACTIVATE_KEY).then((r) => {
+      license.activate(process.env.OCCLARA_DEV_ACTIVATE_KEY).then((r) => {
         console.log('[dev] activate result:', JSON.stringify(r));
-        if (!r.valid && process.env.GHOST_DEV_NOQUIT !== '1') {
+        if (!r.valid && process.env.OCCLARA_DEV_NOQUIT !== '1') {
           setTimeout(() => { console.log('[dev] quitting after failed activation'); cleanupAndQuit(); }, 1500);
         }
       });

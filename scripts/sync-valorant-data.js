@@ -2,7 +2,7 @@
 'use strict';
 
 /**
- * Sync GhostCoach's Valorant game data from valorant-api.com (a mirror of the
+ * Sync Occlara's Valorant game data from valorant-api.com (a mirror of the
  * game's own files, updated every patch). Regenerates the VERIFIABLE data that
  * used to be hand-maintained and drift out of date, agent roster + roles +
  * ability names, the map pool + which maps have three sites, and the distinctive

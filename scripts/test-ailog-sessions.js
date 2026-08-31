@@ -25,7 +25,7 @@ let fails = 0;
 const ok = (cond, what) => { if (!cond) { fails++; console.log(`FAIL  ${what}`); } else console.log(`ok    ${what}`); };
 
 // ── Fixture ─────────────────────────────────────────────────────────────────
-const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ghost-ailog-'));
+const root = fs.mkdtempSync(path.join(os.tmpdir(), 'occlara-ailog-'));
 const jpeg = Buffer.from('ffd8ffe000104a464946', 'hex');   // enough to be a file
 
 function makeSession(stamp, recs, mtime) {

@@ -60,7 +60,7 @@ function rowFor(tip) {
       bad.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg>';
       good.addEventListener('click', () => {
         ratings[tip.text] = 'good';               // instant local feedback
-        window.ghost.rateTip({ text: tip.text, source: tip.source, rating: 'good' });
+        window.occlara.rateTip({ text: tip.text, source: tip.source, rating: 'good' });
       });
       // X asks WHY: the written reason teaches the AI what actually went
       // wrong, and the same tip only gets blocked after 3 separate X ratings.
@@ -107,7 +107,7 @@ function openFeedbackForm(row, col, tip, actions) {
     const reason = input.value.trim();
     if (!reason) return;
     ratings[tip.text] = 'bad';
-    window.ghost.rateTip({ text: tip.text, source: tip.source, rating: 'bad', reason });
+    window.occlara.rateTip({ text: tip.text, source: tip.source, rating: 'bad', reason });
     fbOpen = false;
     fb.remove();
   };
@@ -160,7 +160,7 @@ function sessionLabel(s) {
 
 async function populateSessions() {
   try {
-    const sessions = await window.ghost.listSessions();
+    const sessions = await window.occlara.listSessions();
     const current = pickerEl.value;
     while (pickerEl.options.length > 1) pickerEl.remove(1);
     for (const s of sessions || []) {
@@ -177,10 +177,10 @@ pickerEl.addEventListener('mousedown', populateSessions);
 pickerEl.addEventListener('change', async () => {
   viewingFile = pickerEl.value;
   if (!viewingFile) {
-    window.ghost.getState().then((s) => render(s)).catch(() => {});
+    window.occlara.getState().then((s) => render(s)).catch(() => {});
     return;
   }
-  const session = await window.ghost.getSession(viewingFile).catch(() => null);
+  const session = await window.occlara.getSession(viewingFile).catch(() => null);
   if (!session) { viewingFile = ''; pickerEl.value = ''; return; }
   const tips = session.tips || [];
   const mix = session.tipMix || {
@@ -190,8 +190,8 @@ pickerEl.addEventListener('change', async () => {
   render({ tips, tipMix: mix, tipRatings: {} });
 });
 
-window.ghost.getState().then((s) => render(s)).catch(() => {});
-window.ghost.onState((s) => { if (s && !viewingFile && !fbOpen) render(s); });   // never yank the form mid-typing
+window.occlara.getState().then((s) => render(s)).catch(() => {});
+window.occlara.onState((s) => { if (s && !viewingFile && !fbOpen) render(s); });   // never yank the form mid-typing
 populateSessions();
 
 document.getElementById('close').addEventListener('click', () => window.close());

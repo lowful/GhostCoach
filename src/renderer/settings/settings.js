@@ -13,7 +13,7 @@ function wireSeg(seg, key) {
     const btn = e.target.closest('button');
     if (!btn) return;
     markSeg(seg, btn.dataset.val);
-    await window.ghost.setConfig({ [key]: btn.dataset.val });
+    await window.occlara.setConfig({ [key]: btn.dataset.val });
   });
 }
 
@@ -47,12 +47,12 @@ styleSegEl.addEventListener('click', async (e) => {
   if (!btn) return;
   markSeg(styleSegEl, btn.dataset.val);
   syncOpacityAvailability(btn.dataset.val);
-  await window.ghost.setConfig({ tipStyle: btn.dataset.val });
+  await window.occlara.setConfig({ tipStyle: btn.dataset.val });
 });
 
 opacityEl.addEventListener('input', () => { opacityLabel.textContent = opacityEl.value + '%'; });
 opacityEl.addEventListener('change', () => {
-  window.ghost.setConfig({ tipOpacity: Number(opacityEl.value) / 100 }).catch(() => {});
+  window.occlara.setConfig({ tipOpacity: Number(opacityEl.value) / 100 }).catch(() => {});
 });
 
 // Tip frequency slider: far left = Minimal, far right = Max.
@@ -62,7 +62,7 @@ const freqEl    = document.getElementById('tipfreq');
 const freqLabel = document.getElementById('tipfreq-label');
 freqEl.addEventListener('input', () => { freqLabel.textContent = FREQ_LABELS[Number(freqEl.value)] || 'Default'; });
 freqEl.addEventListener('change', () => {
-  window.ghost.setConfig({ performanceMode: FREQ_ORDER[Number(freqEl.value)] || 'balanced' }).catch(() => {});
+  window.occlara.setConfig({ performanceMode: FREQ_ORDER[Number(freqEl.value)] || 'balanced' }).catch(() => {});
 });
 
 // Booleans under the hood, on/off buttons in the UI.
@@ -72,7 +72,7 @@ function wireBoolSeg(id, key) {
     const btn = e.target.closest('button');
     if (!btn) return;
     markSeg(seg, btn.dataset.val);
-    await window.ghost.setConfig({ [key]: btn.dataset.val === 'on' }).catch(() => {});
+    await window.occlara.setConfig({ [key]: btn.dataset.val === 'on' }).catch(() => {});
   });
   return seg;
 }
@@ -94,24 +94,45 @@ wireSeg(captureSeg, 'captureQuality');
  * the Valorant engine wearing a different palette. Games appear here only once
  * their coaching genuinely exists, or when devGames is set for development.
  */
-const gameSeg = document.getElementById('gameseg');
-const gameSection = document.getElementById('game-section');
+const gamePickEl = document.getElementById('gamepick');
+let gameDD = null;
 
+/**
+ * Which game is being coached, in the HEADER.
+ *
+ * It used to be a segmented control in a section partway down the page, which
+ * put the one setting that changes the meaning of most of the others behind a
+ * scroll. As the game list grows a row of segments also stops fitting, where a
+ * dropdown does not.
+ *
+ * Hidden outright when there is a single game: one option is not a choice, and
+ * a control that always says "Valorant" is furniture.
+ */
 function buildGamePicker(current, includeUnavailable) {
-  if (!gameSeg || !window.ghost.games) return;
-  const games = window.ghost.games.list(includeUnavailable);
-  gameSeg.replaceChildren();
-  for (const g of games) {
-    const b = document.createElement('button');
-    b.dataset.val = g.id;
-    b.textContent = g.preview ? `${g.label} (preview)` : g.label;
-    if (g.preview) b.title = 'The look and layout are real. Coaching for this game is not built yet.';
-    gameSeg.append(b);
+  if (!gamePickEl || !window.occlara.games || !window.Dropdown) return;
+  const games = window.occlara.games.list(includeUnavailable);
+  if (games.length < 2) { gamePickEl.hidden = true; return; }
+  gamePickEl.hidden = false;
+
+  const opts = games.map((g) => ({
+    value: g.id,
+    label: g.label,
+    // An unfinished coach is said plainly rather than hidden behind a colour.
+    tag: g.coaching ? '' : 'preview',
+    note: g.coaching ? '' : 'The look and layout are real. Coaching for this game is not built yet.',
+  }));
+
+  if (!gameDD) {
+    gameDD = window.Dropdown.create(gamePickEl, {
+      label: 'Game',
+      options: opts,
+      value: current,
+      onChange: (id) => window.occlara.setConfig({ game: id }).catch(() => {}),
+    });
+  } else {
+    gameDD.setOptions(opts, true).setValue(current);
   }
-  markSeg(gameSeg, current);
-  if (gameSection) gameSection.hidden = games.length < 2;
 }
-wireSeg(gameSeg, 'game');
 
 // ── Version + update state ──────────────────────────────────────────────────
 // So it is obvious which build is running and whether an update already landed,
@@ -135,13 +156,13 @@ function paintVersion(info) {
   sEl.classList.toggle('ok', info.state === 'current');
   sEl.classList.toggle('new', info.state === 'ready' || info.state === 'downloading');
 }
-window.ghost.getVersion().then(paintVersion).catch(() => {});
+window.occlara.getVersion().then(paintVersion).catch(() => {});
 // Clicking the line forces a fresh check, so the player can confirm on demand.
 document.getElementById('version').addEventListener('click', () => {
   paintVersion({ current: null, state: 'checking' });
-  window.ghost.getVersion().then((cur) => {
+  window.occlara.getVersion().then((cur) => {
     paintVersion({ ...cur, state: 'checking' });
-    return window.ghost.checkUpdate();
+    return window.occlara.checkUpdate();
   }).then(paintVersion).catch(() => {});
 });
 
@@ -158,7 +179,7 @@ const volEl = document.getElementById('voicevol');
 const volLabel = document.getElementById('voicevol-label');
 volEl.addEventListener('input', () => { volLabel.textContent = volEl.value + '%'; });
 volEl.addEventListener('change', () => {
-  window.ghost.setConfig({ voiceVolume: Number(volEl.value) / 100 }).catch(() => {});
+  window.occlara.setConfig({ voiceVolume: Number(volEl.value) / 100 }).catch(() => {});
 });
 
 
@@ -168,7 +189,7 @@ const scaleLabel = document.getElementById('tipscale-label');
 function scaleText(v) { return v + '%' + (Number(v) === 100 ? ' (normal)' : ''); }
 scaleEl.addEventListener('input', () => { scaleLabel.textContent = scaleText(scaleEl.value); });
 scaleEl.addEventListener('change', () => {
-  window.ghost.setConfig({ tipScale: Number(scaleEl.value) / 100 }).catch(() => {});
+  window.occlara.setConfig({ tipScale: Number(scaleEl.value) / 100 }).catch(() => {});
 });
 
 // Riot ID: save on change/blur (debounced enough for a text field).
@@ -176,7 +197,7 @@ const riotEl = document.getElementById('riotid');
 let riotTimer = null;
 riotEl.addEventListener('input', () => {
   clearTimeout(riotTimer);
-  riotTimer = setTimeout(() => window.ghost.setConfig({ riotId: riotEl.value.trim() }).catch(() => {}), 500);
+  riotTimer = setTimeout(() => window.occlara.setConfig({ riotId: riotEl.value.trim() }).catch(() => {}), 500);
 });
 
 // Connect: save the ID, test the tracker link live, show exactly what happened.
@@ -193,8 +214,8 @@ trkBtn.addEventListener('click', async () => {
   showTrk(true, 'Checking your tracker profile...');
   trkStatus.className = 'trk-status';
   try {
-    await window.ghost.setConfig({ riotId: riotEl.value.trim() });
-    const res = await window.ghost.testTracker();
+    await window.occlara.setConfig({ riotId: riotEl.value.trim() });
+    const res = await window.occlara.testTracker();
     if (res && res.ok && res.stats) {
       const s = res.stats;
       const bits = [`rank ${s.rank || 'unknown'}`];
@@ -246,7 +267,7 @@ function renderLicense(lic) {
 }
 
 async function refreshLicense() {
-  try { renderLicense(await window.ghost.getLicense()); } catch (e) {}
+  try { renderLicense(await window.occlara.getLicense()); } catch (e) {}
 }
 
 // Load current config + license.
@@ -264,13 +285,13 @@ const langNote = document.getElementById('language-note');
  * seeing English buttons, and assuming the feature is broken.
  */
 function buildLanguagePicker(current) {
-  if (!langEl || !window.ghost.i18n) return;
+  if (!langEl || !window.occlara.i18n) return;
   // Languages whose UI chrome is NOT translated are tagged in the list, so the
   // caveat is visible while choosing rather than only after.
-  const opts = window.ghost.i18n.languages().map((l) => ({
+  const opts = window.occlara.i18n.languages().map((l) => ({
     value: l.code,
     label: l.name,
-    tag: window.ghost.i18n.hasUi(l.code) ? '' : 'tips only',
+    tag: window.occlara.i18n.hasUi(l.code) ? '' : 'tips only',
   }));
   if (!langDD) {
     langDD = window.Dropdown.create(langEl, {
@@ -292,8 +313,8 @@ function buildLanguagePicker(current) {
 }
 
 function showLanguageNote(code) {
-  if (!langNote || !window.ghost.i18n) return;
-  const translated = window.ghost.i18n.hasUi(code);
+  if (!langNote || !window.occlara.i18n) return;
+  const translated = window.occlara.i18n.hasUi(code);
   langNote.hidden = translated;
   if (!translated) {
     langNote.textContent =
@@ -328,7 +349,7 @@ if (langSaveEl) {
     const pick = langDD.value;
     langSaveEl.classList.add('busy');
     try {
-      await window.ghost.setConfig({ language: pick });
+      await window.occlara.setConfig({ language: pick });
       savedLang = pick;
       // Repaint this window immediately; the config push handles the others.
       if (window.initI18n) window.initI18n();
@@ -336,8 +357,8 @@ if (langSaveEl) {
         // t takes (code, key). Passing the key alone reads it as a language
         // code and returns undefined, which renders as the word "undefined".
         // Confirm in the language just chosen, not the one being left.
-        const say = (window.ghost.i18n && window.ghost.i18n.t
-          && window.ghost.i18n.t(pick, 'common.languageSaved')) || 'Language saved.';
+        const say = (window.occlara.i18n && window.occlara.i18n.t
+          && window.occlara.i18n.t(pick, 'common.languageSaved')) || 'Language saved.';
         langStatusEl.textContent = say;
         langStatusEl.className = 'trk-status ok';
         langStatusEl.hidden = false;
@@ -357,7 +378,7 @@ if (langSaveEl) {
 
 async function load() {
   try {
-    const cfg = await window.ghost.getConfig();
+    const cfg = await window.occlara.getConfig();
     if (cfg) {
       savedLang = cfg.language || 'en';
       buildLanguagePicker(savedLang);
@@ -405,7 +426,7 @@ async function load() {
 
 // Keep the license block consistent: on every pushed state, on window focus, and
 // on a slow poll (so an expiry/renewal shows without reopening Settings).
-window.ghost.onState((s) => renderLicense(s));
+window.occlara.onState((s) => renderLicense(s));
 window.addEventListener('focus', refreshLicense);
 setInterval(refreshLicense, 15000);
 
@@ -415,9 +436,9 @@ function formatExpiry(value) {
   return isNaN(d) ? value : d.toLocaleDateString();
 }
 
-document.getElementById('purchase').addEventListener('click', () => window.ghost.openPurchase());
-document.getElementById('logout').addEventListener('click', () => window.ghost.logout());
-document.getElementById('quit').addEventListener('click', () => window.ghost.quit());
+document.getElementById('purchase').addEventListener('click', () => window.occlara.openPurchase());
+document.getElementById('logout').addEventListener('click', () => window.occlara.logout());
+document.getElementById('quit').addEventListener('click', () => window.occlara.quit());
 document.getElementById('close').addEventListener('click', () => window.close());
 
 // Support email: click to copy to clipboard (falls back to selecting the text).

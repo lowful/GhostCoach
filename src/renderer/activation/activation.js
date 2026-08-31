@@ -48,7 +48,7 @@ form.addEventListener('submit', async (e) => {
 
   setState('loading');
   try {
-    const result = await window.ghost.activate(key);
+    const result = await window.occlara.activate(key);
     if (result && result.valid) {
       setState('success'); // main process closes this window and launches the app
       return;
@@ -69,5 +69,5 @@ keyInput.addEventListener('input', () => {
   if (caretAtEnd && normalized !== keyInput.value) keyInput.value = normalized;
 });
 
-document.getElementById('purchase').addEventListener('click', () => window.ghost.openPurchase());
-document.getElementById('close').addEventListener('click', () => window.ghost.quit());
+document.getElementById('purchase').addEventListener('click', () => window.occlara.openPurchase());
+document.getElementById('close').addEventListener('click', () => window.occlara.quit());

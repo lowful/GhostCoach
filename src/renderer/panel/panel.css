@@ -44,26 +44,6 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
   height: 26px;
 }
 
-/* The game switcher sits between the wordmark and the tools, so the header
-   reads left to right as WHO you are using, WHAT it is coaching, and the
-   controls. Sized to its own content rather than stretching: the header is
-   420px wide and a full-width control there would dominate a row whose job is
-   to be quiet. */
-.gamepick { flex: 0 1 auto; min-width: 0; max-width: 120px; }
-.gamepick .dd-btn {
-  height: 26px;                 /* matches the header row, not the 34px default */
-  /* "Valorant" wants 48px and had 47, so it ellipsised to "Valora...". The 4px
-     came out of the gap between label and chevron rather than off another
-     control, because everything else in this row is already at its minimum. */
-  gap: var(--space-1);
-  padding: 0 var(--space-1) 0 var(--space-2);
-  font-size: 11.5px;
-  font-weight: 600;
-  background: rgba(255, 255, 255, 0.022);
-  color: var(--text-dim);
-}
-.gamepick .dd-btn:hover { background: rgba(255, 255, 255, 0.075); color: var(--text); }
-.gamepick .dd-list { min-width: 176px; }
 .brand { display: flex; align-items: center; gap: var(--space-2); }
 .mark { color: var(--text); opacity: 0.95; }
 /* Tighter tracking is most of what makes a wordmark read as designed rather

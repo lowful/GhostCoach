@@ -43,7 +43,7 @@ async function send(text) {
 
   const typing = showTyping();
   try {
-    const res = await window.ghost.sendChat(history.slice(-12));
+    const res = await window.occlara.sendChat(history.slice(-12));
     typing.remove();
     if (res && res.ok && res.reply) {
       addMsg('assistant', res.reply);
@@ -76,8 +76,8 @@ function applyState(s) {
     agentChip.hidden = false;
   }
 }
-window.ghost.getState().then(applyState).catch(() => {});
-window.ghost.onState(applyState);
+window.occlara.getState().then(applyState).catch(() => {});
+window.occlara.onState(applyState);
 
 // "Ask Coach about this" from the stats dashboard: a pending session seed is
 // auto-sent as the opening question so the AI speaks to that exact session.
@@ -85,7 +85,7 @@ window.ghost.onState(applyState);
 // clears on read so it fires once.
 async function checkSeed() {
   try {
-    const seed = await window.ghost.getSeed();
+    const seed = await window.occlara.getSeed();
     if (!seed || busy) return;
     const sc = seed.scores || {};
     const parts = [`Review my coached session${seed.date ? ' from ' + seed.date : ''}${seed.map ? ' on ' + seed.map : ''}.`];

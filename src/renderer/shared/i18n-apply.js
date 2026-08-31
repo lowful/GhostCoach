@@ -60,7 +60,7 @@ function applyI18n(t, root = document) {
  */
 async function initI18n(onChange) {
   let lang = 'en';
-  const t = (key) => (window.ghost && window.ghost.i18n ? window.ghost.i18n.t(lang, key) : key);
+  const t = (key) => (window.occlara && window.occlara.i18n ? window.occlara.i18n.t(lang, key) : key);
 
   /**
    * The palette rides along with the language refresh.
@@ -82,7 +82,7 @@ async function initI18n(onChange) {
 
   const refresh = async () => {
     try {
-      const cfg = await window.ghost.getConfig();
+      const cfg = await window.occlara.getConfig();
       applyGame(cfg);
       const next = (cfg && cfg.language) || 'en';
       if (next === lang) return false;
@@ -101,9 +101,9 @@ async function initI18n(onChange) {
   // that after saving a language, to repaint itself immediately) used to add
   // another listener every time, so each save left one more live subscription
   // repainting the page on every state push for the rest of the session.
-  if (!window.__i18nSubscribed && window.ghost && typeof window.ghost.onState === 'function') {
+  if (!window.__i18nSubscribed && window.occlara && typeof window.occlara.onState === 'function') {
     window.__i18nSubscribed = true;
-    window.ghost.onState(async () => {
+    window.occlara.onState(async () => {
       if (await refresh()) {
         applyI18n(t);
         if (typeof onChange === 'function') onChange(t);

@@ -40,13 +40,13 @@ function go(next) {
 
 backBtn.addEventListener('click', () => go(index - 1));
 nextBtn.addEventListener('click', () => {
-  if (index === pages.length - 1) window.ghost.done();
+  if (index === pages.length - 1) window.occlara.done();
   else go(index + 1);
 });
 
-document.getElementById('close').addEventListener('click', () => window.ghost.done());
+document.getElementById('close').addEventListener('click', () => window.occlara.done());
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') window.ghost.done();
+  if (e.key === 'Escape') window.occlara.done();
   else if (e.key === 'Enter' || e.key === 'ArrowRight') nextBtn.click();
   else if (e.key === 'ArrowLeft') backBtn.click();
 });
@@ -62,9 +62,9 @@ function wireSeg(seg, onPick) {
   });
 }
 
-wireSeg(document.getElementById('fundamentals'), (v) => window.ghost.setFundamentals(v === 'on'));
+wireSeg(document.getElementById('fundamentals'), (v) => window.occlara.setFundamentals(v === 'on'));
 wireSeg(document.getElementById('tipstyle'), (v) => {
-  window.ghost.setConfig({ tipStyle: v }).catch(() => {});
+  window.occlara.setConfig({ tipStyle: v }).catch(() => {});
   syncOpacityAvailability(v);
 });
 
@@ -81,12 +81,12 @@ function syncOpacityAvailability(style) {
 }
 opacityEl.addEventListener('input', () => { opacityLabel.textContent = opacityEl.value + '%'; });
 opacityEl.addEventListener('change', () => {
-  window.ghost.setConfig({ tipOpacity: Number(opacityEl.value) / 100 }).catch(() => {});
+  window.occlara.setConfig({ tipOpacity: Number(opacityEl.value) / 100 }).catch(() => {});
 });
 
 // Reflect whatever is already saved, so re-running the tour never silently
 // resets a choice the player made in Settings.
-window.ghost.getConfig().then((cfg) => {
+window.occlara.getConfig().then((cfg) => {
   if (!cfg) return;
   const style = cfg.tipStyle || 'glass';
   for (const b of document.getElementById('tipstyle').querySelectorAll('button')) {
@@ -109,8 +109,8 @@ const obLang = document.getElementById('ob-language');
 const obLangNote = document.getElementById('ob-language-note');
 
 function obShowNote(code) {
-  if (!obLangNote || !window.ghost.i18n) return;
-  const translated = window.ghost.i18n.hasUi(code);
+  if (!obLangNote || !window.occlara.i18n) return;
+  const translated = window.occlara.i18n.hasUi(code);
   obLangNote.hidden = translated;
   if (!translated) {
     obLangNote.textContent =
@@ -118,23 +118,23 @@ function obShowNote(code) {
   }
 }
 
-if (obLang && window.ghost.i18n && window.Dropdown) {
+if (obLang && window.occlara.i18n && window.Dropdown) {
   // The app's own dropdown, not a native <select>. This is the very first
   // screen a new player sees, and on Windows the native control drew a white
   // box in the middle of the dark card: the most obviously foreign thing in
   // the whole interface, on first run.
-  window.ghost.getConfig().then((cfg) => {
+  window.occlara.getConfig().then((cfg) => {
     const current = (cfg && cfg.language) || 'en';
     window.Dropdown.create(obLang, {
       label: 'Language',
       value: current,
-      options: window.ghost.i18n.languages().map((l) => ({
+      options: window.occlara.i18n.languages().map((l) => ({
         value: l.code,
         label: l.name,
-        tag: window.ghost.i18n.hasUi(l.code) ? '' : 'tips only',
+        tag: window.occlara.i18n.hasUi(l.code) ? '' : 'tips only',
       })),
       onChange: async (code) => {
-        await window.ghost.setConfig({ language: code });
+        await window.occlara.setConfig({ language: code });
         obShowNote(code);
         if (window.initI18n) window.initI18n();
       },

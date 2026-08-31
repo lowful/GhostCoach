@@ -5,7 +5,7 @@ const path = require('path');
 const registry = require('./registry');
 
 /**
- * Tiny, fully click-through ghost badge shown where the panel was docked when
+ * Tiny, fully click-through badge, the aperture mark, shown where the panel was docked when
  * the user minimizes. It CANNOT be clicked (setIgnoreMouseEvents) so it never
  * catches the cursor mid-aim, restore is via hotkey (Ctrl+Shift+M) or tray.
  */

@@ -2,7 +2,7 @@
 'use strict';
 
 /**
- * Sync the current Valorant patch into GhostCoach so the coach never advises
+ * Sync the current Valorant patch into Occlara so the coach never advises
  * around a change that already happened (a nerfed ability, a reworked gun).
  *
  * Two authoritative sources, no interpretation in between:
@@ -25,7 +25,7 @@ const VERSION_URL = 'https://valorant-api.com/v1/version';
 const WEAPONS_URL = 'https://valorant-api.com/v1/weapons';
 const AGENTS_URL  = 'https://valorant-api.com/v1/agents?isPlayableCharacter=true';
 const NOTES_INDEX = 'https://playvalorant.com/en-us/news/game-updates/';
-const UA = { 'user-agent': 'Mozilla/5.0 (compatible; GhostCoach patch sync)' };
+const UA = { 'user-agent': 'Mozilla/5.0 (compatible; Occlara patch sync)' };
 
 // A line has to actually say something to be worth shipping; bare headings
 // ("Iso", "Gatecrash") carry no information for the coach.

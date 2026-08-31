@@ -18,13 +18,13 @@
  *   3. HEAD exists on origin/main
  *   4. package.json version has a matching commit
  *
- * GHOST_SKIP_RELEASE_CHECK=1 bypasses it, deliberately awkward to type.
+ * OCCLARA_SKIP_RELEASE_CHECK=1 bypasses it, deliberately awkward to type.
  */
 const { execSync } = require('child_process');
 const path = require('path');
 
-if (process.env.GHOST_SKIP_RELEASE_CHECK === '1') {
-  console.log('[release] preflight skipped by GHOST_SKIP_RELEASE_CHECK');
+if (process.env.OCCLARA_SKIP_RELEASE_CHECK === '1') {
+  console.log('[release] preflight skipped by OCCLARA_SKIP_RELEASE_CHECK');
   process.exit(0);
 }
 
@@ -45,7 +45,7 @@ try {
   remote = git('rev-parse origin/main');
 } catch (e) {
   fail(`git is not answering (${e.message.split('\n')[0]})`,
-    'Run the release from the repo with git available, or set GHOST_SKIP_RELEASE_CHECK=1.');
+    'Run the release from the repo with git available, or set OCCLARA_SKIP_RELEASE_CHECK=1.');
 }
 
 if (dirty) {
