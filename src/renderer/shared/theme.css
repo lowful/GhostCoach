@@ -102,6 +102,26 @@
   --icon-xs: 12px;
   --icon-sm: 15px;
   --icon-md: 18px;
+
+  /* Spacing, on a 4px grid.
+     An audit across the renderer found 28 distinct padding/margin/gap values,
+     17 of them off any grid at all (3, 5, 7, 9, 11, 13, 17, 22, 26, 34...).
+     Nothing there is identifiably broken, which is exactly the problem: a
+     hundred near-miss measurements are what make an interface read as slightly
+     off without anyone being able to point at the reason.
+
+     THE RULE THAT MATTERS MOST IS THE LAST ONE. Space BETWEEN groups must beat
+     space WITHIN them, or nothing groups and a settings page becomes one long
+     undifferentiated column. Use --space-1 to bind a label to its control,
+     --space-3 inside a group, and --space-8 between groups. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   /* Expo out: a fast start that settles gently, the curve that makes panels and
      cards feel like they have weight rather than just fading in. */

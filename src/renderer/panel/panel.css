@@ -6,8 +6,8 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
   /* height is auto so the card fits its content; the window resizes to match
      (see ResizeObserver in panel.js), avoids an invisible click-catching strip */
   border-radius: 18px;
-  padding: 16px 18px 17px;
-  display: flex; flex-direction: column; gap: 13px;
+  padding: var(--space-4);
+  display: flex; flex-direction: column; gap: var(--space-3);
   /* The whole card arrives rather than appearing. 240ms is long enough to read
      as deliberate and short enough that it never delays a player mid match. */
   animation: panelIn 260ms var(--ease-expo) both;
@@ -32,7 +32,7 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
 }
 
 .head { display: flex; align-items: center; justify-content: space-between; height: 26px; }
-.brand { display: flex; align-items: center; gap: 9px; }
+.brand { display: flex; align-items: center; gap: var(--space-2); }
 .mark { color: var(--text); opacity: 0.95; }
 /* Tighter tracking is most of what makes a wordmark read as designed rather
    than typed. */
@@ -98,16 +98,16 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
   background: rgba(var(--cyan-rgb), 0.06);
   border: 1px solid rgba(var(--cyan-rgb), 0.20);
   border-radius: 12px;
-  padding: 10px 12px;
+  padding: var(--space-3);
   animation: bubbleIn 180ms var(--ease) both;
 }
 @keyframes bubbleIn { from { opacity: 0; } to { opacity: 1; } }
 
-.ab-row { display: flex; align-items: center; gap: 12px; min-height: 30px; }
+.ab-row { display: flex; align-items: center; gap: var(--space-3); min-height: 30px; }
 .ab-q { flex: 1; min-width: 0; font-size: 12.5px; color: var(--text); line-height: 1.35; }
 .ab-q b { color: var(--cyan); font-weight: 700; }
 
-.ab-btns { display: flex; gap: 8px; flex: none; }
+.ab-btns { display: flex; gap: var(--space-2); flex: none; }
 .ab-btn {
   height: 30px; min-width: 34px; padding: 0 11px; border-radius: 9px; flex: none;
   font-size: 13.5px; font-weight: 700; font-family: var(--font); cursor: pointer;
@@ -156,7 +156,7 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
 /* ── Session readout ─────────────────────────────────────────────────────── */
 .session {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 11px 14px;
+  padding: var(--space-3) var(--space-4);
   background: rgba(0, 0, 0, 0.24);
   border: 1px solid var(--glass-border);
   border-radius: 12px;
@@ -191,7 +191,7 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
 #status-text { font-weight: 600; color: var(--text); }
 #status-text.ended { color: var(--red); }
 
-.controls { display: flex; gap: 9px; align-items: stretch; }
+.controls { display: flex; gap: var(--space-2); align-items: stretch; }
 /* THE COACHING BUTTON STAYS RED. It is the one control a player needs to find
    without looking, and it is the only place the accent earns full saturation in
    an otherwise white-on-black interface. */
