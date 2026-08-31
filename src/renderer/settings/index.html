@@ -7,6 +7,7 @@
   <title>Occlara Settings</title>
   <link rel="stylesheet" href="../shared/theme.css" />
   <link rel="stylesheet" href="../shared/ui.css" />
+  <link rel="stylesheet" href="../shared/dropdown.css" />
   <link rel="stylesheet" href="settings.css" />
 </head>
 <body>
@@ -54,11 +55,11 @@
         <h3>Tip position</h3>
         <p class="hint">Where coaching cards appear on screen.</p>
         <div class="seg" id="tippos">
+          <button data-val="middle">Middle</button>
           <button data-val="top-left">Top-left</button>
           <button data-val="top-right">Top-right</button>
           <button data-val="bottom-left">Bottom-left</button>
           <button data-val="bottom-right">Bottom-right</button>
-          <button data-val="middle">Middle</button>
         </div>
       </section>
 
@@ -177,7 +178,7 @@
         <h3 data-i18n="common.language">Language</h3>
         <p class="hint" data-i18n="common.languageHint">Coaching tips and the app appear in this language.</p>
         <div class="riot-row">
-          <select id="language" class="select lang-select"></select>
+          <div id="language" class="lang-select"></div>
           <button id="lang-save" class="btn trk-btn" data-i18n="common.save" disabled>Save</button>
         </div>
         <p class="hint" id="language-note" hidden></p>
@@ -213,6 +214,7 @@
     </footer>
   </div>
 
+  <script src="../shared/dropdown.js"></script>
   <script src="../shared/i18n-apply.js"></script>
   <script src="settings.js"></script>
 </body>

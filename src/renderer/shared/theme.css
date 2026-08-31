@@ -102,6 +102,7 @@
   --icon-xs: 12px;
   --icon-sm: 15px;
   --icon-md: 18px;
+  --icon-lg: 20px;
 
   /* Spacing, on a 4px grid.
      An audit across the renderer found 28 distinct padding/margin/gap values,
@@ -171,10 +172,9 @@
   --red-rgb:   255, 196, 46;
   --cyan:      #5FA8FF;
   --cyan-rgb:  95, 168, 255;
-  --on-accent: #08090A;   /* gold accent: white on it is 1.59:1 */
   --text:      #EEF3FF;
   --text-dim:  #93A4C8;
-  --text-mute: #7385AF;   /* was #61729A, 3.81:1 on the Rivals ground */
+  --text-mute: #61729A;
   --glass-fill:   rgba(10, 19, 48, 0.90);
   --glass-fill-2: rgba(16, 27, 62, 0.80);
 }

@@ -269,4 +269,54 @@ if (window.ResizeObserver) new ResizeObserver(syncHeight).observe(panelEl);
 window.addEventListener('load', syncHeight);
 setTimeout(syncHeight, 60);
 
+/* ── Game switcher ─────────────────────────────────────────────────────────
+   Which game is being coached changes what every other control in the app
+   means, so it belongs in the header beside the tools rather than four scrolls
+   down in Settings.
+
+   Only appears when there is a real choice: with a single available game the
+   mount stays hidden, so nothing takes header space to say "Valorant" forever.
+   Settings still owns the devGames flag that reveals unfinished games, and this
+   picker simply reflects whatever that decides. */
+(function initGamePicker() {
+  const mount = document.getElementById('gamepick');
+  if (!mount || !window.Dropdown || !window.ghost.games) return;
+
+  let dd = null;
+
+  function paint(cfg) {
+    const games = window.ghost.games.list(!!(cfg && cfg.devGames));
+    // One game is not a choice.
+    if (games.length < 2) { mount.hidden = true; return; }
+    mount.hidden = false;
+
+    const opts = games.map((g) => ({
+      value: g.id,
+      label: g.label,
+      // The header trigger has about 90px. The list keeps the full name.
+      short: g.label.length > 9 ? g.label.split(' ').pop() : g.label,
+      // An unfinished coach is said plainly rather than hidden behind a colour.
+      tag: g.coaching ? '' : 'preview',
+      note: g.coaching ? '' : 'The look and layout are real. Coaching for this game is not built yet.',
+    }));
+    const current = (cfg && cfg.game) || opts[0].value;
+
+    if (!dd) {
+      dd = window.Dropdown.create(mount, {
+        label: 'Game',
+        options: opts,
+        value: current,
+        onChange: (id) => window.ghost.setConfig({ game: id }).catch(() => {}),
+      });
+    } else {
+      dd.setOptions(opts, true).setValue(current);
+    }
+  }
+
+  window.ghost.getConfig().then(paint).catch(() => {});
+  // Another surface (Settings) can change the game, so re-read on every state
+  // push rather than trusting the value this window last wrote.
+  window.ghost.onState(() => window.ghost.getConfig().then(paint).catch(() => {}));
+}());
+
 console.log('[panel] ready');

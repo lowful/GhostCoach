@@ -31,7 +31,39 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
   to   { opacity: 1; transform: none; }
 }
 
-.head { display: flex; align-items: center; justify-content: space-between; height: 26px; }
+/* position + z-index are LOAD BEARING. Every direct child of .panel runs the
+   rowIn stagger, and an animation creates a stacking context, so .head and
+   .session are separate contexts painted in DOM order: the game picker's open
+   list was drawn UNDERNEATH the session row below it, whatever z-index the list
+   itself carried. Raising the whole header fixes it at the level that matters. */
+.head {
+  position: relative;
+  z-index: 5;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-1);
+  height: 26px;
+}
+
+/* The game switcher sits between the wordmark and the tools, so the header
+   reads left to right as WHO you are using, WHAT it is coaching, and the
+   controls. Sized to its own content rather than stretching: the header is
+   420px wide and a full-width control there would dominate a row whose job is
+   to be quiet. */
+.gamepick { flex: 0 1 auto; min-width: 0; max-width: 120px; }
+.gamepick .dd-btn {
+  height: 26px;                 /* matches the header row, not the 34px default */
+  /* "Valorant" wants 48px and had 47, so it ellipsised to "Valora...". The 4px
+     came out of the gap between label and chevron rather than off another
+     control, because everything else in this row is already at its minimum. */
+  gap: var(--space-1);
+  padding: 0 var(--space-1) 0 var(--space-2);
+  font-size: 11.5px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.022);
+  color: var(--text-dim);
+}
+.gamepick .dd-btn:hover { background: rgba(255, 255, 255, 0.075); color: var(--text); }
+.gamepick .dd-list { min-width: 176px; }
 .brand { display: flex; align-items: center; gap: var(--space-2); }
 .mark { color: var(--text); opacity: 0.95; }
 /* Tighter tracking is most of what makes a wordmark read as designed rather
@@ -216,14 +248,20 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
   0%, 100% { box-shadow: 0 0 0 0 rgba(var(--red-rgb),0.00); }
   50%      { box-shadow: 0 0 18px 0 rgba(var(--red-rgb),0.20); }
 }
-.toggle .t-ico { font-size: 11px; }
+/* The glyph is sized against the 19px label beside it, not left at the 13px
+   it was when the label was 15px. */
+.toggle .t-ico { display: inline-flex; align-items: center; }
+.toggle .t-ico svg { width: var(--icon-md); height: var(--icon-md); }
 .toggle.active { background: rgba(255,255,255,0.07); border: 1px solid var(--glass-border); color: var(--text); }
 .toggle.active:hover { box-shadow: none; filter: none; background: rgba(255,255,255,0.11); }
 .toggle.active .t-ico { color: var(--red); }
 .toggle:disabled { opacity: 0.55; cursor: default; filter: grayscale(0.35); }
 .toggle:disabled:hover { box-shadow: none; filter: grayscale(0.35); }
 
-.icon-btn.lg { width: 52px; height: 52px; font-size: 18px; border: 1px solid var(--glass-border); background: var(--glass-fill-2); }
+/* Square to the toggle's 52px height so the pair reads as one control row.
+   The glyph steps up with it: at 16px in a 52px button it looked lost. */
+.icon-btn.lg { width: 52px; height: 52px; border: 1px solid var(--glass-border); background: var(--glass-fill-2); }
+.icon-btn.lg svg { width: var(--icon-lg); height: var(--icon-lg); }
 .icon-btn[disabled] { opacity: 0.3; cursor: default; pointer-events: none; }
 
 .last-tip {

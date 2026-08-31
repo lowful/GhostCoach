@@ -7,6 +7,7 @@
   <title>Welcome to Occlara</title>
   <link rel="stylesheet" href="../shared/theme.css" />
   <link rel="stylesheet" href="../shared/ui.css" />
+  <link rel="stylesheet" href="../shared/dropdown.css" />
   <link rel="stylesheet" href="onboarding.css" />
 </head>
 <body>
@@ -25,7 +26,7 @@
            player's own language rather than being switched afterwards. -->
       <div class="ob-lang">
         <label for="ob-language" data-i18n="onboarding.chooseLanguage">Choose your language</label>
-        <select id="ob-language" class="select"></select>
+        <div id="ob-language" class="ob-lang"></div>
         <p class="ob-lang-note" id="ob-language-note" hidden></p>
       </div>
       <ol class="steps">
@@ -99,6 +100,7 @@
     </div>
   </main>
 
+  <script src="../shared/dropdown.js"></script>
   <script src="../shared/i18n-apply.js"></script>
   <script src="onboarding.js"></script>
 </body>

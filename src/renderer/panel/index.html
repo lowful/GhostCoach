@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="../shared/theme.css" />
   <link rel="stylesheet" href="../shared/ui.css" />
   <link rel="stylesheet" href="../shared/tip-visuals.css" />
+  <link rel="stylesheet" href="../shared/dropdown.css" />
   <link rel="stylesheet" href="panel.css" />
 </head>
 <body>
@@ -17,6 +18,11 @@
         <img class="mark" src="../../../assets/logo-mark.svg" alt="" width="20" height="20" />
         <span class="name">Occlara</span>
       </div>
+      <!-- Game switcher. Lives in the header rather than four scrolls down in
+           Settings, because which game is being coached changes what every
+           other control means. Hidden when only one game is available, so it
+           never occupies the header for nothing. -->
+      <div id="gamepick" class="gamepick no-drag" hidden></div>
       <div class="head-actions">
         <button id="stats" class="icon-btn no-drag" title="View Full Stats" aria-label="View Full Stats" data-i18n-title="panel.stats">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 20V11"/><path d="M12 20V4"/><path d="M18 20v-6"/></svg>
@@ -106,6 +112,7 @@
     </button>
   </div>
 
+  <script src="../shared/dropdown.js"></script>
   <script src="../shared/i18n-apply.js"></script>
   <script src="../shared/tip-visuals.js"></script>
   <script src="panel.js"></script>

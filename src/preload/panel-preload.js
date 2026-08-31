@@ -3,6 +3,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 const C = require('../shared/channels');
 const I18N = require('../shared/i18n');
+const GAMES = require('../shared/games');
 
 /**
  * Control panel bridge, the interactive hub. Sends commands to main and
@@ -23,6 +24,17 @@ contextBridge.exposeInMainWorld('ghost', {
     t: (code, key) => I18N.t(code, key),
     hasUi: (code) => I18N.hasUi(code),
   },
+
+  // The game switcher moved into the panel header, so the panel needs the
+  // registry and the config that Settings already had. Handed over as plain
+  // data, so no surface gains Node access.
+  games: {
+    list: (includeUnavailable) => GAMES.list(includeUnavailable)
+      .map((g) => ({ id: g.id, label: g.label, coaching: !!g.coaching, preview: !!g.preview })),
+  },
+
+  getConfig: () => ipcRenderer.invoke(C.CONFIG_GET),
+  setConfig: (partial) => ipcRenderer.invoke(C.CONFIG_SET, partial),
 
   // commands
   startCoaching: () => ipcRenderer.send(C.COACH_START),

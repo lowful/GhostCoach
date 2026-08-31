@@ -118,24 +118,29 @@ function obShowNote(code) {
   }
 }
 
-if (obLang && window.ghost.i18n) {
+if (obLang && window.ghost.i18n && window.Dropdown) {
+  // The app's own dropdown, not a native <select>. This is the very first
+  // screen a new player sees, and on Windows the native control drew a white
+  // box in the middle of the dark card: the most obviously foreign thing in
+  // the whole interface, on first run.
   window.ghost.getConfig().then((cfg) => {
     const current = (cfg && cfg.language) || 'en';
-    for (const l of window.ghost.i18n.languages()) {
-      const o = document.createElement('option');
-      o.value = l.code;
-      o.textContent = l.name;
-      if (l.code === current) o.selected = true;
-      obLang.appendChild(o);
-    }
+    window.Dropdown.create(obLang, {
+      label: 'Language',
+      value: current,
+      options: window.ghost.i18n.languages().map((l) => ({
+        value: l.code,
+        label: l.name,
+        tag: window.ghost.i18n.hasUi(l.code) ? '' : 'tips only',
+      })),
+      onChange: async (code) => {
+        await window.ghost.setConfig({ language: code });
+        obShowNote(code);
+        if (window.initI18n) window.initI18n();
+      },
+    });
     obShowNote(current);
   }).catch(() => {});
-
-  obLang.addEventListener('change', async () => {
-    await window.ghost.setConfig({ language: obLang.value });
-    obShowNote(obLang.value);
-    if (window.initI18n) window.initI18n();
-  });
 }
 
 if (window.initI18n) window.initI18n().catch(() => {});

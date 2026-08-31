@@ -1,0 +1,120 @@
+/* ── Dropdown ────────────────────────────────────────────────────────────────
+   Paired with shared/dropdown.js. Replaces the native <select>, which renders
+   as the Windows widget: a white box with a grey chevron and a system-blue
+   highlight, sitting in the middle of a near-black card and ignoring the
+   palette completely. It also could not follow the per-game accent.
+
+   Everything here comes from the tokens, so the control re-skins with the rest
+   of the app when the game changes. */
+
+.dd { position: relative; }
+
+.dd-btn {
+  width: 100%;
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-2);
+  height: 34px;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  font-family: var(--font);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.30);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.dd-btn:hover { background: rgba(255, 255, 255, 0.06); }
+.dd-btn:focus-visible {
+  outline: none;
+  border-color: rgba(var(--cyan-rgb), 0.5);
+  box-shadow: 0 0 0 2px rgba(var(--cyan-rgb), 0.15);
+}
+.dd-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dd-empty .dd-text { color: var(--text-mute); }
+
+.dd-chev {
+  flex: none;
+  width: var(--icon-xs); height: var(--icon-xs);
+  color: var(--text-mute);
+  transition: transform var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.dd-btn:hover .dd-chev { color: var(--text-dim); }
+/* The chevron turning over is the whole open/close affordance, so it is the one
+   piece of motion here. */
+.dd-open .dd-chev { transform: rotate(180deg); color: var(--text); }
+
+.dd-list {
+  position: absolute;
+  z-index: 40;
+  /* Sized to its CONTENT, never to the trigger. The onboarding language button
+     is only as wide as "English", and a list pinned to that clipped every
+     longer name to "Portug..." and pushed the tags outside the box entirely.
+     At least as wide as the trigger, as wide as it needs, and capped so a long
+     label cannot run off a 420px panel. */
+  /* left/top/min-width are set by place() in dropdown.js, which positions this
+     against the viewport so a scrolling ancestor cannot clip it. */
+  width: max-content;
+  max-width: 280px;
+  max-height: 240px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-1);
+  /* SOLID, not glass. An open list sits on top of live content, and at
+     --glass-fill's 0.92 the text underneath still read through it: the panel's
+     "Idle" row was legible through the option list. A menu has to be the only
+     thing you can read where it is. */
+  background: var(--bg-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  box-shadow: var(--lift);
+  animation: ddIn 140ms var(--ease-expo) both;
+}
+/* Flipped by place() when there is more room above than below. */
+.dd-up .dd-list { transform-origin: bottom; }
+@keyframes ddIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+.dd-opt {
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: 7px var(--space-2);
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.dd-opt-label { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+/* Keyboard highlight and mouse hover are the SAME state on purpose: two
+   different highlights in one list is how you lose track of what Enter does. */
+.dd-opt.dd-hi { background: rgba(255, 255, 255, 0.07); color: var(--text); }
+.dd-opt[aria-selected="true"] { color: var(--text); font-weight: 600; }
+/* The accent marks the current value, which is the one place in this control
+   worth spending colour on. */
+.dd-opt[aria-selected="true"]::after {
+  content: '';
+  width: 5px; height: 5px; flex: none;
+  border-radius: 50%;
+  background: var(--red);
+}
+
+/* A secondary note on an option (a preview tag, an untranslated warning). */
+.dd-opt-tag {
+  flex: none;
+  font-size: 9.5px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-mute);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  padding: 1px 6px;
+}
+
+.dd-list::-webkit-scrollbar { width: 8px; }
+.dd-list::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.10); border-radius: 4px; }
+.dd-list::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.16); }
+
+@media (prefers-reduced-motion: reduce) {
+  .dd-list { animation: none; }
+  .dd-chev { transition: color var(--t-fast) var(--ease); }
+  .dd-open .dd-chev { transform: none; }
+}

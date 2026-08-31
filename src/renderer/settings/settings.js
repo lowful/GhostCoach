@@ -252,6 +252,7 @@ async function refreshLicense() {
 // Load current config + license.
 // ── Language ────────────────────────────────────────────────────────────────
 const langEl  = document.getElementById('language');
+let langDD = null;   // the shared Dropdown bound to langEl
 const langNote = document.getElementById('language-note');
 
 /**
@@ -264,13 +265,28 @@ const langNote = document.getElementById('language-note');
  */
 function buildLanguagePicker(current) {
   if (!langEl || !window.ghost.i18n) return;
-  langEl.replaceChildren();
-  for (const l of window.ghost.i18n.languages()) {
-    const o = document.createElement('option');
-    o.value = l.code;
-    o.textContent = l.name;
-    if (l.code === current) o.selected = true;
-    langEl.appendChild(o);
+  // Languages whose UI chrome is NOT translated are tagged in the list, so the
+  // caveat is visible while choosing rather than only after.
+  const opts = window.ghost.i18n.languages().map((l) => ({
+    value: l.code,
+    label: l.name,
+    tag: window.ghost.i18n.hasUi(l.code) ? '' : 'tips only',
+  }));
+  if (!langDD) {
+    langDD = window.Dropdown.create(langEl, {
+      label: 'Language',
+      options: opts,
+      value: current,
+      onChange: (code) => {
+        // Preview only: the note describes the language being CONSIDERED, so
+        // the caveat about English chrome is visible before committing.
+        showLanguageNote(code);
+        if (langStatusEl) langStatusEl.hidden = true;
+        syncLangSave();
+      },
+    });
+  } else {
+    langDD.setOptions(opts, true).setValue(current);
   }
   showLanguageNote(current);
 }
@@ -303,24 +319,13 @@ const langStatusEl = document.getElementById('lang-status');
 let savedLang = 'en';
 
 function syncLangSave() {
-  if (!langSaveEl || !langEl) return;
-  langSaveEl.disabled = langEl.value === savedLang;
-}
-
-if (langEl) {
-  langEl.addEventListener('change', () => {
-    // Preview only: the note describes the language being CONSIDERED, so the
-    // caveat about English chrome is visible before committing rather than
-    // after.
-    showLanguageNote(langEl.value);
-    if (langStatusEl) langStatusEl.hidden = true;
-    syncLangSave();
-  });
+  if (!langSaveEl || !langDD) return;
+  langSaveEl.disabled = langDD.value === savedLang;
 }
 
 if (langSaveEl) {
   langSaveEl.addEventListener('click', async () => {
-    const pick = langEl.value;
+    const pick = langDD.value;
     langSaveEl.classList.add('busy');
     try {
       await window.ghost.setConfig({ language: pick });
