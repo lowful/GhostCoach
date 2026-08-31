@@ -958,7 +958,11 @@ class CoachingEngine extends EventEmitter {
       return false;
     }
 
-    const tip = { text: verified, source, time: Date.now() };
+    // Carried to the renderer so the overlay can draw a category glyph without
+    // owning a second copy of topicOf(). Those regexes already decide the
+    // variety guard, and a drifting duplicate of them in the renderer is
+    // exactly the main/preload split that channels.js exists to prevent.
+    const tip = { text: verified, source, time: Date.now(), topic: topicOf(verified) };
     if (extra && extra.death) tip.death = true;   // death review: white skull card
     if (source !== 'system') {                       // status notices aren't coaching history
       this.tipHistory.push(tip);

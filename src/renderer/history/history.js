@@ -32,7 +32,8 @@ function rowFor(tip) {
 
   const text = document.createElement('div');
   text.className = 'text';
-  text.textContent = tip.text;
+  if (window.tipVisuals) window.tipVisuals.render(text, tip.text, { topic: tip.topic });
+  else text.textContent = tip.text;
 
   col.append(meta, text);
   row.append(col);

@@ -196,7 +196,13 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
    without looking, and it is the only place the accent earns full saturation in
    an otherwise white-on-black interface. */
 .toggle {
-  flex: 1; height: 52px; font-size: 15px; font-weight: 600; letter-spacing: -0.1px;
+  /* 19px/700 is deliberate and is not just "bigger looks better".
+     White on the red accent measures 3.36:1. WCAG asks 4.5:1 of normal text but
+     3:1 of LARGE text, and large starts at 18.66px bold, so at the old 15px/600
+     the one control a player has to find without looking was the only text in
+     the app failing contrast. Crossing that threshold fixes it without touching
+     the brand red, which is consumed 225 times and is the Valorant colour. */
+  flex: 1; height: 52px; font-size: 19px; font-weight: 700; letter-spacing: -0.2px;
   display: flex; align-items: center; justify-content: center; gap: 9px;
   transition: transform var(--t-fast) var(--ease), box-shadow var(--t-med) var(--ease), background var(--t-fast) var(--ease);
 }

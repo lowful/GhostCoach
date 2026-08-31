@@ -1,0 +1,55 @@
+/* ── Tip glyphs ──────────────────────────────────────────────────────────────
+   Paired with shared/tip-visuals.js, and loaded by every surface that shows a
+   coaching tip so the overlay, the panel, history, chat and the weekly report
+   all mark a callout the same way.
+
+   Its own file rather than a block in ui.css, because the overlay is the ONE
+   surface that does not load ui.css. It is drawn over a live game and carries
+   only what it needs. Putting these rules in ui.css would have meant either
+   pulling the whole component stylesheet into the overlay or keeping two copies
+   of them, and two copies is how the glyphs end up looking different in the
+   place players actually see them.
+
+   Restrained on purpose. A glyph is here to catch the eye on the word a player
+   is hunting for, not to decorate the sentence, so a mark is the SAME colour as
+   the text around it and is set apart only by weight and a small icon. Tinting
+   them per kind would quietly rebuild the colour-coded source label that was
+   deliberately taken off the tip card. */
+
+/* Sizes come from the --icon-* scale, never a per-call-site number. The topic
+   glyph is one step up because it labels the whole card rather than a word. */
+.tv-topic {
+  flex: none;
+  width: var(--icon-sm); height: var(--icon-sm);
+  vertical-align: -2px;
+  margin-right: 7px;
+  color: var(--tip-accent, var(--text-dim));
+  opacity: 0.9;
+}
+
+.tv-mark {
+  white-space: nowrap;      /* a callout must never wrap away from its icon */
+  font-weight: 700;
+}
+.tv-mark svg {
+  width: var(--icon-xs); height: var(--icon-xs);
+  vertical-align: -1.5px;
+  margin-right: 2px;
+  opacity: 0.75;
+}
+
+/* Only the NOUNS get bold: the place and the agent, the things a player glances
+   for. Direction words keep the arrow and drop the weight, because marking the
+   verbs too was what turned a sentence into five bold runs, and emphasis that
+   covers half a sentence has stopped being emphasis. */
+.tv-rotate, .tv-push, .tv-fallback, .tv-flank { font-weight: inherit; }
+
+/* The minimal tip style has no panel behind it: its legibility comes from a
+   dark outline traced around every glyph of text, and an inline SVG gets none
+   of that. Without this the icons disappear over a bright skybox while the
+   words they belong to stay readable. */
+.tips[data-style="minimal"] .tv-mark svg,
+.tips[data-style="minimal"] .tv-topic {
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.95)) drop-shadow(0 1px 3px rgba(0, 0, 0, 0.9));
+  opacity: 1;
+}

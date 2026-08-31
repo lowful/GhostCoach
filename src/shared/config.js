@@ -116,7 +116,12 @@ const STORE_DEFAULTS = {
   tipFeedback:     [],           // [{ text, reason, at }] the player's own words on why a tip missed
   tipRatings:      {},           // text -> 'good'|'bad', persists so ratings survive restarts
   overlayPosition: 'top-right',  // tip card anchor
-  tipPosition:     'top-right',  // top-left | top-right | bottom-left | bottom-right
+  // middle is bottom-centre, sitting just above the ability HUD and below the
+  // player's sightline, which is where a tip is read without looking away from
+  // the fight. It was fully built (its own entrance animations, its own button
+  // in Settings) but never made the default, so the fifth value was missing
+  // from this comment too. Existing installs keep whatever they chose.
+  tipPosition:     'middle',     // top-left | top-right | bottom-left | bottom-right | middle
   tipScale:        1,            // tip card size ratio; 1 = normal (0.8 to 1.3)
   tipStyle:        'glass',      // glass | solid | minimal | neon, the tip card look
   tipOpacity:      0.9,          // tip card background opacity, 0.25 to 1

@@ -129,7 +129,15 @@ html, body { width: 100%; height: 100%; background: transparent !important; over
 
    Deliberately quiet. It appears mid game, often while the player is loading
    into a round, so it says "on" and then gets out of the way rather than
-   holding a card slot for eleven seconds like the old welcome tip did. */
+   holding a card slot for eleven seconds like the old welcome tip did.
+
+   IN FLOW ON PURPOSE. Taking it out of flow stops it nudging the stack, but an
+   absolutely positioned flex child falls back to its STATIC position, which in
+   the top-anchored layouts is the top of the container, directly under the
+   newest card. Overlapping a tip is a worse failure than moving one. In flow it
+   cannot overlap at any position, and the nudge it was traded for is close to
+   unreachable anyway: this retires at 2.9s and the first AI tip lands at 8s
+   (TIMING.firstAnalyze), so the two are rarely on screen together at all. */
 .live {
   position: relative;
   width: 46px; height: 46px;

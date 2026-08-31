@@ -48,7 +48,12 @@ function addTip(tip) {
   // an emoji.
   const text = document.createElement('div');
   text.className = 'text';
-  text.textContent = tip.text;
+  // Glyphs mark the callout, the direction and the agent so the sentence is
+  // scanned rather than read. The words are untouched; this decorates what the
+  // coach said and never rewrites it. Falls back to plain text if the shared
+  // script is missing, because a tip must always render.
+  if (window.tipVisuals) window.tipVisuals.render(text, tip.text, { topic: tip.topic });
+  else text.textContent = tip.text;
   let meta = null;
   if (tip.death) {
     meta = document.createElement('div');
@@ -62,7 +67,16 @@ function addTip(tip) {
   card.append(text, progress);
 
   tipsEl.prepend(card);
-  while (tipsEl.children.length > MAX_VISIBLE) dismiss(tipsEl.lastElementChild);
+  // Count and evict CARDS, not children. The live indicator is also a child of
+  // this container, so counting children let it eat one of the four slots, and
+  // evicting lastElementChild dismissed the indicator instead of the oldest
+  // tip whenever the stack was full.
+  // :not(.out) so cards already animating away are not counted twice, which
+  // would also make this loop unable to terminate.
+  const live = () => tipsEl.querySelectorAll('.tip-card:not(.out)');
+  for (let cards = live(); cards.length > MAX_VISIBLE; cards = live()) {
+    dismiss(cards[cards.length - 1]);
+  }
 
   const timer = setTimeout(() => dismiss(card), TIP_TTL);
   card._timer = timer;

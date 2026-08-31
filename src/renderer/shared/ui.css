@@ -51,7 +51,9 @@
   overflow: hidden;
   background: var(--red);
   border-color: transparent;
-  color: #fff;
+  /* NOT #fff. --red is the per-game accent and becomes gold under Rivals,
+     where white text measures 1.59:1. --on-accent moves with it. */
+  color: var(--on-accent);
   /* The same lit top edge, brighter because the face is saturated, plus a
      coloured shadow so the red appears to sit in its own light. */
   box-shadow:

@@ -245,7 +245,10 @@ window.ghost.onStatus(({ status }) => {
 });
 window.ghost.onTip((tip) => {
   if (!tip || !tip.text) return;
-  lastTipText.textContent = tip.text;
+  // Same glyphs as the overlay: the panel shows the last tip, and a callout
+  // marked one way on screen and another way here would read as two systems.
+  if (window.tipVisuals) window.tipVisuals.render(lastTipText, tip.text, { topic: tip.topic });
+  else lastTipText.textContent = tip.text;
   lastTipEl.title = tip.text;   // full text on hover, never cut off
   lastTipEl.className = `last-tip no-drag has-tip ${tip.source || 'system'} flash`;
   setTimeout(() => lastTipEl.classList.remove('flash'), 500);

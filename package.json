@@ -53,7 +53,8 @@
     "test:deathhp": "node scripts/test-death-hp.js",
     "test:newmatch": "node scripts/test-new-match-reset.js",
     "test:agentdetect": "node scripts/test-agent-detect.js",
-    "test:profilemigration": "node scripts/test-profile-migration.js"
+    "test:profilemigration": "node scripts/test-profile-migration.js",
+    "test:tipvisuals": "node scripts/test-tip-visuals.js"
   },
   "build": {
     "appId": "com.ghostcoach.app2",
