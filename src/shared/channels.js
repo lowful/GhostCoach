@@ -53,7 +53,8 @@ const CHANNELS = {
   OPEN_CHAT:       'window:openChat',    // the Ask Coach chat window
   OPEN_STATS:      'window:openStats',   // the extended stats dashboard window
   OPEN_WEEKLY:     'window:openWeekly',  // the weekly report popup
-  OPEN_AILOG:      'window:openAiLog',   // the AI decision-log viewer
+  OPEN_AILOG:      'window:openAiLog',   // (sessionId?) the AI decision-log viewer
+  AILOG_SHOW:      'ailog:show',         // (sessionId) jump an OPEN log window to one session
   OPEN_CHAT_SEEDED:'window:openChatSeeded', // (sessionSeed) open Ask Coach preloaded with a session's context
   TIP_RATE:        'tip:rate',           // ({ text, source, rating: good|bad })
   OPEN_PURCHASE:   'window:openPurchase',

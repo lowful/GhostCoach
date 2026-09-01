@@ -114,16 +114,29 @@ function read(root, id, liveId) {
  * exactly such a folder, and a prune that cannot see them never removes them, so
  * they pile up forever in a directory whose whole point is to stay bounded.
  * Empty ones go first, then the oldest of the rest.
+ *
+ * `live` is the session being recorded right now, and it MUST be excluded.
+ * A live session has no log.json until its first frame lands, so without this
+ * it matches the empty rule exactly. Between 3.3.0 and 3.9.0 the caller created
+ * the folder and pruned on the next line, which deleted the session it had just
+ * started; every frame after that wrote into a path that no longer existed and
+ * the error was swallowed by the "a dropped frame is not worth interrupting
+ * coaching" catch. Two weeks of decision logs went missing in silence, and the
+ * only symptom was the log window showing nothing newer than the release.
  */
-function prune(root, keep) {
+function prune(root, keep, live) {
   try {
     if (!root || !fs.existsSync(root)) return;
     const all = fs.readdirSync(root)
       .filter((f) => /^session-/.test(f))
+      .filter((f) => f !== live)
       .map((f) => ({ f, t: fs.statSync(path.join(root, f)).mtimeMs, has: fs.existsSync(path.join(root, f, 'log.json')) }));
     const empty = all.filter((d) => !d.has);
     const real = all.filter((d) => d.has).sort((a, b) => b.t - a.t);
-    for (const d of [...empty, ...real.slice(keep)]) {
+    // The live session counts against the budget even though it is not a
+    // candidate for removal, or starting one always keeps keep+1 on disk.
+    const room = live ? Math.max(0, keep - 1) : keep;
+    for (const d of [...empty, ...real.slice(room)]) {
       fs.rmSync(path.join(root, d.f), { recursive: true, force: true });
     }
   } catch {}

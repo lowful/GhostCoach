@@ -23,5 +23,8 @@ contextBridge.exposeInMainWorld('occlara', {
   // never before, so the viewer stays instant and works with no network.
   confirm:  (id) => ipcRenderer.invoke(C.AILOG_CONFIRM, id),
   ask:      (payload) => ipcRenderer.invoke(C.AILOG_ASK, payload),
+  // Jump an already open window to another session, for a second link from
+  // Tip History while this one is on screen.
+  onShow:   (cb) => ipcRenderer.on(C.AILOG_SHOW, (_e, id) => cb(id)),
   close:  () => window.close(),
 });

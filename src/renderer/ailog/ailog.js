@@ -362,6 +362,29 @@ function confirmDeaths(forSession) {
   }).catch(() => { /* a confirmation that does not arrive changes nothing */ });
 }
 
-loadSession();
+/*
+ * Opened at a session somebody asked for, when they did.
+ *
+ * Tip History links straight to the frames behind the tips it is showing, and
+ * hands the log session id over in the URL hash. The hash is there before the
+ * first line of this file runs, which is why it is used rather than a message:
+ * a message sent while the window is still loading is simply lost.
+ *
+ * An unknown id falls back to the newest inside ai-log-store's read(), so a
+ * session pruned between the click and the open still shows something.
+ */
+function requestedSession() {
+  try {
+    const raw = decodeURIComponent(String(location.hash || '').replace(/^#/, '')).trim();
+    // Only ever a session folder name, never a path. Anything else is ignored
+    // rather than joined onto one.
+    return /^session-[\w.-]+$/.test(raw) ? raw : undefined;
+  } catch { return undefined; }
+}
+
+loadSession(requestedSession());
+
+// An already open window is told to move, since the hash was read once above.
+if (window.occlara.onShow) window.occlara.onShow((id) => loadSession(id));
 
 console.log('[ailog] ready');

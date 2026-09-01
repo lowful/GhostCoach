@@ -66,6 +66,26 @@ function cleanTip(tip) {
   // the player.
   for (const p of PREAMBLE) t = t.replace(p, '').trim();
   t = t.replace(TRAILING_LABEL, '').trim();
+
+  /*
+   * The death marker, wherever the model put it.
+   *
+   * The contract says a review begins with exactly "DEATH: ", and the client
+   * decides what is a review anyway, so the marker is only ever a label. A
+   * real card read "The round is over and you are dead, so DEATH: you died to
+   * a Sova because you stepped out from cover" because the model wrote its own
+   * preamble first and then obeyed the instruction in the middle of it.
+   *
+   * The marker still says where the review starts, so everything before it is
+   * the preamble it was told not to write. Dropping that leaves the sentence
+   * the player should have seen.
+   */
+  const marker = /(^|[^a-z])DEATH\s*:\s*/i.exec(t);
+  if (marker) {
+    const after = t.slice(marker.index + marker[0].length).trim();
+    if (after) t = after.charAt(0).toUpperCase() + after.slice(1);
+  }
+
   return t;
 }
 
@@ -141,6 +161,20 @@ function polishText(rawText, source) {
   // an English article here, the first being the truncation rule above.
   if (source === 'ai'
       && (/\b(your|their|his|her|my|our|the|an)\s*[,.]/i.test(t) || /\ba\s*[,.]/.test(t))) {
+    return null;
+  }
+
+  // THE SAME SLIP WITH NO PUNCTUATION AT ALL. "Set up a crossfire at B Main
+  // with your so you can trade when they push" reached a player: the model
+  // dropped the teammate's name and carried straight on, so there is no comma
+  // or full stop for the rule above to find. The sentence scans as English
+  // right up to the missing word.
+  //
+  // Only function words that cannot begin a noun phrase are listed, so "your
+  // own angle" and "your other smoke" stay legal. Nothing in English follows a
+  // possessive with "so" or "because".
+  if (source === 'ai'
+      && /\b(your|their|his|her|my|our)\s+(so|and|but|or|to|then|while|because|if|when|than|with|from|into|onto|at|of|as|that)\b/i.test(t)) {
     return null;
   }
 

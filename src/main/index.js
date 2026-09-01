@@ -134,6 +134,7 @@ function buildState() {
     tipStyle:        store.get('tipStyle'),
     tipOpacity:      store.get('tipOpacity'),
     showTips:        store.get('showTips'),
+    sounds:          store.get('sounds'),
     voiceCoach:      store.get('voiceCoach'),
     voiceStyle:      store.get('voiceStyle'),
     voiceVolume:     store.get('voiceVolume'),
@@ -181,7 +182,15 @@ function maybeNudgeLate() {
 }
 
 function pushTip(tip) {
-  const full = { text: tip.text, source: tip.source || 'system', time: tip.time || Date.now() };
+  // The player's own agent, carried so the overlay can mark it as theirs.
+  // Only when the engine has CONFIRMED it: an unconfirmed read would paint the
+  // wrong name green, and a colour that says "this one is yours" has to be
+  // right every time or it is worse than no colour.
+  const mine = state.agent && state.agent.confirmed ? state.agent.agent : null;
+  const full = {
+    text: tip.text, source: tip.source || 'system', time: tip.time || Date.now(),
+    ...(mine ? { agent: mine } : {}),
+  };
   state.tips.unshift(full);
   if (state.tips.length > 50) state.tips.pop();
   registry.broadcast(C.PUSH_TIP, full);
@@ -509,7 +518,15 @@ const controller = {
   openSettings()  { settingsWindow.open(); },
   openHistory()   { historyWindow.open(); },
   openWeekly()    { weeklyWindow.open(); },
-  openAiLog()     { aiLogWindow.open(); },
+  /*
+   * Opened at a particular session when the caller names one.
+   *
+   * Tip History hands over the log session that belongs to the archive being
+   * read, so the two windows agree about which sitting is on screen. Without
+   * an id the viewer opens at the newest, which is what every other entry
+   * point wants.
+   */
+  openAiLog(sessionId) { aiLogWindow.open(sessionId || null); },
   getAiLog(id)    { return readAiLog(id); },
   getAiLogSessions() { return aiLogSessions(); },
 
@@ -1447,6 +1464,7 @@ const AI_LOG_MAX_FRAMES   = 240;   // ~40 min at a 10s loop; older frames roll o
 const AI_LOG_KEEP_SESSIONS = 5;    // only the most recent sessions survive
 let aiLogDir = null;               // current session's folder
 let aiLogRecords = [];             // in-memory index, flushed to log.json
+let aiLogWarned = false;           // one write failure is reported per session
 // Counts for the aggregate coaching report, reset at the start of every session.
 // Deliberately separate from the AI log so they survive it being turned off.
 let sessionCounts = { tipsShown: 0, tipsGenerated: 0, rejects: {} };
@@ -1463,11 +1481,16 @@ function startAiLog() {
   try {
     const root = aiLogRoot();
     if (!fs.existsSync(root)) fs.mkdirSync(root, { recursive: true });
+    // Make room first. Pruning after the folder exists deleted the session
+    // that had just been started, because it has no log.json until its first
+    // frame lands and that is exactly what the empty rule looks for.
+    pruneAiLog();
+
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     aiLogDir = path.join(root, 'session-' + stamp);
     fs.mkdirSync(aiLogDir, { recursive: true });
     aiLogRecords = [];
-    pruneAiLog();
+    aiLogWarned = false;
     console.log('[ai-log] started', path.basename(aiLogDir));
   } catch (e) { aiLogDir = null; console.error('[ai-log] start failed:', e.message); }
 }
@@ -1507,11 +1530,26 @@ function recordAiFrame(d) {
       app: app.getVersion(),
       records: aiLogRecords,
     }));
-  } catch (e) { /* a dropped frame is not worth interrupting coaching */ }
+  } catch (e) {
+    /*
+     * A dropped frame is not worth interrupting coaching, and it is worth
+     * saying once. Reported per session rather than per frame: at a frame
+     * every few seconds an unconditional log would bury everything else, and
+     * silence is what let a whole broken session pass unnoticed for two weeks.
+     */
+    if (!aiLogWarned) {
+      aiLogWarned = true;
+      console.error('[ai-log] cannot write frames, this session will not be logged:', e.message);
+    }
+  }
 }
 
 /** Keep only the most recent session folders. */
-function pruneAiLog() { aiLogStore.prune(aiLogRoot(), AI_LOG_KEEP_SESSIONS); }
+function pruneAiLog() {
+  // The live folder is named so no prune can remove the session in progress,
+  // whichever order the caller happens to run in.
+  aiLogStore.prune(aiLogRoot(), AI_LOG_KEEP_SESSIONS, aiLogLiveId());
+}
 
 /** Metadata for the session picker: every kept session, and no frames. */
 function aiLogSessions() { return aiLogStore.sessions(aiLogRoot(), aiLogLiveId()); }

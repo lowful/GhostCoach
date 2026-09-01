@@ -151,6 +151,7 @@ const STORE_DEFAULTS = {
   // (The pro playbook runs permanently in hybrid mode; frame memory is always
   // on and session-scoped. Neither is a setting anymore.)
   beginnerTips:    true,         // curated library tips in the stream (25-35% of tips); off = AI only
+  sounds:          true,         // the two interface sounds: coaching armed, coaching stood down
   voiceCoach:      false,        // speak tips aloud through the overlay
   voiceStyle:      'normal',     // normal | hype | chill | funny | robot
   voiceVolume:     0.9,          // 0..1

@@ -124,6 +124,41 @@ ok(left.length === 2 && left[0] === 'session-2026-08-13T10-00-00-000Z',
   `prune keeps the 2 newest (${left.join(', ')})`);
 ok(!fs.existsSync(path.join(root, 'session-broken')), 'and prune removes the frameless folder it cannot index');
 
+// ── The live session is never pruned ────────────────────────────────────────
+// The expensive one. A live session has no log.json until its first frame
+// lands, so it matches the frameless rule above exactly. Between 3.3.0 and
+// 3.9.0 startAiLog() created the folder and pruned on the very next line,
+// which deleted the session it had just started. Every frame after that wrote
+// into a path that no longer existed and the error went into the "a dropped
+// frame is not worth interrupting coaching" catch. Two weeks of decision logs
+// were lost in silence, and the only symptom was the log window showing
+// nothing newer than the release that broke it.
+const liveRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'occlara-ailog-live-'));
+for (let i = 1; i <= 4; i++) {
+  const d = path.join(liveRoot, 'session-keep-' + i);
+  fs.mkdirSync(d, { recursive: true });
+  fs.writeFileSync(path.join(d, 'log.json'), JSON.stringify({ records: [] }));
+  fs.utimesSync(d, 1000 + i, 1000 + i);
+}
+const liveDir = path.join(liveRoot, 'session-live');
+fs.mkdirSync(liveDir, { recursive: true });
+
+store.prune(liveRoot, 5, 'session-live');
+ok(fs.existsSync(liveDir), 'the session being recorded survives a prune');
+
+// And it counts against the budget, or starting one always keeps keep+1.
+ok(fs.readdirSync(liveRoot).length === 5,
+  `the live session counts toward the cap (${fs.readdirSync(liveRoot).length} folders)`);
+
+// Without being named it is indistinguishable from a frameless leftover, which
+// is why the caller must pass it rather than relying on ordering.
+const naiveDir = path.join(liveRoot, 'session-unnamed');
+fs.mkdirSync(naiveDir, { recursive: true });
+store.prune(liveRoot, 5);
+ok(!fs.existsSync(naiveDir), 'an unnamed frameless folder is still removed');
+
+fs.rmSync(liveRoot, { recursive: true, force: true });
+
 // ── Missing root ────────────────────────────────────────────────────────────
 ok(store.sessions(path.join(root, 'nope')).length === 0, 'a missing log folder lists nothing');
 ok(store.read(path.join(root, 'nope')).records.length === 0, 'a missing log folder reads nothing');

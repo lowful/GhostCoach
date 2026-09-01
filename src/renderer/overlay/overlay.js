@@ -52,7 +52,7 @@ function addTip(tip) {
   // scanned rather than read. The words are untouched; this decorates what the
   // coach said and never rewrites it. Falls back to plain text if the shared
   // script is missing, because a tip must always render.
-  if (window.tipVisuals) window.tipVisuals.render(text, tip.text, { topic: tip.topic });
+  if (window.tipVisuals) window.tipVisuals.render(text, tip.text, { topic: tip.topic, agent: tip.agent });
   else text.textContent = tip.text;
   let meta = null;
   if (tip.death) {
@@ -123,9 +123,28 @@ function flashLive() {
 // the current status whenever anything else about the state changes, so without
 // this the mark would flash again every time the player paused, changed a
 // setting, or finished a round.
+let sfxVolume = 0.9;
 let lastStatus = null;
 function setStatus(status) {
   if (status === 'coaching' && lastStatus !== 'coaching') flashLive();
+
+  /*
+   * The two sounds, on real transitions only.
+   *
+   * lastStatus is null until the first status ever arrives, and that first one
+   * is the app telling the overlay what is already true rather than something
+   * changing. Playing on it would mean a chime every launch, and a launch
+   * chime is the first thing anybody turns off.
+   */
+  if (lastStatus !== null && status !== lastStatus && window.occlaraSfx) {
+    if (status === 'coaching') window.occlaraSfx.play('start', sfxVolume);
+    // Pausing is not stopping, and it happens often enough that a sound for it
+    // would become nagging. Only the end of the session gets one.
+    else if (lastStatus === 'coaching' && status !== 'paused') {
+      window.occlaraSfx.play('stop', sfxVolume);
+    }
+  }
+
   lastStatus = status;
 }
 
@@ -302,6 +321,10 @@ function applyState(s) {
   setTipStyle(s.tipStyle); setTipOpacity(s.tipOpacity);
   voiceCfg = { enabled: s.voiceCoach === true, style: s.voiceStyle || 'normal',
                volume: s.voiceVolume != null ? s.voiceVolume : 0.9 };
+  // Off means silent, and the volume is shared with the voice coach because
+  // both are the app making noise over a game: two sliders for one decision is
+  // a settings screen nobody reads.
+  sfxVolume = s.sounds === false ? 0 : (s.voiceVolume != null ? s.voiceVolume : 0.9);
 }
 window.occlara.onState(applyState);
 // Hydrate immediately rather than waiting for the first push, so the saved

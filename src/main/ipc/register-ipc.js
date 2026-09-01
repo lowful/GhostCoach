@@ -77,7 +77,7 @@ function registerIpc(deps) {
   ipcMain.on(C.OPEN_CHAT,      () => guard('chat',     () => controller.openChat()));
   ipcMain.on(C.OPEN_STATS,     () => guard('stats',    () => controller.openStats()));
   ipcMain.on(C.OPEN_WEEKLY,    () => guard('weekly',   () => controller.openWeekly()));
-  ipcMain.on(C.OPEN_AILOG,     () => guard('ailog',    () => controller.openAiLog()));
+  ipcMain.on(C.OPEN_AILOG,     (_e, sessionId) => guard('ailog', () => controller.openAiLog(sessionId)));
   ipcMain.on(C.OPEN_CHAT_SEEDED, (_e, seed) => guard('chatSeeded', () => controller.openChatSeeded(seed)));
   ipcMain.on(C.TIP_RATE,       (_e, payload) => guard('rateTip', () => controller.rateTip(payload)));
   ipcMain.on(C.OPEN_PURCHASE,  () => guard('purchase', () => shell.openExternal(PURCHASE_URL)));

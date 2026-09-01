@@ -29,4 +29,10 @@ contextBridge.exposeInMainWorld('occlara', {
   rateTip:      (payload) => ipcRenderer.send(C.TIP_RATE, payload),
   onTip:        (cb) => subscribe(C.PUSH_TIP, cb),
   onState:      (cb) => subscribe(C.PUSH_STATE, cb),
+
+  // Jumping from a session's tips to the frames those tips were written from.
+  // Metadata only: aiLogSessions never reads a frame, so filling this in costs
+  // a few hundred bytes rather than the tens of megabytes the full log is.
+  aiLogSessions: () => ipcRenderer.invoke(C.AILOG_SESSIONS),
+  openAiLog:     (sessionId) => ipcRenderer.send(C.OPEN_AILOG, sessionId || null),
 });

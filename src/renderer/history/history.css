@@ -97,3 +97,11 @@ header h2 { font-size: 15.5px; font-weight: 700; }
 .fb-btn:hover { color: var(--text); }
 .fb-btn.send { background: var(--red); color: #fff; border: none; }
 .fb-btn.send:disabled { opacity: 0.4; cursor: default; }
+
+/* The decision log has only the last few sessions' frames, while the archive
+   keeps far more, so this button often points at nothing for an older match.
+   Saying so briefly is better than opening an unrelated session, which would
+   have the player reading someone else's round as their own. */
+#open-ailog.no-log {
+  color: var(--red);
+}

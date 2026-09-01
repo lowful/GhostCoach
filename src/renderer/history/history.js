@@ -173,6 +173,60 @@ async function populateSessions() {
   } catch {}
 }
 
+/*
+ * Which decision-log session belongs to the archive file on screen.
+ *
+ * Both are stamped with the moment the session ended and the moment it began,
+ * so they never share an id and cannot be matched by name. The log session
+ * that STARTED most recently before this archive ENDED is the same sitting,
+ * and a sitting is never shorter than a second or longer than a few hours,
+ * which is what the window below checks.
+ */
+const SAME_SITTING_MS = 6 * 60 * 60 * 1000;
+
+async function logIdFor(file) {
+  // The live session, which is always the newest log if one is running.
+  if (!file) return null;
+
+  const endedAt = Date.parse(String(file).replace(/^session-/, '').replace(/\.json$/, '')
+    .replace(/-(\d{2})-(\d{2})-(\d{3})Z$/, ':$1:$2.$3Z'));
+  if (!Number.isFinite(endedAt)) return null;
+
+  const logs = await window.occlara.aiLogSessions().catch(() => []);
+  let best = null;
+  for (const s of logs || []) {
+    const startedAt = Number(s.at);
+    if (!Number.isFinite(startedAt)) continue;
+    // Started before this archive ended, and within one sitting of it.
+    if (startedAt > endedAt) continue;
+    if (endedAt - startedAt > SAME_SITTING_MS) continue;
+    if (!best || startedAt > best.at) best = { id: s.id, at: startedAt };
+  }
+  return best ? best.id : null;
+}
+
+const aiLogBtn = document.getElementById('open-ailog');
+aiLogBtn.addEventListener('click', async () => {
+  const id = await logIdFor(viewingFile);
+
+  /*
+   * A session with no frame log says so rather than opening someone else's.
+   * The archive keeps far more sessions than the frame log does, so an older
+   * match has its tips and none of its frames.
+   */
+  if (viewingFile && !id) {
+    aiLogBtn.classList.add('no-log');
+    aiLogBtn.title = 'No decision log kept for this session. Only the last few sessions keep their frames.';
+    setTimeout(() => {
+      aiLogBtn.classList.remove('no-log');
+      aiLogBtn.title = 'Open the AI decision log for this session';
+    }, 2200);
+    return;
+  }
+
+  window.occlara.openAiLog(id || undefined);
+});
+
 pickerEl.addEventListener('mousedown', populateSessions);
 pickerEl.addEventListener('change', async () => {
   viewingFile = pickerEl.value;

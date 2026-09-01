@@ -53,3 +53,39 @@
   filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.95)) drop-shadow(0 1px 3px rgba(0, 0, 0, 0.9));
   opacity: 1;
 }
+
+/* ── whose agent it is ──────────────────────────────────────────────────────
+
+   Green for the player's own agent, red for one the tip names as having killed
+   them. Nothing else is coloured, because nothing else is known: this app has
+   no team composition anywhere, and a green teammate who is actually on the
+   other team is worse than no colour at all, since it would be believed.
+
+   The colour goes on the whole mark, word and glyph together, so the two never
+   disagree about which side they are describing. */
+.tv-mark.tv-ally {
+  /* --good, not a raw green. It describes an outcome rather than a brand, so
+     it survives the game switch: an ally is green in every game, the same way
+     a win is. */
+  color: var(--good);
+}
+
+.tv-mark.tv-enemy {
+  color: var(--red);
+}
+
+/* The glyph inherits the side colour and comes up to full strength with it.
+   At the 0.75 the neutral marks use, a red that means "this killed you" reads
+   as a muddy orange over a bright frame. */
+.tv-mark.tv-ally svg,
+.tv-mark.tv-enemy svg {
+  opacity: 1;
+}
+
+/* The icon now follows its word, so the gap belongs on the other side. Left
+   as a margin rather than a gap so the nowrap on .tv-mark still guarantees the
+   glyph never wraps away from the word it confirms. */
+.tv-mark svg {
+  margin-right: 0;
+  margin-left: 3px;
+}

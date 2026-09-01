@@ -215,6 +215,35 @@
    * swaps one line for one line. Text still goes in through .textContent, never
    * innerHTML: a tip is model output and is never trusted as markup.
    */
+  /**
+   * Killed BY this agent, said in the sentence being rendered.
+   *
+   * Only the forms the coach actually writes, and only when the agent name is
+   * what follows: "you died to a Sova", "killed by Jett", "traded by a Reyna".
+   * A death review is the one place a tip names an opponent unambiguously.
+   */
+  const KILLED_BY = /\b(?:died|dying|killed|traded|dropped)\s+(?:to|by)\s+(?:an?\s+)?$/i;
+
+  /**
+   * Which side an agent named in a tip is on, or null when it cannot be known.
+   *
+   * Null is the common answer and it is the right one. See the note at the
+   * call site for why guessing is worse than leaving a name uncoloured.
+   */
+  function agentSide(name, text, opts) {
+    const o = opts || {};
+
+    // The player's own agent. The engine will not coach until it has confirmed
+    // this, so it is as solid a fact as the app holds.
+    if (o.agent && String(o.agent).toLowerCase() === String(name).toLowerCase()) return 'ally';
+
+    // Named as the cause of the player's death, by this sentence.
+    const at = String(text).toLowerCase().indexOf(String(name).toLowerCase());
+    if (at > 0 && KILLED_BY.test(String(text).slice(0, at))) return 'enemy';
+
+    return null;
+  }
+
   function render(el, text, opts) {
     if (!el) return;
     el.textContent = '';
@@ -238,9 +267,36 @@
       }
       const mark = document.createElement('span');
       mark.className = 'tv-mark tv-' + tok.kind;
+
+      /*
+       * Whose agent this is, when the app actually knows.
+       *
+       * Deliberately narrow. There is no team composition anywhere in this
+       * app: matchContext.teammates is declared and never assigned, and the
+       * stored match stats are career aggregates with no roster in them. So
+       * rather than guess a side from where a name sits in a sentence, only
+       * two cases are coloured, and both are things the app can state:
+       *
+       *   the player's own agent, which the engine confirms before it will
+       *   coach at all;
+       *
+       *   an agent this very sentence names as having killed the player,
+       *   which the sentence itself asserts. If that is wrong the tip was
+       *   already wrong, so the colour adds no error of its own.
+       *
+       * Everything else stays neutral. A green teammate that is actually on
+       * the other team is worse than no colour, because it would be trusted.
+       */
+      if (tok.kind === 'agent') {
+        const side = agentSide(tok.value, text, o);
+        if (side) mark.classList.add('tv-' + side);
+      }
+
+      // Word first, icon after: the word is the information, the glyph is the
+      // confirmation of what was just read.
+      mark.appendChild(document.createTextNode(tok.value));
       const g = glyph(tok.kind);
       if (g) mark.appendChild(g);
-      mark.appendChild(document.createTextNode(tok.value));
       el.appendChild(mark);
     }
   }

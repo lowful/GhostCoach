@@ -158,6 +158,59 @@ console.log('[tip-visuals] the lexicon');
     badPath.map(([k]) => k).join(', '));
 }
 
+// ── the icon follows its word, and agents carry a side ──────────────────────
+// render() needs a DOM, which this runner has not got, so it gets the smallest
+// one that satisfies what render actually calls. Worth the twenty lines: the
+// order of the two child nodes and the side class are exactly what a reader
+// sees, and neither is visible from tokenize() alone.
+function stubDom() {
+  const mk = (tag) => {
+    const el = {
+      tag, children: [], className: '',
+      classList: { add(c) { el.className = (el.className + ' ' + c).trim(); } },
+      appendChild(c) { el.children.push(c); return c; },
+      setAttribute(k, v) { if (k === 'class') el.className = v; },
+      set textContent(_v) { el.children.length = 0; },
+      get textContent() { return ''; },
+    };
+    return el;
+  };
+  global.document = {
+    createElement: mk,
+    createTextNode: (t) => ({ text: t }),
+    createElementNS: (_ns, tag) => mk(tag),
+  };
+  return mk;
+}
+const mk = stubDom();
+
+function marksIn(text, opts) {
+  const el = mk('div');
+  tv.render(el, text, opts || {});
+  return el.children.filter((c) => c.text === undefined);
+}
+
+const site = marksIn('Hold B Main tight and wait.')[0];
+check('the icon comes after the word it marks, not before',
+  !!site && site.children.length === 2 && site.children[0].text === 'B Main'
+  && site.children[1].tag === 'svg');
+
+const mine = marksIn('Use your dash as Jett to take the off-angle.', { agent: 'Jett' })
+  .find((m) => /tv-agent/.test(m.className));
+check("the player's own agent is marked as theirs", !!mine && /tv-ally/.test(mine.className));
+
+const killer = marksIn('You died to a Sova because you peeked wide.', { agent: 'Jett' })
+  .find((m) => /tv-agent/.test(m.className));
+check('an agent named as killing you is marked as an opponent', !!killer && /tv-enemy/.test(killer.className));
+
+// The important negative. There is no team composition anywhere in this app, so
+// an agent mentioned with no stated relationship must stay neutral: a green
+// teammate who is actually an opponent would be believed, and be wrong.
+const bystander = marksIn('A Reyna is holding B Main, so wait for your team.', { agent: 'Jett' })
+  .find((m) => /tv-agent/.test(m.className));
+check('an agent with no known side is left uncoloured rather than guessed',
+  !!bystander && !/tv-ally|tv-enemy/.test(bystander.className));
+
 if (failures) {
   console.log('\nFAIL: ' + failures + ' tip-visuals check(s) failed');
   process.exit(1);

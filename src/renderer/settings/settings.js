@@ -79,6 +79,7 @@ function wireBoolSeg(id, key) {
 const showTipsSeg = wireBoolSeg('showtips', 'showTips');
 const beginnerSeg = wireBoolSeg('beginner', 'beginnerTips');
 const aiLogSeg    = wireBoolSeg('ailog', 'aiLog');
+const soundsSeg   = wireBoolSeg('sounds', 'sounds');
 // Capture quality is a VALUE segment, not a boolean: 'standard' or
 // 'performance'. Naming the values rather than on/off keeps the meaning in the
 // stored config, where a future third profile would slot in without a migration.
@@ -397,6 +398,9 @@ async function load() {
       markSeg(showTipsSeg, cfg.showTips === false ? 'off' : 'on');
       markSeg(beginnerSeg, cfg.beginnerTips === false ? 'off' : 'on');
       markSeg(aiLogSeg, cfg.aiLog === false ? 'off' : 'on');
+      // Default on, so an older config with no key set reads as on rather than
+      // as off, which is what `=== true` would do here.
+      markSeg(soundsSeg, cfg.sounds === false ? 'off' : 'on');
       markSeg(voiceSeg, cfg.voiceCoach === true ? 'on' : 'off');
       markSeg(styleSeg, cfg.voiceStyle || 'normal');
       voiceSub.classList.toggle('disabled', cfg.voiceCoach !== true);
