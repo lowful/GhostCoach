@@ -82,6 +82,30 @@ const HEROES = {
   'ultron':           { role: 'Strategist', aim: 'projectile', air: 'flight', arch: 'poke'  },
 };
 
+/**
+ * On the roster, but NOT yet classified.
+ *
+ * These heroes exist in the game and are absent from HEROES above, which means
+ * every rule downstream stays silent about them. Listing them explicitly is the
+ * difference between "we know this gap is here" and a table that quietly rots a
+ * hero behind every season.
+ *
+ * The names come from the public hero list; the traits do not, because no
+ * source publishes whether a hero is hitscan or can fly. Anyone who plays these
+ * can move one up into HEROES by filling in four fields, and
+ * `npm run test:rivalslive` will check the shape.
+ *
+ * NO SCRAPER SHIPS FOR THIS. rivalsdata.com serves 403 to a self-identifying
+ * bot, and getting past that would mean pretending to be a browser. tracker.gg
+ * disallows /marvel-rivals/matches/* and /*\/profile/* outright in robots.txt.
+ * Both have said no in their own way, so this list is maintained by hand.
+ */
+const PENDING = [
+  'Angela', 'Black Cat', 'Blade', 'Cyclops', 'Daredevil', 'Deadpool',
+  'Devil Dinosaur', 'Elsa Bloodstone', 'Gambit', 'Jubilee', 'Rogue',
+  'The Hood', 'White Fox',
+];
+
 /** Spellings the kill feed and scoreboard actually use. */
 const ALIASES = {
   'punisher': 'the punisher',
@@ -138,4 +162,4 @@ function parseRoster(raw) {
   return out;
 }
 
-module.exports = { HEROES, ALIASES, traits, known, normalise, parseRoster };
+module.exports = { HEROES, ALIASES, PENDING, traits, known, normalise, parseRoster };

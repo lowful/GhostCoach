@@ -42,6 +42,22 @@ console.log('[rivals] hero traits');
 
   const aliasTargetsExist = Object.values(heroes.ALIASES).every((v) => heroes.HEROES[v]);
   check('every alias points at a real entry', aliasTargetsExist);
+
+  // PENDING is the roster we know exists but have not classified. It must not
+  // overlap HEROES, or a hero would look both known and unknown, and every
+  // entry in it must still resolve to null so the silence rule holds.
+  const overlap = heroes.PENDING.filter((n) => heroes.HEROES[heroes.normalise(n)]);
+  check('pending never overlaps classified', overlap.length === 0, overlap.join(', '));
+  const leaky = heroes.PENDING.filter((n) => heroes.traits(n) !== null);
+  check('every pending hero still returns null', leaky.length === 0, leaky.join(', '));
+
+  // The two lists together are the roster. META says 53 for Season 9.5, and if
+  // that stops matching then one of the two is out of date, which is exactly
+  // the drift this split exists to make visible.
+  const total = Object.keys(heroes.HEROES).length + heroes.PENDING.length;
+  const meta = require('../server/services/rivals-knowledge').META.heroCount;
+  check('classified plus pending equals the known roster', total === meta,
+    total + ' vs META ' + meta);
 }
 
 // ── The switch call ─────────────────────────────────────────────────────────
