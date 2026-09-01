@@ -1,59 +1,98 @@
 {
-  "generatedAt": "2026-08-31T20:30:15.135Z",
-  "patch": "13.04",
-  "buildDate": "2026-08-13T23:37:05Z",
-  "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-13-04/",
-  "headline": "New map rotation and bug fixes for Agents and melee skins",
+  "generatedAt": "2026-09-01T18:03:42.263Z",
+  "patch": "13.05",
+  "buildDate": "2026-08-20T23:51:14Z",
+  "source": "https://playvalorant.com/en-us/news/game-updates/valorant-patch-notes-13-05/",
+  "headline": "Pick’Ems for Champs soon, penalties for stream sniping and instalock tools, and future changes to the Agent Gear system.",
   "changes": [
     {
-      "type": "map",
+      "type": "agent",
       "names": [
-        "Breeze",
-        "Abyss"
+        "Miks",
+        "Astra",
+        "Brimstone",
+        "Clove",
+        "Omen"
       ],
-      "line": "TLDR; Goodbye Breeze and hello Abyss ! There’s a new map rotation in our Competitive and Deathmatch queues, and we fixed some issues with Agent bugs and transforming melees like Kuronami 2.0 and Nocturnum."
+      "line": "We’ve better timed the dissipation for the smokes on Astra, Brimstone, Clove, Miks, and Omen to fix an issue where their smokes could continue blocking flashes and other line-of-sight-dependent abilities while the smoke was dissipating."
     },
     {
-      "type": "map",
+      "type": "agent",
       "names": [
-        "Abyss"
+        "Chamber"
       ],
-      "line": "ABYSS is IN the COMPETITIVE and DEATHMATCH queues."
-    },
-    {
-      "type": "map",
-      "names": [
-        "Breeze"
-      ],
-      "line": "BREEZE is OUT of the COMPETITIVE and DEATHMATCH queues."
+      "line": "Fixed an issue that could cause performance drops the first time Chamber equipped, aimed, or fired Headhunter during a round."
     },
     {
       "type": "agent",
       "names": [
         "Cypher"
       ],
-      "line": "Fixed an issue where Cypher's Spycam minimap icon was rotated incorrectly."
+      "line": "Fixed an issue where Cypher's Trapwire debuff could persist indefinitely on a new target if the initial target was killed just before the Trapwire triggered."
     },
     {
       "type": "agent",
       "names": [
-        "Viper"
+        "Cypher"
       ],
-      "line": "Fixed an issue where Viper's Snake Bite equip animation appeared incorrectly from an enemy's point of view."
+      "line": "Fixed an issue where Cypher's Cyber Cage could incorrectly block flashes, detection, and other line-of-sight-dependent abilities."
     },
     {
       "type": "agent",
       "names": [
         "Deadlock"
       ],
-      "line": "Fixed an issue where Deadlock's GravNet visual effects could disappear after a player disconnected and reconnected."
+      "line": "Fixed an issue where casting Deadlock's GravNet could briefly display unintended VFX on screen."
     },
     {
       "type": "agent",
       "names": [
-        "Clove"
+        "Fade",
+        "Lotus"
       ],
-      "line": "Fixed an issue where repeatedly switching between Clove's Meddle and Ruse could cause a player to freeze and disconnect."
+      "line": "Fixed an issue where Fade's Seize would not display its danger indicator to enemies in certain locations on Lotus."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "KAY/O"
+      ],
+      "line": "Fixed an issue where KAY/O's NULL/cmd could cause client-side framerate drops with each pulse."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Omen"
+      ],
+      "line": "Fixed an issue where Omen’s Dark Cover could obscure a player’s vision after the smoke has dissipated."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Sage"
+      ],
+      "line": "Fixed an issue where Sage's Healing Orb ability tooltips could be missing from the HUD when equipping the ability."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Waylay"
+      ],
+      "line": "Fixed an issue where vision-blocking abilities could prevent Waylay's Saturate from applying Hinder to players within its area of effect."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Waylay"
+      ],
+      "line": "Fixed an issue where Waylay's Refract could cause snapshots of dynamic map objects to remain visible after the ability ended."
+    },
+    {
+      "type": "agent",
+      "names": [
+        "Waylay"
+      ],
+      "line": "Fixed an issue where Waylay's Saturate could apply Hinder to Agents while they were intangible."
     }
   ],
   "notesFound": true
