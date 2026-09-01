@@ -54,7 +54,9 @@
     "test:newmatch": "node scripts/test-new-match-reset.js",
     "test:agentdetect": "node scripts/test-agent-detect.js",
     "test:profilemigration": "node scripts/test-profile-migration.js",
-    "test:tipvisuals": "node scripts/test-tip-visuals.js"
+    "test:tipvisuals": "node scripts/test-tip-visuals.js",
+    "test:rivalslive": "node scripts/test-rivals-live.js",
+    "verify:rivalsheroes": "node scripts/verify-rivals-heroes.js"
   },
   "build": {
     "appId": "com.ghostcoach.app2",

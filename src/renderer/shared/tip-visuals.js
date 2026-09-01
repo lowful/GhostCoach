@@ -166,6 +166,15 @@
     mental:      ['M12 20s-7-4.5-7-9.5A4.5 4.5 0 0112 7a4.5 4.5 0 017 3.5c0 5-7 9.5-7 9.5z'],
     death:       ['M12 3a7 7 0 00-7 7v4h14v-4a7 7 0 00-7-7z', 'M9 18h6', 'M9.5 11v1', 'M14.5 11v1'],
     general:     ['M12 21a9 9 0 100-18 9 9 0 100 18', 'M12 8v5', 'M12 16v.5'],
+    // Marvel Rivals roles. A glyph plus the hero's NAME, never a portrait:
+    // shipping Marvel or NetEase character art inside a paid product is a
+    // trademark problem rather than a styling choice, which is the same reason
+    // the Rivals palette was drawn to evoke rather than reproduce. A shield, a
+    // blade and a cross carry the role, and the name carries the identity.
+    vanguard:    ['M12 3l8 3v6c0 4.4-3.2 7.9-8 9-4.8-1.1-8-4.6-8-9V6z'],
+    duelist:     ['M4 20l7-7', 'M14 4h6v6', 'M20 4l-9 9', 'M4 15l5 5'],
+    strategist:  ['M12 5v14', 'M5 12h14'],
+
     // inline marks. `rotate` is the mark kind and `rotation` is the topic name,
     // and they need separate entries even though they draw the same arrow: the
     // test caught this missing the moment it was written.
@@ -304,5 +313,21 @@
   // PATHS is exported so the offline test can assert every topic and every
   // mark kind actually has an icon. glyph() itself needs a DOM, but a missing
   // path table is the failure that would really happen.
-  return { tokenize, render, glyph, topicGlyph, CALLOUTS, AGENTS, PATTERNS, PATHS };
+  /**
+   * A Marvel Rivals hero, drawn as a role glyph plus the name.
+   *
+   * Exposed separately from the Valorant lexicon because the two games share no
+   * vocabulary: a Rivals hero is supplied by the engine, which already knows
+   * who is on screen, rather than matched out of the tip text.
+   */
+  function heroMark(name, role) {
+    const el = document.createElement('span');
+    el.className = 'tv-mark tv-hero';
+    const g = glyph(String(role || '').toLowerCase());
+    if (g) el.appendChild(g);
+    el.appendChild(document.createTextNode(name));
+    return el;
+  }
+
+  return { tokenize, render, glyph, topicGlyph, heroMark, CALLOUTS, AGENTS, PATTERNS, PATHS };
 }));

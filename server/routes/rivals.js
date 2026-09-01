@@ -26,6 +26,8 @@
  * model reads rather than infers, and therefore the thing that outranks it.
  */
 const express = require('express');
+const { parseRoster } = require('../services/rivals-heroes');
+
 const router = express.Router();
 
 // The provider layer, exported by coach.js rather than extracted, because its
@@ -197,6 +199,49 @@ function creditsReply(res, err) {
   const retry = creditsRetryIn ? creditsRetryIn() : 180;
   return res.status(402).json({ error: 'credits', retryIn: retry, message: String(err && err.message || '') });
 }
+
+/**
+ * The hero read, on its own, with no coaching attached.
+ *
+ * Live tips are only as good as knowing who is on screen, and that read is the
+ * one part of Rivals coaching that has never been measured. Mixing it into
+ * /draft or /review means a wrong hero shows up as a slightly odd sentence,
+ * which is unfalsifiable. Asking for ONLY a roster makes it gradeable against
+ * real frames, which is what scripts/verify-rivals-heroes.js does.
+ *
+ * Answers with names or nothing. A guessed hero is worse than a gap, because
+ * everything downstream treats an unknown hero as a reason to stay quiet and a
+ * confidently wrong one as a reason to speak.
+ */
+const IDENTIFY_PROMPT = `You are reading a Marvel Rivals screenshot to identify heroes.
+
+List ONLY hero names you can actually read or clearly recognise on screen.
+
+Rules:
+- Use the exact in-game hero name, one per line.
+- Mark each with the team you can tell it is on: "mine", "ally" or "enemy".
+- If you cannot tell the team, use "unknown".
+- If you cannot identify a hero with confidence, LEAVE IT OUT. A missing hero is
+  fine. A guessed hero is not.
+- No commentary, no coaching, no explanation.
+
+Reply in exactly this shape, one hero per line and nothing else:
+HERO: <name> | <mine|ally|enemy|unknown>`;
+
+// POST /api/rivals/identify   { image } -> { heroes: [{ name, side }] }
+router.post('/identify', async (req, res) => {
+  const image = await guard(req, res);
+  if (!image) return;
+  try {
+    if (creditsLookExhausted && creditsLookExhausted()) return creditsReply(res, new Error('breaker open'));
+    const raw = await visionInfer(image, IDENTIFY_PROMPT, 300, false);
+    return res.json({ heroes: parseRoster(raw), raw });
+  } catch (err) {
+    if (creditsLookExhausted && creditsLookExhausted(err)) return creditsReply(res, err);
+    console.error('[rivals] identify failed:', err.message);
+    return res.status(500).json({ error: 'Hero read failed' });
+  }
+});
 
 // POST /api/rivals/draft   { image } -> { tip, context, blocked? }
 router.post('/draft', async (req, res) => {
