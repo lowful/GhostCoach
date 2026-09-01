@@ -189,20 +189,49 @@ everything crosses through a preload via `contextBridge`.
 ## 6. Marvel Rivals, current status
 
 Registered in `src/shared/games.js` as **preview, not shipped**:
-`features = { review: true, draft: false }`, hidden from players unless
-`devGames` is on. There is a full engine, a knowledge base (dive/poke/brawl
-archetypes, role craft, an aim model, a meta block that expires after 45 days),
-and server routes.
+`features = { review: true, draft: false }`, hidden unless `devGames` is on.
 
-**It is blocked on data, and the block is real.** Everything depends on
-`marvelrivalsapi.com`, which returns **502** (verified 2026-08-31). The Python
-wrapper at `github.com/externref/marvelrivalsapi` does not help: it is a Python
-library, this is a Node app with no build step, and it wraps that same dead
-upstream and still needs a key from it. Measured against real capture frames the
-post-match review reads a scoreboard essentially perfectly; the draft read does
-not, which is why the two halves ship separately.
+**Built and passing (all offline, no external dependency):**
 
----
+- `server/services/rivals-heroes.js` — 40 heroes classified by role, aim
+  (hitscan/projectile/melee), air (flight/leap/ground) and archetype, plus 13
+  named but unclassified in `PENDING`. 40 + 13 = 53, which independently
+  matches the `META.heroCount` in `rivals-knowledge.js`.
+  **ABSENCE MEANS SILENCE**: an unknown hero returns null and produces no advice
+  at all, so being a season behind costs coverage, never correctness.
+- `server/services/rivals-counters.js` — the switch call, including
+  flight-into-hitscan. Will not fire on one enemy, while the player is winning,
+  about a hero it cannot vouch for, or twice for the same reason in a match.
+- `src/shared/rivals-moments.js` — WHEN a live tip may appear: death, team wipe,
+  objective flip, round start. Six per match, 25s minimum gap. A 6v6 shooter has
+  almost no readable moments, so speech has to be earned rather than timed.
+- Role glyphs in `tip-visuals.js` (shield / blade / cross) plus the hero NAME.
+  **Never a portrait**: shipping Marvel or NetEase character art in a paid
+  product is a trademark problem.
+- `POST /api/rivals/identify` — returns a roster and nothing else, so the hero
+  read is gradeable, plus `npm run verify:rivalsheroes` to grade it.
+
+**The blocker is the hero read, not data.** Live tips are only as good as knowing
+who is on screen. `verify:rivalsheroes` scores it against real frames in
+`fixtures/rivals/` (gitignored). **Precision is the gate at 90%**: recall can be
+poor and this still ships because unknown heroes are already silence, but
+nothing downstream catches a hero that was never there.
+
+**Every external source has been checked and rejected. Do not re-litigate:**
+
+| Source | Why not |
+|---|---|
+| `marvelrivalsapi.com` | 502 throughout. Only its docs host is up |
+| `externref/marvelrivalsapi` | Python wrapper for the above |
+| `MarvelRivalsAPI/MarvelRivalsAPI-Wrapper` | Official Node wrapper for the above. Same dead upstream |
+| `AImaginationLab/marvel-rivals-mcp` | **Do not install.** Calls `marvelsapi.com`, which redirects to `survey-smiles.com`. Parked domain, survey spam |
+| `Causalzap/rivalsvictory-assets` | 40 heroes vs 53, no licence, no aim/mobility data |
+| `rivalsdata.com` | robots.txt allows crawling but the server 403s a self-identifying bot. Getting past that means pretending to be Chrome, so no scraper ships |
+| `tracker.gg` | robots.txt disallows `/marvel-rivals/matches/*` and `/*/profile/*`. **Their public API is the one live lead**: it answers 401 rather than 404 on a marvel-rivals route, so the route exists. Worth trying with the `TRACKER_API_KEY` already on Railway |
+
+There is **no official Marvel Rivals developer API**. Every tracker derives data
+by scraping, community submission, or network monitoring, and that last one is
+something this product can never do.
 
 ## 7. Release and ops
 
