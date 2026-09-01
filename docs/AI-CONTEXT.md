@@ -1,88 +1,272 @@
-# Occlara, Full Context for AI Assistants
+# Occlara, full context for AI assistants
 
-Last updated: July 21, 2026 (v2.2.0). Everything below is accurate to the shipped product.
+Paste this whole file into a fresh session to bring an assistant up to speed.
+Accurate as of **v5.3.0**. `CLAUDE.md` in the repo root is the enforceable
+rulebook and wins wherever the two disagree; this file is the narrative.
 
-## 1. What Occlara is
+---
 
-Occlara is a real-time AI coaching app for Valorant on Windows. It runs as a transparent, click-through overlay on top of the game, takes screenshots on a timer, sends them to a vision AI, and shows short coaching tips as cards on screen while the player plays. Think of it as a Radiant-level coach watching your screen live.
+## 1. What it is
 
-- Desktop client: Electron app, Windows only, NSIS installer, auto-updates.
-- Backend: Node/Express server hosted on Railway at ghostcoach-production.up.railway.app. Auto-deploys when the main branch is pushed.
-- Business model: paid license keys (weekly, monthly, lifetime) sold through Stripe via the website occlara.app (site built on Lovable). The app activates with a license key and binds to a device ID.
-- Repos: lowful/Occlara (source, client + server), lowful/GhostCoach-releases (public, hosts auto-update releases only, deliberately keeps the old name because installed clients have that URL compiled in).
+A Valorant AI coaching overlay for Windows. An Electron client watches the
+screen, sends frames to a Node/Express backend, and shows one-sentence coaching
+tips on top of the game in real time. Players unlock it with a licence key.
 
-## 2. The AI brain
+**The property the whole product rests on:** the client never reads game memory,
+never touches game files, and never automates input. It captures the display the
+same way OBS does. Nothing may ever be added that breaks this.
 
-- Vision model: Qwen3-VL 235B (qwen/qwen3-vl-235b-a22b-instruct) through OpenRouter, using the OpenAI-compatible API. Chosen for strong game-HUD reading at low cost. Model is set by Railway env vars AI_VISION_MODEL and AI_TEXT_MODEL.
-- Gemini is a legacy fallback (used only if no OpenRouter key is set) and is still used for one thing: audio analysis, because it is the only configured provider that accepts audio.
-- The coaching loop sends a screenshot roughly every 1 to 24 seconds depending on the user's tip-frequency setting (turbo 1s up to battery 24s). Tips have their own pacing: 3s cooldown at Max stepping to 8s at Minimal.
+- Client: Electron, vanilla HTML/CSS/JS. **No framework, no bundler, no build
+  step, no TypeScript.** Do not introduce one.
+- Backend: Node/Express on Railway, auto-deploys when `main` is pushed.
+- Code repo `lowful/Occlara`. Releases go to a separate repo (see section 7).
 
-### The STATE protocol (important)
-Every analyze response has two lines. Line 1 is the tip (or SKIP, or LOBBY when not in a match). Line 2 is `STATE: {json}` where the model reports what the HUD shows: side, phase, round, team/enemy score, credits, alive, teammates alive, enemies alive, weapon, map, mode (the queue, only when printed on screen), playerSpot (the player's own minimap-arrow location, site level), enemySpot, teamRead (pre-round minimap plan), and note (a factual observation about the player). The client parses this and feeds it back as context on the next request, which is how the app maintains match awareness. Death reviews are marked with a "DEATH: " prefix that the server strips into a flag so the client renders them as white skull cards.
+---
 
-### Tip quality gates (client side, about 20 of them)
-Every tip passes gates before showing: no economy/buy advice (banned entirely), no abilities the agent does not have, no wrong-map callouts, no teammate-dependent tips when the player is solo (alive counts checked), no knife tips outside the death-review window, the anti-repeat gate (see below), topic cooldown (3 identical topics in a row blocked), word caps, truncation rejection, 3-strike blocklist (a tip X-rated 3 times by the player is never shown again, and their written reason for the X is sent to the model to learn from), and per-tier pacing. Rejected tips fall back to a curated library tip (246-note knowledge base) so silence stays rare.
+## 2. The name, and the five identifiers that did NOT move
 
-Anti-repeat gate (three rules, added in 2.2.0 because back-to-back repeats kept slipping through the old 60-second-only window): (1) verbatim wording never repeats within the last 25 tips no matter how much time passed, (2) a tip that heavily overlaps the tip right before it (>75% word overlap, a light reshuffle) is a repeat at any age, (3) moderate overlap (>50%) with anything from the last 60 seconds is a rapid-fire duplicate. Deliberate re-warnings in fresh wording with escalation ("still", "again", "third time now") pass. Library fallback tips run through the same gate and re-roll away from near-duplicates; the prompt also names the tip currently on screen and forbids echoing it.
+The product was **GhostCoach** and was renamed **Occlara** on 2026-08-30
+(occlara.app, support@occlara.app). A brand is what users see; an identity is
+what the software IS. These still say ghostcoach **on purpose**, because each is
+compiled into clients already in the field, and moving one orphans every
+existing user: no updates, no licence, no history.
 
-### Deterministic guards (code overrides the model when math is available)
-- Halftime side arithmetic is MODE-AWARE (2.2.0): unrated/competitive halves are 12 rounds (swap at 13, overtime 25+ alternates so the HUD read is trusted there); swiftplay halves are 4 rounds (swap at 5, sudden-death round 9 trusts the HUD). Once one half's side is known (locked after two agreeing reads), the rest of the half structure is derived by arithmetic and OVERRIDES the model's read.
-- Game mode locking: the mode comes from two agreeing STATE reads (the model only reports it when the queue name is printed on screen), from score math (a 6th round win or a 10th round can only be a standard match, checked over two consecutive frames, and this even corrects a wrong swiftplay lock), or from an observed side swap in rounds 5-8 (two consecutive flipped reads, which only swiftplay does there). Until the mode is known, arithmetic only overrides rounds where both modes agree on the half (1-4 and 10-24), so a swiftplay round 5 swap is never bulldozed by 12-round math.
-- New-match reset: the round counter falling back to 1 with a 0-0 score (all three fields agreeing in the same frame) resets the side and mode locks, so a second match in one session never inherits the previous match's side.
-- Death confirmation: the player only counts as dead after two consecutive dead reads (or an explicit dead phase), because one flashbang whiteout used to fake deaths.
-- Agent and map lock once detected and never change mid-session.
+| Identifier | Value | Why frozen |
+|---|---|---|
+| `build.appId` | `com.ghostcoach.app2` | What Windows and electron-updater match an install on |
+| publish repo | `lowful/GhostCoach-releases` | Its URL is compiled into every shipped client |
+| Railway host | `ghostcoach-production.up.railway.app` | Baked into `src/shared/config.js` in every build. **The worst of the three to move**: renaming the service breaks coaching and licence checks instantly for everyone on an older build. The safe path is a custom domain pointed at the same service, kept alongside the old hostname forever, never a rename |
+| download asset | `GhostCoach.2.0.Setup.exe` | GitHub bakes a filename into its download URL with no redirect, so every link already shared dies without it |
+| legacy profile path | `%APPDATA%\GhostCoach 2.0` | Read by the migration below |
 
-## 3. Feature inventory (all shipped and working)
+**Two that DID move, safely:**
 
-- Live tips: AI (cyan cards) + library (red cards) + system notices. Position/size/frequency configurable. Voice coach setting speaks tips aloud via Windows TTS with 5 styles (Normal, Hype, Chill, Funny, Robot) and volume control, off by default.
-- Death reviews: white skull cards explaining why the player died (or why a round was lost), only when the cause is actually visible; the model holds small observations and delivers them at death time.
-- Match review after each session plus a graded session recap (summary, strengths, weaknesses) written in coach voice.
-- Stats dashboard: Overview (Impact, Positioning, Utility, Aim, Rank, Win Rate), Top Agents (3 most played with official portraits, winrate, KD, ACS), Recent Matches (expandable rows with graded tracker stats and MVP badges), Coaching Sessions (graded, with the recap), and a Rank Journey graph (RR line over recent comp games) inside the rank drop-down. Everything switches between Competitive and Unrated (unrated + swiftplay merged) with genuinely different per-mode numbers.
-- Rating categories: Impact (ACS-anchored, replaced Economy which was ungradeable), Positioning, Utility, Aim. Blend: 60 percent tracker data, 40 percent AI session grades.
-- Match MVP / Team MVP: derived server-side by comparing all 10 players' scores from match details, cached permanently per match.
-- Shareable match cards: generated on demand (button in each match drop-down, local canvas render, no AI cost), styled like a trading PnL card: dark background, agent full portrait, match rating pill, RESULT / K/D/A / RR rows, ACS/ADR/HS%/DMG tiles, MVP chip, riot tag. Save as PNG or copy to clipboard.
-- Ask Coach chat seeded with session context, player stats, and trends.
-- Audio death forensics: a hidden window loopback-records the last 8 seconds of game audio; inside the death window the clip is analyzed (footsteps, abilities heard) to explain deaths.
-- Player accounts: Riot ID connect (Name#TAG), stats via HenrikDev API (tracker.gg is Cloudflare-blocked from cloud hosts and only a fallback). Changing the Riot ID wipes all cached data live, including in an open stats window.
-- Auto-update: electron-updater against the public GhostCoach-releases repo, checks instantly on launch and every 6 hours, differential downloads, "Restart now / Later" prompt, installs on quit if deferred.
-- Onboarding (tour + the fundamental-tips question: curated basics on or off, on by default, recommended off above Silver; the answer writes the beginnerTips setting and can be changed later in Settings under "Fundamental tips"), license activation, tray, hotkeys, minimized floating ghost dock.
+- `artifactName` is now `Occlara Setup.${ext}`. It was never load bearing:
+  electron-updater resolves the installer through `latest.yml`, which is
+  regenerated every build, and nothing in `src/` hard-codes an installer name.
+- The **profile folder** moved to `%APPDATA%\Occlara` and the store file to
+  `occlara-config.json`, because unlike the rest it can be moved *with its
+  contents*. `src/main/services/profile-migration.js` does it once on launch;
+  `npm run test:profilemigration` covers 19 cases including every failure path.
+  The rule is **never lose data**: any failure keeps using the old folder and
+  the app carries on. It necessarily runs before the single-instance lock (the
+  lock lives inside userData), so a second copy launched while the app is
+  running does try to move a profile the first has open. Windows refuses that
+  rename with EPERM and the fallback keeps both copies on the same folder. Do
+  not "fix" that ordering.
 
-## 4. Hard-won lessons (what did NOT work and how it was fixed)
+Also renamed: the contextBridge is **`window.occlara`** (was `window.ghost`,
+127 call sites and 12 preloads), env vars are `OCCLARA_DEV_*`, and the capture
+helper is `OcclaraCapture.exe`. **"Ghost" is also a Valorant pistol** and
+appears in the coach knowledge, the analyze prompt and the tests; never sweep a
+bare "ghost". `btn-ghost` is standard CSS naming for a transparent button and
+stays.
 
-These are the traps another AI should not re-suggest:
+---
 
-1. PowerShell screen capture gets flagged by Windows Defender as HackTool:PowerShell/EmpireGetScreenshot (it matches PowerShell Empire's Get-Screenshot signature). FIXED by replacing it with a tiny compiled C# helper (native/OcclaraCapture.exe, built with the csc.exe that ships in Windows, GDI CopyFromScreen, base64 JPEG to stdout, about 66ms, no temp files). Do not go back to PowerShell or to Electron's desktopCapturer (the in-process capturer stutters fullscreen games).
-2. The NSIS uninstaller runs during EVERY auto-update, not just uninstalls. It used to wipe coached sessions on every update. FIXED with the `${ifNot} ${isUpdated}` guard in build/uninstaller.nsh. Config (license, Riot ID) is always kept.
-3. Vision models misread game HUDs regularly. Do not trust single-frame reads for anything consequential. Every accuracy problem (side, alive/dead, callouts, team direction, ability availability) was fixed with either deterministic client-side logic or strict prompt rules with a "when unsure, be general or silent" fallback. Specific-but-wrong is always worse than general-but-right.
-4. Economy was un-gradeable as a category (the coach is banned from economy tips and trackers have no economy data). Replaced with Impact.
-5. Caching too long makes fresh games look missing (users read staleness as bugs). Current TTLs: server matches 5 min, client 2 min, caches dropped on session end and Riot ID change. Match details and MVP results cache forever (immutable).
-6. The bundled Inter font only has weights 400-800. Requesting 900 anywhere silently falls back to Arial.
-7. HenrikDev mmr-history only covers recent comp games (roughly the current act), so lifetime RR tracking is not possible; the rank graph filters placements and act-reset jumps and sums per-game RR changes instead of subtracting elo endpoints.
-8. The similarity gate was too strict at match length; important advice must be repeatable. But the fix (a 60-second-only window) overcorrected: after a minute the model could repeat itself verbatim and players saw frequent duplicate tips. The balance that works (2.2.0): verbatim wording never repeats, near-identical wording never follows the previous tip back to back, moderate overlap is only blocked inside 60 seconds, so fresh-worded escalation ("still", "again", "third time now") still passes.
-9. Play calls (default, split, stack) require evidence: banned in the first three rounds, and must cite match memory afterward.
-10. Buy phase gets plans and setups only, never mid-round action tips.
-11. A fixed 12-round halftime assumption is WRONG in swiftplay (4-round halves, sides swap at round 5): it used to force the first-half side across the swap, the worst possible side bug. Halftime math must be mode-aware and must not override the HUD in rounds where the mode (and therefore the half) is unknown.
+## 3. The coaching pipeline
 
-## 5. Current known limitations (honest)
+Client captures a frame, POSTs to `/api/coach/analyze`, model replies in a fixed
+two-line shape:
 
-- The vision model still occasionally misreads the minimap (team direction) and exact locations; prompt rules mitigate but do not eliminate this.
-- No code signing certificate yet, so SmartScreen shows "unknown publisher" on first install. This is the top remaining trust/distribution issue. The old Defender flag also lingers on machines that have not updated to 2.1.16+.
-- Rank/RR data is comp-only and limited to the current act.
-- macOS build config exists but the product is Windows-only in practice (capture helper is Windows-specific).
-- Semver is now in effect: 2.2.0 is the first feature batch under it (mode-aware side math, anti-repeat gate, onboarding fundamentals question); fixes go to 2.2.x, the next feature batch to 2.3.0.
+```
+<the tip, one sentence>
+STATE: {"side":...,"phase":...,"round":...,"hp":...,"alive":...,"map":...}
+```
 
-## 6. Release and ops process
+Line 1 is shown. Line 2 is parsed by `mapState()` in `server/routes/coach.js`
+and fed back as context on the next frame. **If that format changes the feedback
+loop dies silently**: tips keep appearing, they just stop being informed by
+anything.
 
-- Client release: bump package.json version, commit "release: vX.Y.Z", push, then `npm run release` with a GH_TOKEN scoped to GhostCoach-releases (builds and publishes installer + blockmap + latest.yml). Then the public download on the main repo's release (published under BOTH `Occlara-Setup.exe` for new links and `GhostCoach.2.0.Setup.exe`, which must never be removed because GitHub bakes the filename into the URL and every existing link points at it) is swapped to the same build.
-- Backend deploys automatically on push to main; only client changes need a release.
-- Server keys live in Railway env vars: AI_API_KEY (OpenRouter), AI_VISION_MODEL, GEMINI_API_KEY (audio), HENRIKDEV_API_KEY, Stripe keys, JWT_SECRET.
-- The user-facing writing rule for this project: never use em or en dashes anywhere (tips, UI, docs); use commas instead.
+Model runs on OpenRouter. **The live model is decided by Railway env vars, not
+by this repo** (it has been observed serving `qwen/qwen3.7-flash` while docs said
+Gemini). A reasoning model returns no tips and nothing looks broken. There is a
+credits breaker: on a 402 the server reports it honestly and the client backs
+off three minutes.
 
-## 7. Suggested next features (agreed roadmap candidates)
+### Deterministic guards, which deliberately override the model
 
-1. Weekly Coach Report (Monday report card: winrate, best/worst map, agent trends, one focus goal). Highest retention value.
-2. Focus Goal pinned on the overlay per session, graded in the recap.
-3. Clutch cards (gold "CLUTCH 1v3" pop when the engine detects a won 1vX, it already tracks alive counts and round outcomes).
-4. Persistent per-player mistake profile that rides every prompt (the coach remembering you across weeks).
-5. Film Room: post-match scrollable timeline of rounds, deaths, skull reviews, and the actual frames. The eventual headline feature.
-6. Map setup sheets during agent select.
+In `src/main/services/coaching-engine.js`. Each exists because of a specific
+reproduced failure and each looks like removable defensive cruft. **Do not
+refactor these away.**
+
+- **Map lock with correction** (`applyMapRead`): the model insisted on Ascent
+  while the player was on Breeze. Two agreeing reads lock, two agreeing
+  contradictions correct.
+- **Map fingerprint from printed labels** (`mapFromLabels`): Valorant prints
+  location names on screen; accumulated labels beat the model's guess, and
+  labels are weighted by rarity because one generic label used to kill the lock
+  for a whole session.
+- **Callout gate**: a tip naming a callout that does not exist on the confirmed
+  map is rejected.
+- **Scoreboard continuity**: scores never move backwards; a forward jump needs
+  two agreeing reads.
+- **HP beats death**: the model kept announcing deaths that had not happened.
+  Note the spectator trap, a dead player's HUD shows the *spectated* teammate's
+  health.
+- **Death silence**: at most two review tips after dying, then nothing until the
+  next buy phase.
+- **Play variety** (`PLAY_PATTERNS`): stops the same stock advice every round.
+- **Ability gate**: blocks commands to use abilities the agent does not have.
+- **Reject reasons** (`noteReject`): records why a tip was dropped so the
+  diagnostics can explain silence.
+
+Governing principle: **the coach reports what is on screen and never infers.
+When code and model disagree, code wins.**
+
+---
+
+## 4. The interface
+
+Twelve renderer surfaces under `src/renderer/`, each a plain folder with
+`index.html`, a `.css` and usually a `.js`: overlay, panel, dock, onboarding,
+settings, stats, history, ailog, chat, weekly, activation, audio.
+
+**Design tokens live in `src/renderer/shared/theme.css`** and are imported by
+every surface. Use the variables, never hardcode:
+
+- `--red` `#FF4655`, `--cyan` `#FFFFFF`, `--bg` `#08090A`. **The names are
+  historical**: `--cyan` is white, and they mean "primary accent" and "secondary
+  accent". Do not rename them, they are consumed 225 times across 15 files and
+  `npm run check:palette` exists because that edit has gone wrong before.
+- `--on-accent` is the label colour ON the accent, a token so the two can only
+  move together.
+- Text `--text` `--text-dim` `--text-mute`, glass `--glass-*`, radii `--r-*`,
+  motion `--ease*` `--t-*`.
+- **`--space-1..10`** on a 4px grid, and **`--icon-xs/sm/md/lg`**. An audit
+  found 28 distinct spacing values, 17 off any grid, and icons picked by hand at
+  12/13/15px. The rule that matters most: **space BETWEEN groups must beat space
+  WITHIN them**, or nothing groups.
+
+**One palette.** There used to be a `:root[data-game="rivals"]` block painting
+the app navy and gold. It is gone; the app looks the same whichever game it is
+coaching. `data-game` is still set on `<html>` as the hook if a palette ever
+returns.
+
+Settled decisions that keep getting reintroduced by accident:
+
+- **No decorative gradients.** The survivors are functional: the loading shimmer
+  and the splash vignette.
+- **The coaching button stays red**, at 19px/700. That size is not taste: white
+  on the accent measures 3.36:1, WCAG asks 3:1 of large text and large starts at
+  18.66px bold, so crossing that threshold fixes contrast without touching a
+  brand colour used 225 times.
+- **No left accent bar on tip cards.** THE CARD IS THE TIP.
+- **Geist only**, bundled in `assets/fonts`, weights 400 to 800. A missing
+  weight silently falls back to Segoe UI and reshapes the whole interface.
+
+**Tip glyphs** (`src/renderer/shared/tip-visuals.js`) mark the site, callout,
+agent and direction inside a tip. The words are never rewritten. Capped at three
+marks, because uncapped one card came back with five bold runs and emphasis that
+covers half a sentence has stopped being emphasis. The lexicon's hazard is short
+tokens: a case-insensitive `a` matches the A site **and every article in
+English**, which has broken three rules here, one of them inside a checker
+written to catch it. Sites match only as an uppercase letter plus a site noun,
+agents match case-sensitively, and every pattern is tested with a negative.
+
+**The dropdown** (`src/renderer/shared/dropdown.js`) replaces the native
+`<select>`, which rendered as a white Windows box on a dark card. It keeps real
+combobox semantics. Its list is **portalled to `document.body`** while open,
+because `transform`, `filter` and `backdrop-filter` all make an element the
+containing block for fixed-position descendants and every card here is `.glass`.
+That single fix ends three separate bugs: stacking context, overflow clipping,
+containing block.
+
+---
+
+## 5. IPC
+
+`src/shared/channels.js` is the single source of truth for every channel name,
+imported by main, every preload, and indirectly every renderer. **Never
+hand-type a channel string anywhere else.** The previous client's worst bug was
+main and preload drifting to different names, after which the overlay silently
+stopped receiving events with no error. Renderers have no Node access;
+everything crosses through a preload via `contextBridge`.
+
+---
+
+## 6. Marvel Rivals, current status
+
+Registered in `src/shared/games.js` as **preview, not shipped**:
+`features = { review: true, draft: false }`, hidden from players unless
+`devGames` is on. There is a full engine, a knowledge base (dive/poke/brawl
+archetypes, role craft, an aim model, a meta block that expires after 45 days),
+and server routes.
+
+**It is blocked on data, and the block is real.** Everything depends on
+`marvelrivalsapi.com`, which returns **502** (verified 2026-08-31). The Python
+wrapper at `github.com/externref/marvelrivalsapi` does not help: it is a Python
+library, this is a Node app with no build step, and it wraps that same dead
+upstream and still needs a key from it. Measured against real capture frames the
+post-match review reads a scoreboard essentially perfectly; the draft read does
+not, which is why the two halves ship separately.
+
+---
+
+## 7. Release and ops
+
+```
+npm start                 run it
+npm test                  36 offline checks, the gate (check:release is a
+                          preflight and is excluded by the runner on purpose)
+npm run release           build + publish + refresh the public download
+npm run verify:ai         AI regression gate, costs money, needs a real profile
+npm run sync:valorant     regenerate valorant-data.generated.json
+npx electron scripts/shot-surface.js <surface>   screenshot a surface
+```
+
+Release: bump `package.json`, `npm test`, commit, push, then `npm run release`
+with a `GH_TOKEN`. electron-builder publishes to **GhostCoach-releases** (that
+is what electron-updater reads), then `scripts/publish-download.js` refreshes
+the main repo's single release, id **296500148**, tag **`Release`**, publishing
+the same bytes under **two** names: `Occlara-Setup.exe` for every new link and
+`GhostCoach.2.0.Setup.exe`, which must never be removed.
+
+**Run `npm run verify:ai` after ANY prompt or model change.** It grades the coach
+against real frames and has thresholds for tip return, STATE parsing, guard
+inputs, survivor rate and accuracy.
+
+---
+
+## 8. Conventions and traps
+
+- **No em dashes or en dashes anywhere**, in tips, UI copy, docs or commits. Use
+  commas. Hard rule.
+- **Never write a regex through a shell heredoc.** `\b` becomes a literal
+  backspace byte, the file still parses, `node --check` still passes, and the
+  regex silently matches nothing. Doubled backslashes collapse too. Use a
+  file-editing tool, and assert every new regex against a known-positive AND a
+  known-negative string.
+- **Secrets come from the environment.** `.env` is gitignored and **this repo is
+  public**. Never commit a key.
+- `src/shared/valorant-data.generated.json` is generated. Do not hand-edit.
+- **Look at UI changes, do not only compile them.** A dropped colour, an
+  unshipped font weight and an invisible logo all pass every automated check in
+  this repo and are obvious in a picture. Real bugs caught only by screenshot:
+  the mark rendering black-on-black, tip cards washing out, the live indicator
+  sitting at opacity 0 for its entire life, a dropdown drawn under the row below
+  it, and labels clipped to "Portug...".
+- **An empty result is a claim.** `grep -viF` crashes in this environment and
+  prints nothing, turning a failed audit into a false all-clear. Print the count
+  from the stage before the filter before believing a negative.
+- **The logo is an aperture and exists in four places**: `assets/logo-mark.svg`,
+  inlined in splash and dock so they can animate, and drawn mathematically in
+  `scripts/generate-icon.js`. Change one, change all. The SVG carries an
+  explicit `color="#FFFFFF"` because an external SVG in an `<img>` is its own
+  document, so `currentColor` would resolve to black and the mark would be
+  invisible.
+
+---
+
+## 9. Honest current limitations
+
+- Rivals draft coaching is not built, and its data source is down.
+- The live model is set outside this repo, so `/health` is the only truth.
+- The overlay's tip glyph lexicon covers Valorant vocabulary only.
+- Tips are still full sentences. Compressing them into comms shorthand would
+  need a prompt change and the AI regression gate, and risks losing the "why"
+  that is most of the coaching.
+- The marketing site is a **separate private repo** (`lowful/ghostcoach-9a45ac05`,
+  Vite/React/Tailwind, syncs with Lovable). None of this repo's conventions
+  apply there.
