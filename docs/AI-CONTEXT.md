@@ -146,8 +146,10 @@ returns.
 
 Settled decisions that keep getting reintroduced by accident:
 
-- **No decorative gradients.** The survivors are functional: the loading shimmer
-  and the splash vignette.
+- **No decorative gradients.** The only survivor is functional: the loading
+  shimmer, where the gradient IS the animation. The splash vignette is gone; it
+  faded a square window's corners to fully transparent, so the launch screen
+  read as an oval blob. The splash is now a solid card like every other surface.
 - **The coaching button stays red**, at 19px/700. That size is not taste: white
   on the accent measures 3.36:1, WCAG asks 3:1 of large text and large starts at
   18.66px bold, so crossing that threshold fixes contrast without touching a

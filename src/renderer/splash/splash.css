@@ -19,15 +19,23 @@ html, body {
   align-items: center;
   justify-content: center;
   gap: 26px;
-  height: 100%;
-  /* A soft pool of darkness rather than a card. It gives the wordmark
-     something to sit on over any desktop, without an edge or a shadow that
-     announces itself as a window. */
-  /* A soft pool of darkness rather than a card, now on the rebrand's neutral
-     near-black rather than the old navy. This is the one radial that survives
-     the no-gradient rule, because it is doing a job: masking the edge of a
-     transparent window so the splash has no visible border on any desktop. */
-  background: radial-gradient(ellipse 64% 60% at 50% 46%, rgba(8, 9, 10, 0.98) 42%, rgba(8, 9, 10, 0) 100%);
+
+  /* A CARD, not a pool.
+     This was a radial ellipse fading to fully transparent at 100%, meant to
+     mask the edge of a transparent window. It did that, and it also ate the
+     corners: measured over a light desktop the centre read rgb(11,12,12) while
+     all four corners read EXACTLY the desktop behind them, so a square window
+     rendered as an oval blob.
+
+     It now matches every other surface in the app: a 10px transparent gutter so
+     --shadow-win has room to fall, an 18px radius like .panel, and a solid --bg
+     fill. The window is square, so the card is square. */
+  margin: 10px;
+  height: calc(100% - 20px);
+  border-radius: 18px;
+  background: var(--bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-win), var(--edge-top);
   /* The fade-out starts AFTER the last beat lands, not during it. It used to
      begin at 1580ms while the pupil and wordmark were still arriving, so the
      sequence was dimming before it finished. */

@@ -91,9 +91,14 @@ will drift out of sync.
 Three settled decisions that keep getting reintroduced by accident:
 
 - **No decorative gradients anywhere.** Solid fills and hairline borders. The
-  three that remain are functional and deliberate: the loading shimmer in
-  `ui.css` and `stats.css`, where the gradient IS the animation, and the radial
-  vignette in `splash.css` masking a transparent window.
+  two that remain are functional and deliberate: the loading shimmer in
+  `ui.css` and `stats.css`, where the gradient IS the animation. The splash
+  vignette used to be the third. It was a radial ellipse fading to fully
+  transparent, masking the edge of a transparent window, and it also ate the
+  corners: over a light desktop the centre measured rgb(11,12,12) while all four
+  corners measured exactly the desktop behind them, so a square window rendered
+  as an oval blob. `.stage` is now a solid `--bg` card with an 18px radius and a
+  10px gutter, the same shape as every other surface.
 - **The coaching button stays red.** It is the one control a player must find
   without looking, and the only place the accent earns full saturation in an
   otherwise white-on-black interface.

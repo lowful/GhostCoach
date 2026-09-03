@@ -31,8 +31,10 @@ function open() {
   if (existing) return existing;
 
   const win = new BrowserWindow({
+    // Square on purpose: the stage inside is a rounded card with a 10px
+    // gutter, so 360 by 360 makes that card a true 340 square.
     width:  360,
-    height: 340,
+    height: 360,
     frame:       false,
     resizable:   false,
     movable:     false,
