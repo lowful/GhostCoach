@@ -1,7 +1,7 @@
 {
   "name": "occlara",
-  "version": "5.3.0",
-  "description": "Occlara, an AI coaching overlay for Valorant and Marvel Rivals. Reads the screen, never the game.",
+  "version": "5.4.0",
+  "description": "Occlara, an AI coaching overlay for Valorant and Marvel Rivals, with a League of Legends learning section. Reads the screen, never the game.",
   "main": "src/main/index.js",
   "scripts": {
     "start": "electron .",
@@ -14,6 +14,7 @@
     "release": "node scripts/check-release-ready.js && electron-builder --win --publish always && node scripts/publish-download.js",
     "sync:valorant": "node scripts/sync-valorant-data.js",
     "sync:patch": "node scripts/sync-patch-notes.js",
+    "sync:lol": "node scripts/sync-lol.js",
     "publish:download": "node scripts/publish-download.js",
     "check:playbook": "node scripts/check-playbook.js",
     "test:deathspot": "node scripts/test-death-spot.js",
@@ -56,6 +57,7 @@
     "test:profilemigration": "node scripts/test-profile-migration.js",
     "test:tipvisuals": "node scripts/test-tip-visuals.js",
     "test:rivalslive": "node scripts/test-rivals-live.js",
+    "test:lol": "node scripts/test-lol.js",
     "verify:rivalsheroes": "node scripts/verify-rivals-heroes.js"
   },
   "build": {

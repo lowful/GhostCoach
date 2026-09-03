@@ -126,6 +126,10 @@ const STORE_DEFAULTS = {
   tipStyle:        'glass',      // glass | solid | minimal | neon, the tip card look
   tipOpacity:      0.9,          // tip card background opacity, 0.25 to 1
   showTips:        true,         // false = tips hidden on the overlay but still recorded
+  // Completed League lesson ids. An array rather than a count, so a curriculum
+  // that gains or loses a lesson cannot strand someone at a total they can
+  // never reach; summarise() ignores ids it does not recognise.
+  lolProgress:     [],
   // Screenshot quality. 'standard' is 720p, chosen because health, the round
   // timer, the scoreline and the printed location label are what the guards run
   // on and they are only a few pixels tall below it. 'performance' is the older

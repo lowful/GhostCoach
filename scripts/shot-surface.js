@@ -46,6 +46,7 @@ const SIZES = {
   panel: [420, 268], settings: [520, 620], stats: [560, 720], history: [440, 560],
   ailog: [900, 640], chat: [420, 600], weekly: [520, 680], onboarding: [480, 528],
   activation: [424, 524], dock: [84, 84], overlay: [520, 400], splash: [360, 340],
+  learn: [560, 720],
 };
 
 const args = process.argv.slice(2).filter((a) => !a.startsWith('--'));

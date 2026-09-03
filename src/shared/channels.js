@@ -32,6 +32,8 @@ const CHANNELS = {
   CHAT_SEED:        'chat:seed',         // () → pending session context for Ask Coach, cleared on read
   STATS_RANK_HISTORY: 'stats:rankHistory', // () → { points: [{date, elo, change, tier}], current }
   WEEKLY_GET:       'weekly:get',        // () → the week's report (stat movement, strengths, what to fix)
+  LEARN_GET:        'learn:get',         // () → { curriculum, progress, champions }
+  LEARN_PROGRESS:   'learn:progress',    // ({ lessonId, done }) → { ok, progress }
   AILOG_GET:        'ailog:get',         // (sessionId?) → one AI decision-log session, newest by default { session, sessions, records: [{frameData, state, aiTip, shown}] }
   AILOG_SESSIONS:   'ailog:sessions',    // () → [{ id, at, frames, deaths, maps, mins, live }] metadata only, no frames
   AILOG_CONFIRM:    'ailog:confirm',     // (sessionId) → { status, detected, expected, summary, pairs } check the log's deaths against Riot
@@ -54,6 +56,7 @@ const CHANNELS = {
   OPEN_STATS:      'window:openStats',   // the extended stats dashboard window
   OPEN_WEEKLY:     'window:openWeekly',  // the weekly report popup
   OPEN_AILOG:      'window:openAiLog',   // (sessionId?) the AI decision-log viewer
+  OPEN_LEARN:      'window:openLearn',   // the League learning surface
   AILOG_SHOW:      'ailog:show',         // (sessionId) jump an OPEN log window to one session
   OPEN_CHAT_SEEDED:'window:openChatSeeded', // (sessionSeed) open Ask Coach preloaded with a session's context
   TIP_RATE:        'tip:rate',           // ({ text, source, rating: good|bad })

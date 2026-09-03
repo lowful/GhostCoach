@@ -1,0 +1,197 @@
+/* The learning surface.
+   Tokens only, no hardcoded colours or spacing. --good is the progress colour
+   because it already means "this went well" everywhere else in the app, and a
+   new green would be a second vocabulary for the same idea. */
+
+html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; }
+
+.sheet {
+  margin: 10px; height: calc(100% - 20px);
+  border-radius: 18px;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+
+header {
+  position: relative; z-index: 5;
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--glass-border);
+}
+.h-brand { flex: none; display: flex; align-items: center; gap: var(--space-2); }
+header h2 { font-size: 15.5px; font-weight: 700; }
+
+/* Progress in the header. Text AND a bar: the bar is read at a glance, the
+   number is what someone actually wants when they are close to finishing. */
+.hprog { flex: 1 1 auto; display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.hprog-text {
+  flex: none; font-family: var(--font-mono); font-size: 11px;
+  font-variant-numeric: tabular-nums;    /* stops the count jittering as it climbs */
+  color: var(--text-dim);
+}
+.hprog-bar {
+  flex: 1 1 auto; min-width: 40px; height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px; overflow: hidden;
+}
+.hprog-bar i {
+  display: block; height: 100%; width: 0%;
+  background: var(--good);
+  border-radius: 999px;
+  transition: width var(--t-med) var(--ease);
+}
+
+.body {
+  flex: 1; overflow-y: auto;
+  padding: var(--space-4) var(--space-4) var(--space-8);
+  display: flex; flex-direction: column;
+  gap: var(--space-8);      /* between groups, beats everything within one */
+}
+.body::-webkit-scrollbar { width: 8px; }
+.body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 4px; }
+.body::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.16); }
+
+.intro { font-size: 12.5px; color: var(--text-dim); line-height: 1.5; margin: 0; }
+
+/* ── Tracks and lessons ──────────────────────────────────────────────────── */
+.track { display: flex; flex-direction: column; gap: var(--space-3); }
+.track + .track { margin-top: var(--space-6); }
+.track-head { display: flex; align-items: baseline; gap: var(--space-2); }
+.track-head h3 { font-size: 13px; font-weight: 600; }
+.track-count {
+  font-family: var(--font-mono); font-size: 11px;
+  font-variant-numeric: tabular-nums; color: var(--text-mute);
+}
+.track-blurb { font-size: 12px; color: var(--text-mute); line-height: 1.45; margin-top: calc(var(--space-1) * -1); }
+
+.lesson-row {
+  display: flex; align-items: center; gap: var(--space-3);
+  width: 100%; text-align: left;
+  padding: var(--space-3);
+  background: rgba(0, 0, 0, 0.24);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  font-family: var(--font);
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.lesson-row:hover { background: rgba(255, 255, 255, 0.05); }
+.lesson-row:focus-visible {
+  outline: none;
+  border-color: rgba(var(--cyan-rgb), 0.5);
+  box-shadow: 0 0 0 2px rgba(var(--cyan-rgb), 0.15);
+}
+
+/* The tick is the completion state. It carries a SHAPE as well as a colour,
+   because colour alone is not a state anyone can rely on. */
+.tick {
+  flex: none; width: 18px; height: 18px; border-radius: 50%;
+  border: 1.5px solid var(--glass-border);
+  display: flex; align-items: center; justify-content: center;
+  color: transparent;
+}
+.lesson-row.done .tick { border-color: var(--good); color: var(--good); }
+.lesson-row.done .l-name { color: var(--text-dim); }
+
+.l-name { flex: 1; font-size: 12.5px; font-weight: 600; color: var(--text); line-height: 1.35; min-width: 0; }
+.l-chev { flex: none; color: var(--text-mute); }
+
+/* ── Where to start ──────────────────────────────────────────────────────── */
+.starters h3 { font-size: 13px; font-weight: 600; margin-bottom: var(--space-1); }
+.starters .hint { font-size: 12px; color: var(--text-mute); margin-bottom: var(--space-3); line-height: 1.45; }
+.starter-lanes { display: flex; flex-direction: column; gap: var(--space-4); }
+.lane-name {
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--text-mute); margin-bottom: var(--space-2);
+}
+.picks { display: flex; flex-direction: column; gap: var(--space-2); }
+.pick { display: flex; align-items: center; gap: var(--space-3); }
+/* Riot's Data Dragon licenses these for third-party use, which is why League
+   ships real portraits where Marvel Rivals ships a role glyph and a name. */
+.pick img {
+  flex: none; width: 34px; height: 34px; border-radius: var(--r-sm);
+  border: 1px solid var(--glass-border);
+  background: rgba(0, 0, 0, 0.3);
+}
+.pick-text { min-width: 0; }
+.pick-name { font-size: 12.5px; font-weight: 600; color: var(--text); }
+.pick-why { font-size: 11.5px; color: var(--text-mute); line-height: 1.4; }
+
+/* ── A lesson ────────────────────────────────────────────────────────────── */
+.back-btn {
+  align-self: flex-start;
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-1);
+  background: transparent; border: none; cursor: pointer;
+  font-family: var(--font); font-size: 12px; font-weight: 600;
+  color: var(--text-mute);
+  border-radius: var(--r-sm);
+  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.back-btn:hover { color: var(--text); background: rgba(255, 255, 255, 0.05); }
+
+.l-head { display: flex; flex-direction: column; gap: var(--space-2); }
+.l-track {
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--text-mute);
+}
+.l-head h3 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; line-height: 1.25; }
+/* The mistake the lesson fixes, set apart because it is the line a player
+   recognises themselves in, and that recognition is what makes them read on. */
+.l-mistake {
+  font-size: 12.5px; line-height: 1.5; color: var(--text-dim);
+  padding-left: var(--space-3);
+  border-left: 2px solid rgba(var(--red-rgb), 0.45);
+}
+
+.l-body { display: flex; flex-direction: column; gap: var(--space-3); }
+.l-body p { font-size: 13px; line-height: 1.6; color: var(--text-dim); }
+
+.practice h4 { font-size: 13px; font-weight: 600; margin-bottom: var(--space-3); }
+.q { display: flex; flex-direction: column; gap: var(--space-2); }
+.q + .q { margin-top: var(--space-6); }
+.q-text { font-size: 12.5px; line-height: 1.5; color: var(--text); font-weight: 600; }
+.opts { display: flex; flex-direction: column; gap: var(--space-2); }
+.opt {
+  text-align: left; width: 100%;
+  padding: var(--space-3);
+  font-family: var(--font); font-size: 12.5px; line-height: 1.4;
+  color: var(--text-dim);
+  background: rgba(0, 0, 0, 0.24);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.opt:hover:not(:disabled) { background: rgba(255, 255, 255, 0.05); color: var(--text); }
+.opt:disabled { cursor: default; }
+/* Right and wrong carry a MARK as well as a colour, for the same reason the
+   completion tick does. */
+.opt.right { border-color: var(--good); color: var(--text); background: rgba(82, 200, 138, 0.10); }
+.opt.wrong { border-color: var(--bad); color: var(--text); background: rgba(232, 99, 111, 0.10); }
+.opt-mark { float: right; font-weight: 700; margin-left: var(--space-2); }
+.opt.right .opt-mark { color: var(--good); }
+.opt.wrong .opt-mark { color: var(--bad); }
+
+/* The explanation is the whole point of the quiz: getting it right without
+   knowing why teaches nothing, so this appears either way. */
+.why {
+  font-size: 12px; line-height: 1.5; color: var(--text-dim);
+  padding: var(--space-3);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-sm);
+}
+
+.full { width: 100%; height: 44px; margin-top: var(--space-2); }
+.btn-primary.is-done { background: var(--good); }
+
+/* An empty state is never a blank panel. */
+.empty {
+  font-size: 12.5px; color: var(--text-mute); line-height: 1.5;
+  padding: var(--space-6); text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hprog-bar i { transition: none; }
+}

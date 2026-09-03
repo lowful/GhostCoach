@@ -95,6 +95,7 @@ toggleBtn.addEventListener('click', () => {
 pauseBtn.addEventListener('click', () => window.occlara.pauseResume());
 document.getElementById('chat').addEventListener('click', () => window.occlara.openChat());
 document.getElementById('stats').addEventListener('click', () => window.occlara.openStats());
+document.getElementById('learn').addEventListener('click', () => window.occlara.openLearn());
 document.getElementById('history').addEventListener('click', () => window.occlara.openHistory());
 document.getElementById('minimize').addEventListener('click', () => window.occlara.minimize());
 document.getElementById('settings').addEventListener('click', () => window.occlara.openSettings());
@@ -195,6 +196,11 @@ window.occlara.onAgent((info) => {
 // ── State sync ───────────────────────────────────────────────────────────────
 function applyState(s) {
   if (!s) return;
+  // The Learn surface is League only, so its button appears only when League is
+  // the game being coached. A control that does nothing for the game in front
+  // of you is worse than one that is not there.
+  const learnBtn = document.getElementById('learn');
+  if (learnBtn && typeof s.gameId === 'string') learnBtn.hidden = s.gameId !== 'lol';
   isCoaching = !!s.isCoaching;
   isPaused   = !!s.isPaused;
   if (typeof s.tipCount === 'number') tipCount = s.tipCount;

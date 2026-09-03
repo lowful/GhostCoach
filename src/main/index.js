@@ -43,6 +43,7 @@ const panelWindow      = require('./windows/panel-window');
 const settingsWindow   = require('./windows/settings-window');
 const historyWindow    = require('./windows/history-window');
 const weeklyWindow     = require('./windows/weekly-window');
+const learnWindow      = require('./windows/learn-window');
 const aiLogWindow      = require('./windows/ailog-window');
 const statsWindow      = require('./windows/stats-window');
 const audioWindow      = require('./windows/audio-window');
@@ -119,7 +120,11 @@ function buildState() {
     isCoaching: state.isCoaching,
     isPaused:   state.isPaused,
     status:     state.status,
-    game:       'Valorant',
+    // Was hardcoded to 'Valorant', which made this field a lie the moment a
+    // second game existed. Nothing was reading it, so the bug was invisible;
+    // gameId is what the panel gates its Learn entry on, so it has to be true.
+    game:       gameRegistry.get(store.get('game')).label,
+    gameId:     gameRegistry.get(store.get('game')).id,
     tips:       state.tips.slice(0, 50),
     tipCount:   state.tips.length,
     tipMix:     engine ? engine.getMix() : { ai: 0, library: 0, aiShare: 0 },
@@ -266,6 +271,23 @@ const controller = {
       return;
     }
 
+    // EVERY OTHER GAME MUST OPT IN, rather than falling through to this one.
+    //
+    // The branch above names Rivals explicitly, so anything else landed here
+    // and got the Valorant coach: League selected meant League frames going to
+    // a prompt about spike timers, with the map lock and the callout gate
+    // running against a game that has neither. Same failure the hero tables are
+    // built to avoid, one level up: silence when we cannot help, never a
+    // confident answer about the wrong thing.
+    if (!gameRegistry.hasFeature(chosenGame, 'live')) {
+      const g = gameRegistry.get(chosenGame);
+      console.log(`[coach] ${g.label} has no live coach, not starting one`);
+      pushTip({
+        text: `${g.label} has no live coaching yet. What is built for it so far is in the Learn section.`,
+        source: 'system',
+      });
+      return;
+    }
     engine = new CoachingEngine({
       licenseKey:      store.get('licenseKey'),
       captureFunction: () => capture.captureScreenshot(store.get('captureQuality') === 'performance' ? 'performance' : 'standard'),
@@ -518,6 +540,56 @@ const controller = {
   openSettings()  { settingsWindow.open(); },
   openHistory()   { historyWindow.open(); },
   openWeekly()    { weeklyWindow.open(); },
+  openLearn()     { learnWindow.open(); },
+
+  /**
+   * Everything the learning surface needs, in one call.
+   *
+   * Assembled here rather than fetched, because the curriculum and the roster
+   * are both shipped with the app: this works with no network, no licence check
+   * and no server, which is the point of a section you open between games.
+   */
+  getLearn() {
+    const curriculum = require('../shared/lol-curriculum');
+    let starters = {};
+    let patch = 'unknown';
+    try {
+      const champs = require('../shared/lol-champions');
+      patch = champs.patch();
+      // Resolve each curated pick against the real roster. A champion that has
+      // been renamed or removed upstream is DROPPED rather than drawn as a
+      // broken card, which is the same silence rule the rest of the app follows.
+      for (const [lane, picks] of Object.entries(champs.STARTERS)) {
+        const resolved = picks
+          .map((p) => { const c = champs.champion(p.id); return c ? { name: c.name, icon: c.icon, why: p.why } : null; })
+          .filter(Boolean);
+        if (resolved.length) starters[lane] = resolved;
+      }
+    } catch (err) {
+      // No generated data in this build. The curriculum still works on its own,
+      // and the surface says so rather than showing an empty panel.
+      console.warn('[learn] champion data unavailable:', err.message);
+    }
+    return {
+      tracks: curriculum.TRACKS,
+      lessons: curriculum.lessons(),
+      progress: store.get('lolProgress') || [],
+      starters,
+      patch,
+    };
+  },
+
+  /** Mark one lesson done or not done. Returns the whole list back. */
+  setLearnProgress(payload) {
+    const id = payload && payload.lessonId;
+    const curriculum = require('../shared/lol-curriculum');
+    if (!id || !curriculum.lesson(id)) return { ok: false, progress: store.get('lolProgress') || [] };
+    const set = new Set(store.get('lolProgress') || []);
+    if (payload.done) set.add(id); else set.delete(id);
+    const next = [...set];
+    store.set('lolProgress', next);
+    return { ok: true, progress: next };
+  },
   /*
    * Opened at a particular session when the caller names one.
    *

@@ -37,6 +37,7 @@ contextBridge.exposeInMainWorld('occlara', {
   openHistory:   () => ipcRenderer.send(C.OPEN_HISTORY),
   openChat:      () => ipcRenderer.send(C.OPEN_CHAT),
   openStats:     () => ipcRenderer.send(C.OPEN_STATS),
+  openLearn:     () => ipcRenderer.send(C.OPEN_LEARN),
   quit:          () => ipcRenderer.send(C.APP_QUIT),
   // request/response
   forceTip:      () => ipcRenderer.invoke(C.COACH_FORCE_TIP),
