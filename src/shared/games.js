@@ -62,6 +62,50 @@ const GAMES = {
     preview: true,
     cadence: 'draft',
   },
+
+  lol: {
+    id: 'lol',
+    label: 'League of Legends',
+    palette: null,
+    // League INVERTS the Rivals problem, and saying so here matters because
+    // pattern matching from Rivals gets this wrong in two different ways.
+    //
+    // 1. Riot's Data Dragon publishes every champion, ability and icon per
+    //    patch for third-party use. The "never a portrait" rule written for
+    //    Marvel Rivals is a TRADEMARK constraint on NetEase art and it does NOT
+    //    carry over here: League can ship real champion icons. Separate from
+    //    that is Riot product registration and approval for a PAID product,
+    //    which is a permission to obtain rather than a data problem.
+    //
+    // 2. Riot documents a Live Client Data API on 127.0.0.1:2999 that hands
+    //    over exact champion names, scores and events during a match. The thing
+    //    that blocks Rivals, knowing who is on screen, does not exist here.
+    //    That is a decision to take deliberately rather than drift into,
+    //    because it is a NEW KIND OF INPUT for a product whose promise is "we
+    //    only capture the display". It is not memory reading, not file access
+    //    and not input automation, so it does not break that promise, but the
+    //    promise has to be restated rather than quietly widened. It is the Live
+    //    Client Data API on 2999, NOT the LCU, which Riot says is unsupported
+    //    for third parties.
+    //
+    // Nothing here uses either yet. This entry only reserves the id so the
+    // picker, the config and the palette hook all know the game exists.
+    features: {
+      learn: true,          // the curriculum surface, no live coaching
+      live: false,          // not built, and gated on the decision above
+    },
+    // preview is FALSE, deliberately, and this is the one place the League
+    // brief and this registry disagree on a word. Here `preview: true` does not
+    // mean "unfinished", it means SHOW IT TO PLAYERS with a preview label, the
+    // way Rivals is shown because its shell is genuinely real. League has no
+    // shell yet: no data, no surface, nothing to look at. So it stays behind
+    // devGames until the learn surface exists, and this flips to true on the
+    // day there is something worth previewing.
+    preview: false,
+    // Not 'live' and not 'draft'. Learning is a player sitting down to study,
+    // which is neither a tip stream nor a one-shot read.
+    cadence: 'learn',
+  },
 };
 
 const DEFAULT_GAME = 'valorant';
