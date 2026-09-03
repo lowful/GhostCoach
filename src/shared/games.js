@@ -100,8 +100,11 @@ const GAMES = {
     // way Rivals is shown because its shell is genuinely real. League has no
     // shell yet: no data, no surface, nothing to look at. So it stays behind
     // devGames until the learn surface exists, and this flips to true on the
-    // day there is something worth previewing.
-    preview: false,
+    // day there is something worth previewing. That day is here: 173 champions
+    // of real data and a twelve lesson curriculum. `preview` does not mean
+    // unfinished, it means shown WITH a preview label, and the label is honest
+    // because live coaching genuinely is not built.
+    preview: true,
     // Not 'live' and not 'draft'. Learning is a player sitting down to study,
     // which is neither a tip stream nor a one-shot read.
     cadence: 'learn',

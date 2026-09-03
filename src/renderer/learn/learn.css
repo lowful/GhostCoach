@@ -56,7 +56,8 @@ header h2 { font-size: 15.5px; font-weight: 700; }
 /* ── Tracks and lessons ──────────────────────────────────────────────────── */
 .track { display: flex; flex-direction: column; gap: var(--space-3); }
 .track + .track { margin-top: var(--space-6); }
-.track-head { display: flex; align-items: baseline; gap: var(--space-2); }
+.track-head { display: flex; align-items: center; gap: var(--space-2); }
+.track-ico { flex: none; color: var(--text-mute); }
 .track-head h3 { font-size: 13px; font-weight: 600; }
 .track-count {
   font-family: var(--font-mono); font-size: 11px;
@@ -192,6 +193,58 @@ header h2 { font-size: 15.5px; font-weight: 700; }
   padding: var(--space-6); text-align: center;
 }
 
+/* ── Motion ──────────────────────────────────────────────────────────────────
+   Restrained on purpose, and the reason is the same one that governs the
+   overlay: this app is used beside a game, so movement has to register in
+   peripheral vision and then STOP. Nothing here loops, nothing bounces, and
+   every duration comes from the token scale.
+
+   The list assembles rather than appearing, because twelve rows arriving at
+   once reads as a wall of text and the same twelve arriving in sequence reads
+   as a list you can work through. */
+.lesson-row { animation: rowIn 300ms var(--ease-expo) both; }
+@keyframes rowIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Switching view is a short settle, not a slide: the two views are the same
+   place at different depths, so the movement is inward rather than sideways. */
+.view-in { animation: viewIn 260ms var(--ease-expo) both; }
+@keyframes viewIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.995); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Answering is the one moment worth a flourish, because it is feedback on
+   something the player did rather than decoration. */
+.opt.right, .opt.wrong { animation: answerIn 220ms var(--ease-spring) both; }
+@keyframes answerIn {
+  from { transform: scale(0.985); }
+  to   { transform: none; }
+}
+.why { animation: whyIn 240ms var(--ease-expo) both; }
+@keyframes whyIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* A completed tick lands rather than blinks on. */
+.lesson-row.done .tick svg { animation: tickIn 260ms var(--ease-spring) both; }
+@keyframes tickIn {
+  from { opacity: 0; transform: scale(0.5); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Champion portraits lift very slightly on hover, which is the only affordance
+   they need: they are informative, not clickable. */
+.pick img { transition: transform var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease); }
+.pick:hover img { transform: translateY(-1px); border-color: rgba(255, 255, 255, 0.18); }
+
 @media (prefers-reduced-motion: reduce) {
   .hprog-bar i { transition: none; }
+  .lesson-row, .view-in, .opt.right, .opt.wrong, .why, .lesson-row.done .tick svg {
+    animation: none;
+  }
+  .pick:hover img { transform: none; }
 }

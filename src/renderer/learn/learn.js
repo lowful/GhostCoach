@@ -13,6 +13,38 @@
  */
 
 const $ = (id) => document.getElementById(id);
+const NS = 'http://www.w3.org/2000/svg';
+
+/**
+ * One icon per track, so the three areas are told apart at a glance rather than
+ * only by their names. Drawn inline like every other glyph in the app: no file,
+ * no CSP question, and it inherits currentColor.
+ *   fundamentals  a foundation block
+ *   laning        two opposed arrows, the lane push and pull
+ *   macro         a map with a marked objective
+ */
+const TRACK_PATHS = {
+  fundamentals: ['M4 20h16', 'M6 20v-6h5v6', 'M13 20v-9h5v9', 'M4 9l8-5 8 5'],
+  laning:       ['M3 9h11', 'M11 6l3 3-3 3', 'M21 15H10', 'M13 18l-3-3 3-3'],
+  macro:        ['M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z', 'M9 4v14', 'M15 6v14'],
+};
+
+function svgIcon(paths, size, cls) {
+  if (!paths) return null;
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('width', String(size)); svg.setAttribute('height', String(size));
+  svg.setAttribute('fill', 'none'); svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('stroke-linecap', 'round'); svg.setAttribute('stroke-linejoin', 'round');
+  if (cls) svg.setAttribute('class', cls);
+  for (const d of paths) {
+    const p = document.createElementNS(NS, 'path');
+    p.setAttribute('d', d);
+    svg.appendChild(p);
+  }
+  return svg;
+}
 
 const listView = $('list');
 const lessonView = $('lesson');
@@ -69,12 +101,15 @@ function paintList() {
   const host = $('tracks');
   host.replaceChildren();
 
+  let rowIndex = 0;
   for (const track of DATA.tracks) {
     const sec = document.createElement('section');
     sec.className = 'track';
 
     const head = document.createElement('div');
     head.className = 'track-head';
+    const ico = svgIcon(TRACK_PATHS[track.id], 15, 'track-ico');
+    if (ico) head.appendChild(ico);
     const h = document.createElement('h3');
     h.textContent = track.name;
     const count = document.createElement('span');
@@ -98,6 +133,10 @@ function paintList() {
       name.textContent = l.title;
       row.append(tickMark(), name, chevron());
       row.addEventListener('click', () => openLesson(l.id));
+      // The list assembles top to bottom. 40ms apart is the point where a
+      // stagger reads as one gesture instead of a queue, and the whole thing is
+      // finished well inside half a second.
+      row.style.animationDelay = `${Math.min(rowIndex++, 12) * 40}ms`;
       sec.appendChild(row);
     }
     host.appendChild(sec);
@@ -192,6 +231,10 @@ function openLesson(id) {
   listView.hidden = true;
   lessonView.hidden = false;
   lessonView.scrollTop = 0;
+  // Restart the entrance rather than letting it play only the first time.
+  lessonView.classList.remove('view-in');
+  void lessonView.offsetWidth;
+  lessonView.classList.add('view-in');
 }
 
 function question(q) {
@@ -261,6 +304,9 @@ async function toggleDone(id) {
 function showList() {
   lessonView.hidden = true;
   listView.hidden = false;
+  listView.classList.remove('view-in');
+  void listView.offsetWidth;
+  listView.classList.add('view-in');
   paintList();
 }
 
