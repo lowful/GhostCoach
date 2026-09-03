@@ -570,12 +570,58 @@ const controller = {
       // and the surface says so rather than showing an empty panel.
       console.warn('[learn] champion data unavailable:', err.message);
     }
+    // THE ASSIGNMENT: one skill, chosen by the coach rather than the player.
+    // Given twelve free choices players pick the interesting ones and skip
+    // warding, which is the one that would have moved them two divisions.
+    const lessons = require('../shared/lol-lessons');
+    const targetTable = require('../shared/lol-targets');
+    const grader = require('../shared/lol-grader');
+
+    const history = store.get('lolHistory') || [];
+    const role = store.get('lolRole') || '';
+    const bandN = store.get('lolBand') || targetTable.DEFAULT_BAND;
+    const last = history.length ? history[history.length - 1] : null;
+    const results = (last && last.graded) || [];
+
+    const pick = grader.recommend(results) || (lessons.forRole(role)[0] || {}).id || null;
+    const skill = lessons.skill(pick);
+    const lastResult = results.find((r) => r.skill === pick) || null;
+
+    let assignment = null;
+    if (skill) {
+      const t = skill.metric ? targetTable.targetFor(skill.metric) : null;
+      const bandTarget = skill.metric ? targetTable.bandTarget(skill.metric, bandN, role) : null;
+      const stretch = skill.metric ? targetTable.stretchTarget(skill.metric, bandN) : null;
+      const base = skill.metric ? grader.baseline(skill.metric, history) : null;
+      assignment = {
+        skillId: skill.id,
+        klass: skill.klass,
+        metric: skill.metric || null,
+        metricLabel: skill.metric ? (lessons.metric(skill.metric) || {}).label : null,
+        better: skill.metric ? (lessons.metric(skill.metric) || {}).better : null,
+        // WHERE THE NUMBER CAME FROM, carried through so the surface can say
+        // it. A sourced benchmark and a judgement call must never look alike.
+        target: bandTarget !== null ? bandTarget : (stretch !== null ? stretch : base),
+        targetKind: bandTarget !== null ? 'band'
+          : (stretch !== null ? 'stretch' : (base !== null ? 'personal' : 'none')),
+        sourced: !!(t && t.sourced),
+        note: (t && t.note) || null,
+        baseline: base,
+      };
+    }
+
     return {
       tracks: curriculum.TRACKS,
       lessons: curriculum.lessons(),
+      skills: lessons.forRole(role),
       progress: store.get('lolProgress') || [],
       starters,
       patch,
+      assignment,
+      lastResult,
+      gamesRecorded: history.length,
+      role,
+      band: bandN,
     };
   },
 

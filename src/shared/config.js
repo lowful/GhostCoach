@@ -130,6 +130,19 @@ const STORE_DEFAULTS = {
   // that gains or loses a lesson cannot strand someone at a total they can
   // never reach; summarise() ignores ids it does not recognise.
   lolProgress:     [],
+  // Per-game League records, newest last, for the personal baseline the grader
+  // judges against. Capped at BASELINE_GAMES in lol-targets.js. Records for
+  // metrics that no longer exist are ignored on read, the same way summarise()
+  // ignores lesson ids it does not recognise, so changing the skill set can
+  // never strand a player on a baseline they cannot move.
+  lolHistory:      [],
+  // Rank band 1 to 5, NOT one of eight ranks. The underlying data does not
+  // support eight-way granularity, and unset means the default band rather
+  // than a guess.
+  lolBand:         null,
+  // Top | Jungle | Mid | Bot | Support. Unset means every skill is shown,
+  // because hiding one on a guess is worse than showing one that does not apply.
+  lolRole:         '',
   // Screenshot quality. 'standard' is 720p, chosen because health, the round
   // timer, the scoreline and the printed location label are what the guards run
   // on and they are only a few pixels tall below it. 'performance' is the older

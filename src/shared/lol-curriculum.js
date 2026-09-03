@@ -224,21 +224,31 @@ const TRACKS = [
           },
         ],
       },
+      // REPLACED 'm-position', which read "In a teamfight, your job depends on
+      // your range". That lesson was true and completely ungradeable: the Live
+      // Client Data API publishes scores and timestamped events and no position
+      // data whatsoever, so nothing could ever check whether a player stood in
+      // the right place. This one measures the two ways games are actually lost
+      // at these ranks, and both fall out of kill timestamps alone.
+      //
+      // Anyone who had completed the old lesson loses that tick, because the id
+      // changed. summarise() already ignores ids it does not recognise, which is
+      // exactly why progress is stored as a list of ids rather than a count.
       {
-        id: 'm-position',
-        title: 'In a teamfight, your job depends on your range',
-        mistake: 'Everyone playing the same fight regardless of what they picked.',
+        id: 'm-numbers',
+        title: 'Numbers decide fights before abilities do',
+        mistake: 'Walking into a fight that was already lost before you arrived.',
         body: [
-          'A melee champion who stands at the back does nothing. A ranged carry who stands at the front dies first. Most lost teamfights are two people playing the wrong role in them.',
-          'If you are ranged and squishy, your job is to keep hitting the nearest target for as long as possible, which means standing where you cannot be reached first.',
-          'If you are the one with the engage, the fight starts when you choose. Choosing badly is worse than choosing late.',
+          'Most lost fights were lost on the count, not on the play. Four into five is a losing fight however well it is played, and the count is visible on the minimap several seconds before the fight starts.',
+          'The two expensive deaths look different and cost the same. One is arriving late to a fight your team has already lost, where you die second and give up a second body. The other is being caught alone with nobody near you, where the fight was never happening at all.',
+          'Before you walk toward a fight, count. If you cannot see enough allies arriving, the answer is to take something else on the map instead, because a fight you decline costs nothing.',
         ],
         practice: [
           {
-            q: 'You are playing a marksman. The fight starts and their assassin is missing. What do you do?',
-            options: ['Deal damage from the front so you can reach targets', 'Stay behind your team and hit whatever is closest', 'Go looking for the assassin'],
+            q: 'A teammate dies in a fight near dragon. You are ten seconds away and your other two allies are across the map.',
+            options: ['Go in, they need the help and your damage might turn it', 'Take a side wave or a tower instead, the fight is already lost', 'Wait at the edge and look for a pick'],
             answer: 1,
-            why: 'A missing assassin is exactly why the back is the right place. Your damage does not require you to pick the target.',
+            why: 'Arriving after a death means fighting into more enemies than allies. The fight is decided; taking something elsewhere while they finish it is the only move that gains anything.',
           },
         ],
       },

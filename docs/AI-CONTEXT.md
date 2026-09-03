@@ -193,22 +193,22 @@ Registered in `src/shared/games.js` as **preview, not shipped**:
 
 **Built and passing (all offline, no external dependency):**
 
-- `server/services/rivals-heroes.js` — 40 heroes classified by role, aim
+- `server/services/rivals-heroes.js`: 40 heroes classified by role, aim
   (hitscan/projectile/melee), air (flight/leap/ground) and archetype, plus 13
   named but unclassified in `PENDING`. 40 + 13 = 53, which independently
   matches the `META.heroCount` in `rivals-knowledge.js`.
   **ABSENCE MEANS SILENCE**: an unknown hero returns null and produces no advice
   at all, so being a season behind costs coverage, never correctness.
-- `server/services/rivals-counters.js` — the switch call, including
+- `server/services/rivals-counters.js`: the switch call, including
   flight-into-hitscan. Will not fire on one enemy, while the player is winning,
   about a hero it cannot vouch for, or twice for the same reason in a match.
-- `src/shared/rivals-moments.js` — WHEN a live tip may appear: death, team wipe,
+- `src/shared/rivals-moments.js`: WHEN a live tip may appear: death, team wipe,
   objective flip, round start. Six per match, 25s minimum gap. A 6v6 shooter has
   almost no readable moments, so speech has to be earned rather than timed.
 - Role glyphs in `tip-visuals.js` (shield / blade / cross) plus the hero NAME.
   **Never a portrait**: shipping Marvel or NetEase character art in a paid
   product is a trademark problem.
-- `POST /api/rivals/identify` — returns a roster and nothing else, so the hero
+- `POST /api/rivals/identify`: returns a roster and nothing else, so the hero
   read is gradeable, plus `npm run verify:rivalsheroes` to grade it.
 
 **The blocker is the hero read, not data.** Live tips are only as good as knowing
@@ -233,11 +233,108 @@ There is **no official Marvel Rivals developer API**. Every tracker derives data
 by scraping, community submission, or network monitoring, and that last one is
 something this product can never do.
 
-## 7. Release and ops
+## 7. League of Legends, and why it deliberately has no live coach
+
+League is the third game and the only one with **no live coaching at all**. That
+is a policy decision, not an unfinished feature. Riot's third-party policy
+forbids in-game notifications that dictate player action from game state, so the
+League feature grades **after** the game instead of coaching during it. The guard
+in `src/main/index.js` is what enforces it: any game without the `live` feature
+gets a message saying so and no engine. Rivals returns before that guard because
+it has its own engine; League falls through to it and must keep doing so.
+
+Before that guard existed, selecting League started the **Valorant** engine, so
+League frames hit a prompt about spike timers with the map lock and callout gate
+running against a game that has neither.
+
+### The Learn surface is an assignment, not a reading list
+
+`src/renderer/learn/` has three views: `#assign` (the default), `#list`, and
+`#lesson`. The player is shown **one skill at a time**, with a target for the
+next game and last game's result. The coach chooses which one, and the card says
+why, because given twelve free choices players pick the interesting ones and skip
+warding, which is the one that would have moved them two divisions.
+
+```
+src/shared/lol-curriculum.js   the prose: title, mistake, body, practice
+src/shared/lol-lessons.js      the twelve skills as data, referencing lesson ids
+src/shared/lol-targets.js      what "good" is, and how much of it is defensible
+src/shared/lol-grader.js       grades a finished game against the twelve
+```
+
+The prose lives in exactly one file and `lol-lessons.js` references it by id.
+Two files holding the same sentences is how they drift.
+
+### The rule that governs every number here
+
+**Grade against the player's own recent baseline first.** Riot publishes no
+per-rank or per-role benchmarks for any of these stats, third-party tables
+disagree with each other, and several widely repeated figures have no primary
+source at all. So every metric in `lol-targets.js` carries a `sourced` flag and
+the UI reads it:
+
+| `sourced` | Meaning | UI |
+|---|---|---|
+| `true` | defensible outside data exists | show a band target, still say it is directional |
+| `false` | it does not | grade against the last ten games and **say so on screen** |
+
+A metric with `sourced: false` has **no band table at all**, and
+`test:lolgrader` asserts that, so a number cannot quietly be added later. This is
+`ABSENCE MEANS SILENCE` from `rivals-heroes.js` pointed at numbers instead of
+heroes: **a wrong target is worse than no target, because the player will chase
+it.** Only CS at 10:00 is `sourced: true`. Vision score has no band table on
+purpose; the commonly repeated "above 35 is good" traces to no primary source.
+
+Five bands, not eight ranks, because the data does not support eight-way
+granularity and the alternative is inventing seven numbers to sit between the two
+that are real.
+
+### What the API can and cannot see
+
+The Live Client Data API on `127.0.0.1:2999` is documented and supported, unlike
+the LCU. It exposes `activeplayer`, `playerlist`, timestamped `eventdata` and
+`gamestats`. It exposes **no position, camera, minion or wave state**, which is
+what forces four of the twelve skills into a `replay` class rather than an
+invented metric. Counts: 5 `hard`, 3 `proxy`, 4 `replay`.
+
+**The schema is unverified against the current patch**, because no client was
+running when the grader was written. Every field is read through helpers that
+tolerate absence, and a missing field must produce "not measured", never a zero
+that grades as a failure.
+
+The highest value metric needs no model at all: `ChampionKill` events carry a
+timestamp, a victim and a killer, and that alone separates dying within 20s
+*after* an ally died (walked into a lost fight) from dying with no ally death
+anywhere near it (caught out alone). Those are the two ways games are lost at
+these ranks.
+
+### Roles change what a player sees
+
+A support does not see the CS lesson at all, because chasing CS as a support
+takes farm off the ADC and loses games more reliably than a low number ever
+would. `getLearn()` filters `skills` by role, and the renderer **must** respect
+it: it did not at first, so a support saw twelve rows and a denominator of
+twelve, making "12 of 12" unreachable and leaving the one lesson they could never
+finish being the one that would hurt them. `npm run check:learnrole` boots the
+real app once per role and asserts the DOM, because the payload was already right
+and only a running window could see the bug.
+
+### Not built, on purpose
+
+- **Replay marks** and the `game.cfg` setup card. Both need a live client.
+- When the setup card lands, **Occlara must never write `game.cfg`.** Show the
+  path and the two lines and let the player paste them. No automation and no
+  "fix it for me" button. The founding property is that the client never touches
+  game files.
+- Riot art comes from **Data Dragon**, which is licensed for third-party use.
+  Rank emblems are not in Data Dragon, carry a separate licensing question, and
+  are ornate gold gradients that would fight `--bg` anyway.
+
+## 8. Release and ops
 
 ```
 npm start                 run it
-npm test                  36 offline checks, the gate (check:release is a
+npm test                  40 offline checks, the gate (check:release is a
                           preflight and is excluded by the runner on purpose)
 npm run release           build + publish + refresh the public download
 npm run verify:ai         AI regression gate, costs money, needs a real profile
@@ -258,7 +355,7 @@ inputs, survivor rate and accuracy.
 
 ---
 
-## 8. Conventions and traps
+## 9. Conventions and traps
 
 - **No em dashes or en dashes anywhere**, in tips, UI copy, docs or commits. Use
   commas. Hard rule.
@@ -288,7 +385,7 @@ inputs, survivor rate and accuracy.
 
 ---
 
-## 9. Honest current limitations
+## 10. Honest current limitations
 
 - Rivals draft coaching is not built, and its data source is down.
 - The live model is set outside this repo, so `/health` is the only truth.

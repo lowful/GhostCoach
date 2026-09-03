@@ -16,9 +16,6 @@
         <img src="../../../assets/logo-mark.svg" alt="" width="18" height="18" />
         <h2>Learn</h2>
       </div>
-      <!-- Progress lives in the header rather than at the top of the list,
-           because it is the one number a returning player wants immediately and
-           it should not move when they open a lesson. -->
       <div class="hprog no-drag" id="hprog">
         <span id="prog-text" class="hprog-text">0 of 0</span>
         <div class="hprog-bar"><i id="prog-fill"></i></div>
@@ -26,8 +23,48 @@
       <button id="close" class="icon-btn no-drag" title="Close" aria-label="Close"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
     </header>
 
-    <!-- LIST: the curriculum -->
-    <main id="list" class="body">
+    <!-- ASSIGNMENT: one skill at a time. The default and the point. -->
+    <main id="assign" class="body">
+      <div class="a-card">
+        <div class="a-top">
+          <span class="a-eyebrow">Your assignment</span>
+          <span id="a-track" class="a-track"></span>
+        </div>
+        <h3 id="a-title"></h3>
+        <p id="a-mistake" class="l-mistake"></p>
+
+        <!-- Next game's target and last game's result, side by side, because
+             the whole idea is that one is answered by the other. -->
+        <div class="a-numbers">
+          <div class="a-num">
+            <div class="a-num-label">Target next game</div>
+            <div id="a-target" class="a-num-value"></div>
+            <div id="a-target-note" class="a-num-note"></div>
+          </div>
+          <div class="a-num">
+            <div class="a-num-label">Last game</div>
+            <div id="a-last" class="a-num-value"></div>
+            <div id="a-last-note" class="a-num-note"></div>
+          </div>
+        </div>
+
+        <!-- Why the coach picked this one. The player did not choose it, so
+             the reason has to be on screen or the choice reads as arbitrary. -->
+        <p id="a-why" class="a-why"></p>
+
+        <div class="a-actions">
+          <button id="a-open" class="btn btn-primary full">Read this lesson</button>
+          <button id="a-browse" class="back-btn a-browse">See all twelve</button>
+        </div>
+      </div>
+    </main>
+
+    <!-- BROWSE: the twelve by category, plus where to start -->
+    <main id="list" class="body" hidden>
+      <button id="list-back" class="back-btn">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        <span>My assignment</span>
+      </button>
       <p class="intro" id="intro"></p>
       <div id="tracks"></div>
 
@@ -42,7 +79,7 @@
     <main id="lesson" class="body" hidden>
       <button id="back" class="back-btn">
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-        <span id="back-label">All lessons</span>
+        <span id="back-label">Back</span>
       </button>
 
       <div class="l-head">

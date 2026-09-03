@@ -53,6 +53,79 @@ header h2 { font-size: 15.5px; font-weight: 700; }
 
 .intro { font-size: 12.5px; color: var(--text-dim); line-height: 1.5; margin: 0; }
 
+/* ── The assignment ──────────────────────────────────────────────────────────
+   One skill, its target for the next game, and last game's result. This is the
+   default view and the reason the surface exists: a lesson is not something you
+   read, it is an assignment with a number that gets checked afterwards.
+
+   Spacing and icon sizes come from the existing scales only. Nothing new. */
+/* The assignment view holds ONE card, so it centres in the window rather than
+   hanging off the top over a third of a screen of nothing. `safe center` and not
+   plain `center`: a centred flex child that outgrows its scroll container has
+   its overflow pushed above the scroll origin and becomes unreachable, and this
+   card grows with the length of a lesson title. `safe` falls back to flex-start
+   the moment it would overflow. */
+#assign { justify-content: safe center; }
+
+.a-card { display: flex; flex-direction: column; gap: var(--space-3); }
+
+.a-top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.a-eyebrow {
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--red);
+}
+.a-track {
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--text-mute);
+}
+.a-card h3 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; line-height: 1.2; }
+
+/* The two numbers sit together because one is answered by the other. */
+.a-numbers { display: flex; gap: var(--space-3); margin-top: var(--space-2); }
+.a-num {
+  flex: 1 1 0; min-width: 0;
+  padding: var(--space-3);
+  background: rgba(0, 0, 0, 0.24);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+}
+.a-num-label {
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-mute); margin-bottom: var(--space-1);
+}
+.a-num-value {
+  font-family: var(--font-mono); font-size: 22px; font-weight: 500;
+  font-variant-numeric: tabular-nums;      /* so a changing number does not jitter */
+  color: var(--text); line-height: 1.15;
+}
+/* Not a number yet. Smaller, because "no game recorded" is a sentence and
+   rendering it at 22px makes an absence look like a result. */
+.a-num-value.is-text { font-family: var(--font); font-size: 13px; font-weight: 600; color: var(--text-dim); }
+.a-num-note { font-size: 11px; color: var(--text-mute); line-height: 1.4; margin-top: var(--space-1); }
+
+/* Last game's verdict. Colour AND a word, never colour alone. */
+.a-num.pass .a-num-value { color: var(--good); }
+.a-num.fail .a-num-value { color: var(--bad); }
+
+/* A target with no sourced benchmark behind it says so, in the UI, every time.
+   The whole feature rests on not presenting a judgement call as a measurement. */
+.a-num-note.unsourced { color: var(--warn); }
+
+/* Why this skill and not one of the other eleven. The player did not pick it,
+   so an unexplained choice reads as arbitrary, and a coach who cannot say why
+   is just a random number generator with opinions. */
+.a-why {
+  font-size: 12.5px; line-height: 1.5; color: var(--text-dim);
+  padding: var(--space-3);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-sm);
+  margin-top: var(--space-2);
+}
+
+.a-actions { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-2); }
+.a-browse { align-self: center; }
+
 /* ── Tracks and lessons ──────────────────────────────────────────────────── */
 .track { display: flex; flex-direction: column; gap: var(--space-3); }
 .track + .track { margin-top: var(--space-6); }
