@@ -1,6 +1,6 @@
 {
   "name": "occlara",
-  "version": "5.6.1",
+  "version": "5.7.0",
   "description": "Occlara, an AI coaching overlay for Valorant and Marvel Rivals, with a League of Legends learning section. Reads the screen, never the game.",
   "main": "src/main/index.js",
   "scripts": {
@@ -60,7 +60,9 @@
     "test:lol": "node scripts/test-lol.js",
     "test:lolgrader": "node scripts/test-lol-grader.js",
     "verify:rivalsheroes": "node scripts/verify-rivals-heroes.js",
-    "check:learnrole": "node scripts/check-learn-role.js"
+    "check:learnrole": "node scripts/check-learn-role.js",
+    "check:splash": "node scripts/check-splash-timing.js",
+    "check:gameswitch": "node scripts/check-game-switch.js"
   },
   "build": {
     "appId": "com.ghostcoach.app2",

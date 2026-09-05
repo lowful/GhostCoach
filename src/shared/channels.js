@@ -74,6 +74,12 @@ const CHANNELS = {
   PUSH_MATCH_REVIEW: 'push:matchReview',  // { review, game, timestamp, tipsCount }
   PUSH_OVERLAY_VIS:  'push:overlayVisibility', // { visible }
   PUSH_NUDGE:        'push:nudge',        // { kind: 'minimize' } one-off coaching hint on the panel
+  // EDGE TRIGGERED, not a state snapshot: fired only when the selected game
+  // actually changed. PUSH_STATE already carries gameId, but it fires on every
+  // config write and every status tick, so a surface that wanted to reload on a
+  // game change had to diff it by hand. Stats did not, which is why it kept
+  // showing Valorant rank and agents after switching to League.
+  PUSH_GAME:         'push:game',         // { id, label } the game changed, reload anything game-scoped
 };
 
 // Channels the renderer is allowed to subscribe to (defensive whitelist used
@@ -86,6 +92,7 @@ CHANNELS.PUSH_LIST = [
   CHANNELS.PUSH_MATCH_REVIEW,
   CHANNELS.PUSH_OVERLAY_VIS,
   CHANNELS.PUSH_NUDGE,
+  CHANNELS.PUSH_GAME,
 ];
 
 module.exports = CHANNELS;

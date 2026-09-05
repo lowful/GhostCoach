@@ -32,4 +32,12 @@ contextBridge.exposeInMainWorld('occlara', {
     ipcRenderer.on(C.PUSH_STATE, h);
     return () => ipcRenderer.removeListener(C.PUSH_STATE, h);
   },
+  // The selected game changed. Edge triggered, so the dashboard reloads exactly
+  // once rather than diffing gameId out of every PUSH_STATE, which it did not
+  // do, which is why it kept showing Valorant rank and agents under League.
+  onGame: (cb) => {
+    const h = (_e, g) => cb(g);
+    ipcRenderer.on(C.PUSH_GAME, h);
+    return () => ipcRenderer.removeListener(C.PUSH_GAME, h);
+  },
 });

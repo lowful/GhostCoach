@@ -57,6 +57,13 @@ const GAMES = {
     features: {
       review: true,         // proven against a real scoreboard
       draft: false,         // roles read wrong, see test-rivals-draft
+      // No rank, win rate or match history. Every Marvel Rivals tracker derives
+      // its data by scraping or community submission, there is no official API,
+      // and the one MCP server claiming to be one resolves to a parked survey
+      // domain. Stated explicitly rather than left to hasFeature's
+      // false-by-absence, because the stats dashboard reads this to decide
+      // whether to show Valorant's numbers or an honest blank.
+      stats: false,
     },
     // Still labelled honestly in the picker, because only part of it works.
     preview: true,
@@ -93,6 +100,12 @@ const GAMES = {
     features: {
       learn: true,          // the curriculum surface, no live coaching
       live: false,          // not built, and gated on the decision above
+      // Rank, mastery and match history all need a Riot PRODUCTION API key
+      // (Account-V1, League-V4, Champion-Mastery-V4, Match-V5). The app has no
+      // Riot key of any kind, so there is no League data source at all. Until
+      // there is, the dashboard says so instead of showing Valorant's numbers
+      // under a League selection.
+      stats: false,
     },
     // preview is FALSE, deliberately, and this is the one place the League
     // brief and this registry disagree on a word. Here `preview: true` does not

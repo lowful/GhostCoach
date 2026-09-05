@@ -768,6 +768,28 @@ const controller = {
   },
 
   async getStatsDashboard(mode, force) {
+    // WHICH GAME ARE THESE STATS FOR. The dashboard had no concept of this at
+    // all: every field below is Valorant shaped (agents, competitive/unrated,
+    // tracker.gg, a Valorant rank ladder), and selecting League returned them
+    // unchanged, so a League player was shown a Valorant rank and a Valorant
+    // agent list with no indication anything was wrong.
+    //
+    // A game with no stats source returns EMPTY AND SAYS WHY, rather than
+    // falling through to the Valorant tracker. Same rule as the coaching guard
+    // and as ABSENCE MEANS SILENCE in the hero tables: no data is an honest
+    // answer, the wrong game's data is not.
+    const g = gameRegistry.get(store.get('game'));
+    if (!gameRegistry.hasFeature(g.id, 'stats')) {
+      return {
+        game: g.id, gameLabel: g.label, statsSupported: false,
+        categories: [], rank: { value: null, direction: 'flat' },
+        winRate: { value: null, direction: 'flat' },
+        mode: null, topAgents: [], sessions: [], sessionCount: 0,
+        grading: null, matches: { matches: [], fetchedAt: 0, mode: null },
+        riotId: '', riotConnected: false,
+      };
+    }
+
     const m = mode === 'unrated' ? 'unrated' : 'competitive';
     const perf = loadPerf();            // oldest -> newest
     // The tracker profile and the recent-match list are two independent network
@@ -797,6 +819,10 @@ const controller = {
     };
 
     return {
+      // Carried on every response so the renderer can tell whose numbers these
+      // are, and so a stale reply that lands after a game switch can be dropped
+      // rather than painted.
+      game: g.id, gameLabel: g.label, statsSupported: true,
       categories, rank, winRate, mode: m,
       topAgents: (stats && stats.topAgents) || [],
       sessions: perf.slice(-15).reverse(),   // newest first for the list
@@ -962,6 +988,44 @@ const controller = {
       if (engine) engine.setPlayerStats(null);
       console.log('[stats] riot id changed, tracker caches cleared');
     }
+
+    // GAME CHANGED. A harder boundary than a riot id change: it invalidates the
+    // live session, every tracker cache, and the meaning of every open window.
+    //
+    // Order matters here. stop() archives and grades the session AND clears
+    // matchesClient and rankHistCache itself, so it has to run BEFORE the purge
+    // below, or the purge is immediately undone by a stop that follows it.
+    const game = gameRegistry.get(store.get('game')).id;
+    if (game !== lastGame) {
+      const from = lastGame;
+      lastGame = game;
+
+      // A running Valorant engine does not become a League engine. It would
+      // keep capturing frames and emitting spike and callout tips for a game
+      // the player just deselected.
+      if (state.isCoaching) {
+        console.log(`[coach] game changed ${from} -> ${game}, stopping the running session`);
+        this.stop();
+      }
+
+      // Every one of these is keyed on riot id alone, never on game, so after a
+      // switch they serve Valorant rank, RR and match rows to a League
+      // dashboard and look authoritative doing it.
+      matchesClient = { competitive: emptyMatchBucket(), unrated: emptyMatchBucket() };
+      statsCache = { at: 0, riotId: '', data: null, lastError: null };
+      unratedStatsCache = { at: 0, riotId: '', data: null };
+      rankHistCache = { at: 0, riotId: '', data: null };
+      if (engine) engine.setPlayerStats(null);
+
+      // The Learn surface is League only. The panel button hides on a switch
+      // away, but an ALREADY OPEN window just sat there, which is the gate
+      // being enforced in the renderer instead of where gates belong.
+      if (game !== 'lol') learnWindow.close();
+
+      console.log(`[game] ${from} -> ${game}, caches cleared`);
+      registry.broadcast(C.PUSH_GAME, { id: game, label: gameRegistry.get(game).label });
+    }
+
     registry.broadcast(C.PUSH_STATE, buildState());
   },
   quit() { cleanupAndQuit(); },
@@ -1087,6 +1151,11 @@ async function fetchCoachedMatch(startedAt, endedAt, mctx) {
 function emptyMatchBucket() { return { data: null, fetchedAt: 0, lastManual: 0 }; }
 let matchesClient = { competitive: emptyMatchBucket(), unrated: emptyMatchBucket() };   // per-mode tracker cache
 let lastRiotId = (store.get('riotId') || '').trim();               // detects account switches
+// SEEDED FROM THE STORE, never left undefined. onConfigChanged runs on every
+// config write, so if this started empty the first unrelated save (tip opacity,
+// language, anything at all) would read as a game switch and stop a live
+// coaching session. Same reason lastRiotId is seeded above.
+let lastGame = gameRegistry.get(store.get('game')).id;             // detects game switches
 let latestAudio = { b64: null, at: 0 };                            // rolling game-audio clip (RAM only)
 
 const PERF_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;   // sessions expire after a week, like the archives

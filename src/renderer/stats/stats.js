@@ -968,6 +968,23 @@ function showCardSkeleton() {
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 let dashRiotId = '';
+/**
+ * Show the whole dashboard, or the "no stats for this game" panel instead.
+ *
+ * Every section below the header is Valorant shaped: a Valorant rank ladder,
+ * agent tiles, and a competitive/unrated split that only Valorant has. Painting
+ * them under another game is not a cosmetic mismatch, it is showing one game's
+ * numbers while naming a different game.
+ */
+function showDashboard(on) {
+  for (const id of ['sec-overview', 'sec-agents', 'sec-matches', 'sec-sessions']) {
+    const el = document.getElementById(id);
+    if (el) el.hidden = !on;
+  }
+  const ns = document.getElementById('nostats');
+  if (ns) ns.hidden = on;
+}
+
 async function load() {
   showCardSkeleton();
   matchEmptyEl.hidden = false;
@@ -975,6 +992,23 @@ async function load() {
   try {
     const d = await window.occlara.getDashboard(matchMode);
     if (!d) return;
+
+    // A game with no stats source says so and stops. It must never fall through
+    // to the render calls below, which would paint the Valorant tracker's last
+    // response under whatever game is now selected.
+    if (d.statsSupported === false) {
+      const label = d.gameLabel || 'This game';
+      document.getElementById('nostats-title').textContent = label + ' stats';
+      document.getElementById('nostats-body').textContent =
+        'Occlara has no stats source for ' + label + ' yet, so there is nothing here to show. '
+        + 'Rank and match history need a connection this app does not have yet. '
+        + 'Switch to Valorant in Settings for the full dashboard.';
+      showDashboard(false);
+      watchGrading(false);
+      return;
+    }
+    showDashboard(true);
+
     if (typeof d.riotId === 'string') dashRiotId = d.riotId;
     renderCards(d);
     renderAgents(d.topAgents);
@@ -1023,6 +1057,22 @@ window.occlara.onState((s) => {
   for (const b of modeSeg.querySelectorAll('button')) b.classList.toggle('active', b.dataset.mode === 'competitive');
   load();
   if (!rankNotesEl.hidden) renderRankGraph(rankNotesEl, { force: true });
+});
+
+// Follow a game switch made in Settings while this window is open. Main has
+// already stopped any running session and cleared every tracker cache, so this
+// only has to drop what the renderer itself is holding and reload.
+//
+// This is the bug the channel exists for: PUSH_STATE has always carried gameId,
+// but the handler above only diffs riotId, so switching to League left a
+// Valorant rank, a Valorant agent list and Valorant matches on screen.
+window.occlara.onGame(() => {
+  knownMatches.clear();
+  rrPointsCache = null;
+  matchMode = 'competitive';
+  for (const b of modeSeg.querySelectorAll('button')) b.classList.toggle('active', b.dataset.mode === 'competitive');
+  rankNotesEl.hidden = true;
+  load();
 });
 
 load();

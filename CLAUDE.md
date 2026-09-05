@@ -178,6 +178,34 @@ know the story. Do not refactor these away.
 The governing principle: **the coach reports what is actually on screen and
 never infers.** When code and model disagree, code wins.
 
+## One game's data is never shown under another game's name
+
+The stats dashboard is Valorant shaped end to end: a Valorant rank ladder, agent
+tiles, and a competitive/unrated split only Valorant has. It had no concept of
+which game it was for, so selecting League returned all of it unchanged.
+
+`getStatsDashboard` now reads `hasFeature(game, 'stats')` and a game without a
+stats source returns empty with `statsSupported: false`, which the renderer
+paints as a panel naming the game. Rivals has no official API at all, and League
+needs a Riot production key the app does not have. Both say `stats: false` in
+`src/shared/games.js` **explicitly**, rather than relying on `hasFeature`
+returning false by absence.
+
+Switching game is a harder boundary than switching Riot ID: it stops a running
+session, clears every tracker cache, closes the League only Learn window, and
+fires `PUSH_GAME`. That channel is **edge triggered** on purpose. `PUSH_STATE`
+already carried `gameId`, but it fires on every config write and status tick, so
+a surface had to diff it by hand and Stats did not.
+
+Three checks boot the real app, because all three bugs they cover were invisible
+to every static check and to a screenshot:
+
+```
+npm run check:gameswitch   switching game repaints Stats, and back again
+npm run check:splash       the launch animation is always actually seen
+npm run check:learnrole    a support never sees the CS lesson
+```
+
 ## Conventions
 
 **No em dashes or en dashes** anywhere, in tips, in UI copy, in docs. Use
