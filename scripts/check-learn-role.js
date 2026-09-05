@@ -88,8 +88,9 @@ setTimeout(async () => {
       const js = (src) => w.webContents.executeJavaScript(src);
       try {
         const prog = await js("document.getElementById('prog-text').textContent");
-        const browse = await js("document.getElementById('a-browse').textContent");
-        await js("document.getElementById('a-browse').click()");
+        // The twelve are always on screen now: the surface is a dashboard the
+        // player picks from, not an assignment with a browse button behind it.
+        const browse = await js("document.getElementById('intro').textContent.slice(0, 24)");
         const rows = await js("document.querySelectorAll('#tracks .lesson-row').length");
         const cs = await js("document.getElementById('tracks').textContent.indexOf('minions, not kills') !== -1");
 

@@ -15,5 +15,8 @@ const C = require('../shared/channels');
 contextBridge.exposeInMainWorld('occlara', {
   getLearn:    () => ipcRenderer.invoke(C.LEARN_GET),
   setProgress: (lessonId, done) => ipcRenderer.invoke(C.LEARN_PROGRESS, { lessonId, done }),
+  // Returns the whole recomputed payload, because changing band or role changes
+  // which skills apply and what every target is.
+  setProfile:  (band, role) => ipcRenderer.invoke(C.LEARN_PROFILE, { band, role }),
   close:       () => window.close(),
 });

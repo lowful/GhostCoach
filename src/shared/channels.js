@@ -34,6 +34,10 @@ const CHANNELS = {
   WEEKLY_GET:       'weekly:get',        // () → the week's report (stat movement, strengths, what to fix)
   LEARN_GET:        'learn:get',         // () → { curriculum, progress, champions }
   LEARN_PROGRESS:   'learn:progress',    // ({ lessonId, done }) → { ok, progress }
+  // ({ band, role }) → the whole learn payload, recomputed. The rank band and
+  // role decide which skills apply and what every target is, so the dashboard
+  // edits them in place rather than sending the player to Settings.
+  LEARN_PROFILE:    'learn:profile',
   AILOG_GET:        'ailog:get',         // (sessionId?) → one AI decision-log session, newest by default { session, sessions, records: [{frameData, state, aiTip, shown}] }
   AILOG_SESSIONS:   'ailog:sessions',    // () → [{ id, at, frames, deaths, maps, mins, live }] metadata only, no frames
   AILOG_CONFIRM:    'ailog:confirm',     // (sessionId) → { status, detected, expected, summary, pairs } check the log's deaths against Riot

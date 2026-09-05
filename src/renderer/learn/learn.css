@@ -65,7 +65,6 @@ header h2 { font-size: 15.5px; font-weight: 700; }
    its overflow pushed above the scroll origin and becomes unreachable, and this
    card grows with the length of a lesson title. `safe` falls back to flex-start
    the moment it would overflow. */
-#assign { justify-content: safe center; }
 
 .a-card { display: flex; flex-direction: column; gap: var(--space-3); }
 
@@ -138,23 +137,34 @@ header h2 { font-size: 15.5px; font-weight: 700; }
 }
 .track-blurb { font-size: 12px; color: var(--text-mute); line-height: 1.45; margin-top: calc(var(--space-1) * -1); }
 
+/* A ROW IS TWO CONTROLS. The tick marks a skill done without opening it, which
+   is what makes this a dashboard rather than a reading list; the title opens
+   the lesson. They are separate buttons because a button inside a button is
+   invalid HTML and the inner one stops receiving clicks. */
 .lesson-row {
-  display: flex; align-items: center; gap: var(--space-3);
-  width: 100%; text-align: left;
-  padding: var(--space-3);
+  display: flex; align-items: stretch; gap: 0;
+  width: 100%;
   background: rgba(0, 0, 0, 0.24);
   border: 1px solid var(--glass-border);
   border-radius: var(--r-md);
-  cursor: pointer;
-  font-family: var(--font);
+  overflow: hidden;
   transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
 }
 .lesson-row:hover { background: rgba(255, 255, 255, 0.05); }
-.lesson-row:focus-visible {
-  outline: none;
+.lesson-row:focus-within {
   border-color: rgba(var(--cyan-rgb), 0.5);
   box-shadow: 0 0 0 2px rgba(var(--cyan-rgb), 0.15);
 }
+
+.row-tick, .row-open {
+  background: none; border: 0; font-family: var(--font);
+  cursor: pointer; padding: var(--space-3);
+  display: flex; align-items: center; gap: var(--space-3);
+}
+.row-tick { padding-right: 0; }
+.row-open { flex: 1; text-align: left; min-width: 0; }
+.row-tick:focus-visible, .row-open:focus-visible { outline: none; }
+.row-tick:hover .tick { border-color: var(--text-dim); }
 
 /* The tick is the completion state. It carries a SHAPE as well as a colour,
    because colour alone is not a state anyone can rely on. */
@@ -321,3 +331,57 @@ header h2 { font-size: 15.5px; font-weight: 700; }
   }
   .pick:hover img { transform: none; }
 }
+
+
+/* ── Who is learning ─────────────────────────────────────────────────────────
+   Rank band and role are graded inputs, not preferences: the role decides which
+   skills apply at all and the band decides every sourced target. They sit at the
+   top of the dashboard so a target can be corrected without leaving the page. */
+.profile {
+  display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--space-3);
+  background: rgba(0, 0, 0, 0.24);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+}
+.prof-row { display: flex; align-items: center; gap: var(--space-3); }
+.prof-label {
+  flex: none; width: 40px;
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--text-mute);
+}
+.prof-note { font-size: 11.5px; color: var(--text-dim); line-height: 1.45; margin: 0; }
+
+.seg { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.seg-btn {
+  font-family: var(--font); font-size: 11px; font-weight: 600;
+  padding: 5px 9px; border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid transparent;
+  color: var(--text-dim); cursor: pointer;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.seg-btn:hover { background: rgba(255, 255, 255, 0.08); color: var(--text); }
+.seg-btn.active {
+  background: rgba(var(--red-rgb), 0.16);
+  border-color: rgba(var(--red-rgb), 0.35);
+  color: var(--text);
+}
+.seg-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(var(--cyan-rgb), 0.25); }
+
+/* The coach's pick, as a SUGGESTION inside the dashboard rather than a gate in
+   front of it. A recommendation you cannot walk past is an instruction, and
+   someone climbing ranked at 1am wants to choose. */
+.focus {
+  display: flex; flex-direction: column; gap: var(--space-3);
+  padding: var(--space-4);
+  background: rgba(var(--red-rgb), 0.05);
+  border: 1px solid rgba(var(--red-rgb), 0.22);
+  border-radius: var(--r-md);
+}
+.f-top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.f-eyebrow {
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--red);
+}
+.focus h3 { font-size: 17px; font-weight: 700; letter-spacing: -0.2px; line-height: 1.25; }

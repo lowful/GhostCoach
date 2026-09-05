@@ -58,6 +58,7 @@ function registerIpc(deps) {
   safeHandle(C.WEEKLY_GET, async () => controller.getWeeklyReport());
   safeHandle(C.LEARN_GET, async () => controller.getLearn());
   safeHandle(C.LEARN_PROGRESS, async (_e, p) => controller.setLearnProgress(p));
+  safeHandle(C.LEARN_PROFILE, async (_e, p) => controller.setLearnProfile(p));
   safeHandle(C.AILOG_GET, async (_e, id) => controller.getAiLog(id));
   safeHandle(C.AILOG_SESSIONS, async () => controller.getAiLogSessions());
   safeHandle(C.AILOG_CONFIRM, async (_e, id) => controller.confirmAiLogDeaths(id));

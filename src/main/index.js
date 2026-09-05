@@ -636,6 +636,30 @@ const controller = {
     store.set('lolProgress', next);
     return { ok: true, progress: next };
   },
+
+  /**
+   * Set the player's rank band and role, and hand back the whole recomputed
+   * payload.
+   *
+   * Both are graded inputs, not preferences: the role decides which of the
+   * twelve skills even apply (a support never sees the CS lesson) and the band
+   * decides every sourced target. Returning getLearn() rather than an ok flag
+   * means the dashboard repaints from one round trip and can never drift from
+   * what main actually stored.
+   */
+  setLearnProfile(payload) {
+    const p = payload || {};
+    const band = Number(p.band);
+    if (band >= 1 && band <= 5) store.set('lolBand', band);
+    // '' is a real value here and means "not saying", which shows every skill.
+    // Guessing a role and hiding a lesson is worse than showing one that does
+    // not apply, so an unrecognised role clears rather than sticks.
+    if (typeof p.role === 'string') {
+      const ok = ['Top', 'Jungle', 'Mid', 'Bot', 'Support'];
+      store.set('lolRole', ok.includes(p.role) ? p.role : '');
+    }
+    return this.getLearn();
+  },
   /*
    * Opened at a particular session when the caller names one.
    *

@@ -46,10 +46,8 @@ function svgIcon(paths, size, cls) {
   return svg;
 }
 
-const assignView = $('assign');
-const listView = $('list');
+const dashView = $('dash');
 const lessonView = $('lesson');
-let cameFrom = 'assign';   // so Back returns where you actually came from
 
 let DATA = null;          // { tracks, lessons, progress, starters, patch, count }
 let done = new Set();
@@ -91,7 +89,7 @@ function paintProgress() {
   $('prog-fill').style.width = total ? `${Math.round((n / total) * 100)}%` : '0%';
 }
 
-// ── The assignment ──────────────────────────────────────────────────────────
+// ── The suggestion ──────────────────────────────────────────────────────────
 
 /**
  * One skill, its target, and last game's result.
@@ -100,29 +98,27 @@ function paintProgress() {
  * those right matters more than the fourth: a surface that shows a confident
  * figure it does not have is exactly what this whole feature is built to avoid.
  */
-function paintAssignment() {
+function paintFocus() {
   const a = DATA.assignment;
-  const host = $('assign');
-  if (!a) {
-    host.replaceChildren();
-    const p = document.createElement('p');
-    p.className = 'empty';
-    p.textContent = 'No skills are available for this role yet.';
-    host.appendChild(p);
-    return;
-  }
+  const host = $('focus');
 
-  const lesson = DATA.lessons.find((l) => l.id === a.skillId);
-  if (!lesson) return;
+  // HIDE IT, never replaceChildren() it. This card is markup, not a container:
+  // wiping it would delete f-title and every other node the next repaint writes
+  // into, so one pass with no assignment would permanently blank the card for
+  // the rest of the window's life. The twelve below are still fully usable, so
+  // there is nothing to apologise for either.
+  const lesson = a && DATA.lessons.find((l) => l.id === a.skillId);
+  if (!a || !lesson) { host.hidden = true; return; }
+  host.hidden = false;
 
-  $('a-track').textContent = lesson.trackName;
-  $('a-title').textContent = lesson.title;
-  $('a-mistake').textContent = lesson.mistake;
+  $('f-track').textContent = lesson.trackName;
+  $('f-title').textContent = lesson.title;
+  $('f-mistake').textContent = lesson.mistake;
 
-  const targetEl = $('a-target');
-  const targetNote = $('a-target-note');
-  const lastEl = $('a-last');
-  const lastNote = $('a-last-note');
+  const targetEl = $('f-target');
+  const targetNote = $('f-target-note');
+  const lastEl = $('f-last');
+  const lastNote = $('f-last-note');
   const lastBox = lastEl.parentElement;
   lastBox.classList.remove('pass', 'fail');
 
@@ -173,7 +169,7 @@ function paintAssignment() {
 
   // Say why this one. The coach chose it, so the choice has to be defensible
   // on screen, not just in the ranking function.
-  const why = $('a-why');
+  const why = $('f-why');
   if (a.klass === 'replay') {
     why.textContent = 'Assigned because it cannot be measured, so the only way to learn it is to watch the moment back.';
   } else if (!DATA.gamesRecorded) {
@@ -186,10 +182,7 @@ function paintAssignment() {
     why.textContent = 'Still building a baseline from your recent games before it can judge this one.';
   }
 
-  // Say the real number. A support has eleven, not twelve.
-  $('a-browse').textContent = `See all ${spell(visibleLessons().length)}`;
-
-  $('a-open').onclick = () => openLesson(a.skillId, 'assign');
+  $('f-open').onclick = () => openLesson(a.skillId, 'dash');
 }
 
 // ── The list ────────────────────────────────────────────────────────────────
@@ -224,11 +217,11 @@ function tickMark() {
   return wrap;
 }
 
-function paintList() {
+function paintTracks() {
   const total = visibleLessons().length;
   $('intro').textContent =
-    `${spell(total).replace(/^./, (c) => c.toUpperCase())} short lessons on the habits that decide games, `
-    + `each with a question to check it landed. Champion data is patch ${DATA.patch}.`;
+    `${spell(total).replace(/^./, (c) => c.toUpperCase())} habits that decide games. `
+    + `Work them in any order and tick each one off when it sticks.`;
 
   const host = $('tracks');
   host.replaceChildren();
@@ -261,14 +254,33 @@ function paintList() {
     sec.append(head, blurb);
 
     for (const l of mine) {
-      const row = document.createElement('button');
-      row.type = 'button';
+      // A ROW IS TWO CONTROLS, not one. The tick marks a skill done without
+      // opening it, which is the whole point of a dashboard you work through
+      // over weeks; the title opens the lesson. Nesting a button inside a
+      // button is invalid HTML and the inner one stops receiving clicks, so the
+      // row is a div and each half is its own button.
+      const row = document.createElement('div');
       row.className = 'lesson-row' + (done.has(l.id) ? ' done' : '');
+
+      const tick = document.createElement('button');
+      tick.type = 'button';
+      tick.className = 'row-tick';
+      tick.setAttribute('aria-pressed', done.has(l.id) ? 'true' : 'false');
+      tick.setAttribute('aria-label', (done.has(l.id) ? 'Mark not done: ' : 'Mark done: ') + l.title);
+      tick.title = done.has(l.id) ? 'Mark not done' : 'Mark done';
+      tick.appendChild(tickMark());
+      tick.addEventListener('click', (e) => { e.stopPropagation(); toggleDone(l.id); });
+
+      const open = document.createElement('button');
+      open.type = 'button';
+      open.className = 'row-open';
       const name = document.createElement('span');
       name.className = 'l-name';
       name.textContent = l.title;
-      row.append(tickMark(), name, chevron());
-      row.addEventListener('click', () => openLesson(l.id, 'list'));
+      open.append(name, chevron());
+      open.addEventListener('click', () => openLesson(l.id, 'dash'));
+
+      row.append(tick, open);
       // The list assembles top to bottom. 40ms apart is the point where a
       // stagger reads as one gesture instead of a queue, and the whole thing is
       // finished well inside half a second.
@@ -278,7 +290,6 @@ function paintList() {
     host.appendChild(sec);
   }
 
-  paintStarters();
   paintProgress();
 }
 
@@ -286,6 +297,9 @@ function paintStarters() {
   const host = $('starters');
   host.replaceChildren();
   const lanes = DATA.starters || {};
+  $('champ-hint').textContent = DATA.role
+    ? `Champions worth learning first as a ${DATA.role}, and what each one teaches. Patch ${DATA.patch}.`
+    : `Champions worth learning first, and the reason each one teaches something. Patch ${DATA.patch}.`;
 
   // Never a blank panel: if the roster failed to load, say so and say what to do.
   if (!Object.keys(lanes).length) {
@@ -341,8 +355,7 @@ function paintStarters() {
 function openLesson(id, from) {
   const l = DATA.lessons.find((x) => x.id === id);
   if (!l) return;
-  cameFrom = from || 'list';
-  $('back-label').textContent = cameFrom === 'assign' ? 'My assignment' : 'All lessons';
+  $('back-label').textContent = 'Back to Learn';
 
   $('l-track').textContent = l.trackName;
   $('l-title').textContent = l.title;
@@ -366,8 +379,7 @@ function openLesson(id, from) {
   btn.classList.toggle('is-done', isDone);
   btn.onclick = () => toggleDone(l.id);
 
-  assignView.hidden = true;
-  listView.hidden = true;
+  dashView.hidden = true;
   lessonView.hidden = false;
   lessonView.scrollTop = 0;
   // Restart the entrance rather than letting it play only the first time.
@@ -437,14 +449,13 @@ async function toggleDone(id) {
     const res = await window.occlara.setProgress(id, next);
     if (res && Array.isArray(res.progress)) done = new Set(res.progress);
   } catch { /* the local state already moved; a failed write retries next time */ }
-  paintList();
+  paintDash();
 }
 
 function show(view) {
-  for (const [name, el] of [['assign', assignView], ['list', listView], ['lesson', lessonView]]) {
-    el.hidden = name !== view;
-  }
-  const el = view === 'assign' ? assignView : (view === 'list' ? listView : lessonView);
+  dashView.hidden = view !== 'dash';
+  lessonView.hidden = view !== 'lesson';
+  const el = view === 'dash' ? dashView : lessonView;
   // Restart the entrance rather than letting it play only the first time.
   el.classList.remove('view-in');
   void el.offsetWidth;
@@ -452,29 +463,87 @@ function show(view) {
   el.scrollTop = 0;
 }
 
-function showAssignment() { paintAssignment(); show('assign'); }
-function showList() { paintList(); show('list'); }
+// ── Who is learning ─────────────────────────────────────────────────────────
+
+// Five bands, not eight ranks, matching lol-targets.js. The data does not
+// support eight-way granularity and the alternative is inventing seven numbers
+// to sit between the two that are real.
+const BANDS = [
+  [1, 'Iron / Bronze'],
+  [2, 'Silver'],
+  [3, 'Gold'],
+  [4, 'Plat / Emerald'],
+  [5, 'Diamond+'],
+];
+const ROLES = ['Top', 'Jungle', 'Mid', 'Bot', 'Support'];
+
+/** One segmented control. Plain buttons, no dropdown dependency. */
+function seg(host, options, current, onPick) {
+  host.replaceChildren();
+  for (const [value, label] of options) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'seg-btn' + (String(value) === String(current) ? ' active' : '');
+    b.textContent = label;
+    b.addEventListener('click', () => onPick(value));
+    host.appendChild(b);
+  }
+}
+
+/**
+ * Rank band and role.
+ *
+ * Editable HERE rather than in Settings because they are not preferences: the
+ * role decides which of the twelve skills apply at all, and the band decides
+ * every sourced target. Someone reading a target wants to correct the rank it
+ * was computed from without leaving the page.
+ */
+function paintProfile() {
+  seg($('band-seg'), BANDS, DATA.band, (v) => saveProfile(v, DATA.role));
+  // '' is a real, chosen value meaning "not saying", and it shows every skill.
+  // Guessing a role and hiding a lesson is worse than showing one that does not
+  // apply, so the opt out is a visible option rather than an empty state.
+  seg($('role-seg'), ROLES.map((r) => [r, r]).concat([['', 'Any']]), DATA.role || '', (v) => saveProfile(DATA.band, v));
+
+  const bandName = (BANDS.find((b) => b[0] === DATA.band) || [0, 'Silver'])[1];
+  $('prof-note').textContent = DATA.role
+    ? `Targets are set for ${bandName} as a ${DATA.role}.`
+    : `Targets are set for ${bandName}. Pick a role and the skills that do not apply to it drop out.`;
+}
+
+async function saveProfile(band, role) {
+  try {
+    const d = await window.occlara.setProfile(Number(band), role);
+    if (d) { DATA = d; done = new Set(Array.isArray(d.progress) ? d.progress : []); }
+  } catch { /* the store is the source of truth; a failed write just does nothing */ }
+  paintDash();
+}
+
+/** Repaint everything and show it. One view, so there is nothing to choose. */
+function paintDash() {
+  paintProfile();
+  paintFocus();
+  paintTracks();
+  paintStarters();
+}
+function showDash() { paintDash(); show('dash'); }
 
 // ── Wiring ──────────────────────────────────────────────────────────────────
 
-$('back').addEventListener('click', () => (cameFrom === 'assign' ? showAssignment() : showList()));
-$('a-browse').addEventListener('click', showList);
-$('list-back').addEventListener('click', showAssignment);
+$('back').addEventListener('click', showDash);
 $('close').addEventListener('click', () => window.occlara.close());
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   // Escape steps back one level rather than closing outright, so it cannot
   // throw away a lesson someone is halfway through reading.
-  if (!lessonView.hidden) { cameFrom === 'assign' ? showAssignment() : showList(); }
-  else if (!listView.hidden) showAssignment();
+  if (!lessonView.hidden) showDash();
   else window.occlara.close();
 });
 
 window.occlara.getLearn().then((d) => {
   DATA = d;
   done = new Set(Array.isArray(d.progress) ? d.progress : []);
-  paintList();          // fills the browse view and the header progress
-  showAssignment();     // but the assignment is what opens
+  showDash();
   console.log('[learn] ready');
 }).catch((e) => {
   const host = $('tracks');

@@ -23,54 +23,64 @@
       <button id="close" class="icon-btn no-drag" title="Close" aria-label="Close"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
     </header>
 
-    <!-- ASSIGNMENT: one skill at a time. The default and the point. -->
-    <main id="assign" class="body">
-      <div class="a-card">
-        <div class="a-top">
-          <span class="a-eyebrow">Your assignment</span>
-          <span id="a-track" class="a-track"></span>
-        </div>
-        <h3 id="a-title"></h3>
-        <p id="a-mistake" class="l-mistake"></p>
+    <!-- DASHBOARD: everything at once. The player picks what to work on and
+         ticks it off over time. The coach still says what it would pick, but it
+         suggests rather than gates: a lesson list you cannot leave is a course,
+         and a course is not what someone climbing ranked wants at 1am. -->
+    <main id="dash" class="body">
 
-        <!-- Next game's target and last game's result, side by side, because
-             the whole idea is that one is answered by the other. -->
+      <!-- WHO IS LEARNING. Rank band and role are graded inputs, not
+           preferences: the role decides which skills apply at all and the band
+           decides every sourced target, so they are edited here rather than
+           buried in Settings. -->
+      <section class="profile">
+        <div class="prof-row">
+          <span class="prof-label">Rank</span>
+          <div class="seg" id="band-seg"></div>
+        </div>
+        <div class="prof-row">
+          <span class="prof-label">Role</span>
+          <div class="seg" id="role-seg"></div>
+        </div>
+        <p id="prof-note" class="prof-note"></p>
+      </section>
+
+      <!-- WHAT THE COACH WOULD PICK. One skill, its target for the next game,
+           and last game's result. Collapsible, because a suggestion that cannot
+           be dismissed is an instruction. -->
+      <section id="focus" class="focus">
+        <div class="f-top">
+          <span class="f-eyebrow">Suggested next</span>
+          <span id="f-track" class="a-track"></span>
+        </div>
+        <h3 id="f-title"></h3>
+        <p id="f-mistake" class="l-mistake"></p>
+
         <div class="a-numbers">
           <div class="a-num">
             <div class="a-num-label">Target next game</div>
-            <div id="a-target" class="a-num-value"></div>
-            <div id="a-target-note" class="a-num-note"></div>
+            <div id="f-target" class="a-num-value"></div>
+            <div id="f-target-note" class="a-num-note"></div>
           </div>
           <div class="a-num">
             <div class="a-num-label">Last game</div>
-            <div id="a-last" class="a-num-value"></div>
-            <div id="a-last-note" class="a-num-note"></div>
+            <div id="f-last" class="a-num-value"></div>
+            <div id="f-last-note" class="a-num-note"></div>
           </div>
         </div>
 
-        <!-- Why the coach picked this one. The player did not choose it, so
-             the reason has to be on screen or the choice reads as arbitrary. -->
-        <p id="a-why" class="a-why"></p>
+        <p id="f-why" class="a-why"></p>
+        <button id="f-open" class="btn btn-primary full">Read this lesson</button>
+      </section>
 
-        <div class="a-actions">
-          <button id="a-open" class="btn btn-primary full">Read this lesson</button>
-          <button id="a-browse" class="back-btn a-browse">See all twelve</button>
-        </div>
-      </div>
-    </main>
-
-    <!-- BROWSE: the twelve by category, plus where to start -->
-    <main id="list" class="body" hidden>
-      <button id="list-back" class="back-btn">
-        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-        <span>My assignment</span>
-      </button>
+      <!-- THE TWELVE, ALWAYS VISIBLE AND ALWAYS PICKABLE. Each row ticks off in
+           place; opening it is a separate click on the title. -->
       <p class="intro" id="intro"></p>
       <div id="tracks"></div>
 
       <section class="starters">
-        <h3>Where to start</h3>
-        <p class="hint">Champions worth learning first, and the reason each one teaches something.</p>
+        <h3>Your champions</h3>
+        <p class="hint" id="champ-hint"></p>
         <div id="starters" class="starter-lanes"></div>
       </section>
     </main>
